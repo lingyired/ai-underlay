@@ -8,8 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		049A3D992B407106A351322B /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ACD8F3707FAAA1171E003E2 /* SettingsWindow.swift */; };
+		064137C00C8186038038E6D3 /* CodexBarCLIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF35BD5DB6896B04ED5C0DD /* CodexBarCLIClient.swift */; };
+		2050C04C108E45D6D0216D08 /* codex-usage.json in Resources */ = {isa = PBXBuildFile; fileRef = 7AEDF841598A1B9016E0D729 /* codex-usage.json */; };
+		5B1F52CFE32A5F4A022BE979 /* CLIInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E325529F092095FCC948EF09 /* CLIInventoryTests.swift */; };
 		6230574BCE86B0897CF5A05E /* MenuBarOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */; };
 		6289A67E3199D2230B1421CC /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D124C590445CC238D5D3D32E /* AppCoordinator.swift */; };
+		68FB21D357F712EDA32A2757 /* CodexBarCLIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80085F21CF6CFFAD1DA77934 /* CodexBarCLIClientTests.swift */; };
 		6D68D027644BFDCE39A4DB11 /* AIUnderlayKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; };
 		73ED65EE20CBA9DA3A2DEECB /* AIUnderlayKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		97700A199CCF52F33E97236B /* MenuBarGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E08E4395030A5E27D676867 /* MenuBarGeometryTests.swift */; };
@@ -19,6 +23,8 @@
 		CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */; };
 		D0B281AE93BA1CCB1AB8A43A /* BandWindowLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */; };
 		D3AB78C6B98D9F652B0BD6ED /* AIUnderlayKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; };
+		DE3DDBE3D4153B2E6FA1A682 /* CLIInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7A4197DE70CA52C4BBB319 /* CLIInventory.swift */; };
+		DF74E626E7BB93E56D5771FB /* claude-usage-notloggedin.json in Resources */ = {isa = PBXBuildFile; fileRef = A20FEE059E082DD8C6C0C315 /* claude-usage-notloggedin.json */; };
 		E7C623F32F23B9C826476B68 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870311F44BB11C10610E59B6 /* SmokeTests.swift */; };
 		FBC647D583C4C7522D856F26 /* Kit.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD959068C1D8AE7DF9154453 /* Kit.swift */; };
 /* End PBXBuildFile section */
@@ -69,17 +75,23 @@
 		006332725172C1E3B9ECC6DC /* AIUnderlayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUnderlayApp.swift; sourceTree = "<group>"; };
 		1ACD8F3707FAAA1171E003E2 /* SettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindow.swift; sourceTree = "<group>"; };
 		1E08E4395030A5E27D676867 /* MenuBarGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarGeometryTests.swift; sourceTree = "<group>"; };
+		2C7A4197DE70CA52C4BBB319 /* CLIInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInventory.swift; sourceTree = "<group>"; };
 		3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AIUnderlayKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DEB6D8D33CFC8FDC106AA4C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7AEDF841598A1B9016E0D729 /* codex-usage.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "codex-usage.json"; sourceTree = "<group>"; };
+		80085F21CF6CFFAD1DA77934 /* CodexBarCLIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarCLIClientTests.swift; sourceTree = "<group>"; };
 		870311F44BB11C10610E59B6 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarOverlayController.swift; sourceTree = "<group>"; };
 		98FB8A2030F59A03596BF6A7 /* AIUnderlayKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIUnderlayKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandWindowLevelTests.swift; sourceTree = "<group>"; };
+		A20FEE059E082DD8C6C0C315 /* claude-usage-notloggedin.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "claude-usage-notloggedin.json"; sourceTree = "<group>"; };
+		BBF35BD5DB6896B04ED5C0DD /* CodexBarCLIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarCLIClient.swift; sourceTree = "<group>"; };
 		CD959068C1D8AE7DF9154453 /* Kit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kit.swift; sourceTree = "<group>"; };
 		CFABB65B186E745FAC57BD84 /* MenuBarGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarGeometry.swift; sourceTree = "<group>"; };
 		D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarBandWindow.swift; sourceTree = "<group>"; };
 		D124C590445CC238D5D3D32E /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		D5912F63C043FFDBA03565D2 /* AIUnderlay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIUnderlay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E325529F092095FCC948EF09 /* CLIInventoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInventoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,11 +132,21 @@
 			path = Application;
 			sourceTree = "<group>";
 		};
+		263F7CE0001D62A0ED17DDE7 /* DataTests */ = {
+			isa = PBXGroup;
+			children = (
+				E325529F092095FCC948EF09 /* CLIInventoryTests.swift */,
+				80085F21CF6CFFAD1DA77934 /* CodexBarCLIClientTests.swift */,
+			);
+			path = DataTests;
+			sourceTree = "<group>";
+		};
 		36A2327057FE765ADBF6C63A /* AIUnderlayKit */ = {
 			isa = PBXGroup;
 			children = (
 				CD959068C1D8AE7DF9154453 /* Kit.swift */,
 				15CCDB3A4C827000FAC0AFEC /* Application */,
+				9C03520F2A68752AD6FF3F02 /* Data */,
 				150929749F6D67CD7A7636AE /* Overlay */,
 			);
 			path = AIUnderlayKit;
@@ -146,6 +168,24 @@
 				1ACD8F3707FAAA1171E003E2 /* SettingsWindow.swift */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		3E006BA9179F4EC31468E7C4 /* CodexBar */ = {
+			isa = PBXGroup;
+			children = (
+				2C7A4197DE70CA52C4BBB319 /* CLIInventory.swift */,
+				BBF35BD5DB6896B04ED5C0DD /* CodexBarCLIClient.swift */,
+			);
+			path = CodexBar;
+			sourceTree = "<group>";
+		};
+		3FF8DC8815D731FCDB5AFF21 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				A20FEE059E082DD8C6C0C315 /* claude-usage-notloggedin.json */,
+				7AEDF841598A1B9016E0D729 /* codex-usage.json */,
+			);
+			path = Fixtures;
 			sourceTree = "<group>";
 		};
 		514C69C97DD429AAFF218BD3 = {
@@ -172,9 +212,19 @@
 			isa = PBXGroup;
 			children = (
 				870311F44BB11C10610E59B6 /* SmokeTests.swift */,
+				263F7CE0001D62A0ED17DDE7 /* DataTests */,
+				3FF8DC8815D731FCDB5AFF21 /* Fixtures */,
 				F93F991993350AE189CD0EC5 /* OverlayTests */,
 			);
 			path = AIUnderlayKitTests;
+			sourceTree = "<group>";
+		};
+		9C03520F2A68752AD6FF3F02 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				3E006BA9179F4EC31468E7C4 /* CodexBar */,
+			);
+			path = Data;
 			sourceTree = "<group>";
 		};
 		F93F991993350AE189CD0EC5 /* OverlayTests */ = {
@@ -211,6 +261,7 @@
 			buildConfigurationList = E3376976262370C4FE3073BC /* Build configuration list for PBXNativeTarget "AIUnderlayKitTests" */;
 			buildPhases = (
 				91DDDEACE939161D7BFF54A5 /* Sources */,
+				424C29A2F2ECA42224C2C396 /* Resources */,
 				28F1079284673AD9BA3C2E58 /* Frameworks */,
 				206139A2FC637E6A4C96D409 /* Embed Frameworks */,
 			);
@@ -278,12 +329,26 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		424C29A2F2ECA42224C2C396 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF74E626E7BB93E56D5771FB /* claude-usage-notloggedin.json in Resources */,
+				2050C04C108E45D6D0216D08 /* codex-usage.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		4E711096AA4E7EF85E779AF0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				6289A67E3199D2230B1421CC /* AppCoordinator.swift in Sources */,
+				DE3DDBE3D4153B2E6FA1A682 /* CLIInventory.swift in Sources */,
+				064137C00C8186038038E6D3 /* CodexBarCLIClient.swift in Sources */,
 				FBC647D583C4C7522D856F26 /* Kit.swift in Sources */,
 				CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */,
 				C02BCC7FBE56FAC207FA9D81 /* MenuBarGeometry.swift in Sources */,
@@ -305,6 +370,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				D0B281AE93BA1CCB1AB8A43A /* BandWindowLevelTests.swift in Sources */,
+				5B1F52CFE32A5F4A022BE979 /* CLIInventoryTests.swift in Sources */,
+				68FB21D357F712EDA32A2757 /* CodexBarCLIClientTests.swift in Sources */,
 				97700A199CCF52F33E97236B /* MenuBarGeometryTests.swift in Sources */,
 				E7C623F32F23B9C826476B68 /* SmokeTests.swift in Sources */,
 			);

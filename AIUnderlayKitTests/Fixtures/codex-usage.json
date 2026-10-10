@@ -1,0 +1,70 @@
+[
+  {
+    "credits" : {
+      "balanceReadSucceeded" : true,
+      "events" : [
+
+      ],
+      "remaining" : 0,
+      "updatedAt" : "2026-10-10T17:58:13Z"
+    },
+    "pace" : {
+      "primary" : {
+        "deltaPercent" : -16,
+        "expectedUsedPercent" : 63,
+        "stage" : "farBehind",
+        "summary" : "16% in reserve | Expected 63% used | Lasts until reset | 1.5× headroom",
+        "willLastToReset" : true
+      },
+      "secondary" : {
+        "deltaPercent" : 30,
+        "etaSeconds" : 122494,
+        "expectedUsedPercent" : 20,
+        "stage" : "farAhead",
+        "summary" : "30% in deficit | Expected 20% used | Runs out in 1d 10h",
+        "willLastToReset" : false
+      }
+    },
+    "provider" : "codex",
+    "source" : "oauth",
+    "usage" : {
+      "accountEmail" : "redacted@example.com",
+      "codexResetCredits" : {
+        "availableCount" : 0,
+        "credits" : [
+
+        ],
+        "updatedAt" : "2026-10-10T17:58:13Z"
+      },
+      "dataConfidence" : "exact",
+      "identity" : {
+        "accountEmail" : "redacted@example.com",
+        "loginMethod" : "plus",
+        "providerID" : "codex"
+      },
+      "loginMethod" : "plus",
+      "primary" : {
+        "resetDescription" : "3:50 AM",
+        "resetsAt" : "2026-10-10T19:50:18Z",
+        "usedPercent" : 47,
+        "windowMinutes" : 300
+      },
+      "providerCost" : {
+        "balanceUpdatedAt" : "2026-10-10T17:58:13Z",
+        "currencyCode" : "Credits",
+        "limit" : 0,
+        "period" : "Extra usage",
+        "updatedAt" : "2026-10-10T17:58:13Z",
+        "used" : 0
+      },
+      "secondary" : {
+        "resetDescription" : "Oct 16 at 3:56 PM",
+        "resetsAt" : "2026-10-16T07:56:44Z",
+        "usedPercent" : 50,
+        "windowMinutes" : 10080
+      },
+      "tertiary" : null,
+      "updatedAt" : "2026-10-10T17:58:13Z"
+    }
+  }
+]

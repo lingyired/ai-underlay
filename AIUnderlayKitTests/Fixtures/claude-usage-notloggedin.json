@@ -1,0 +1,11 @@
+[
+  {
+    "error" : {
+      "code" : 1,
+      "kind" : "provider",
+      "message" : "No Claude session key found in browser cookies."
+    },
+    "provider" : "claude",
+    "source" : "auto"
+  }
+]
