@@ -1,12 +1,15 @@
 import SwiftUI
-import AIUnderlayKit
 
 /// Live appearance controls. Every change re-renders the real overlay via the
 /// coordinator, so what you see in the menu bar is the true renderer output.
-struct AppearanceTab: View {
+public struct AppearanceTab: View {
     @ObservedObject var store: SettingsStore
 
-    var body: some View {
+    public init(store: SettingsStore) {
+        self.store = store
+    }
+
+    public var body: some View {
         Form {
             Section("Layout") {
                 Picker("Mode", selection: binding(\.layout)) {

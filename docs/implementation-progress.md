@@ -68,7 +68,18 @@ Tests: 122 passing.
 
 ## P4 — 发布收尾
 
-TODO
+| Task | Status | Notes |
+|---|---|---|
+| P4-1 Diagnostics tab | DONE | measured geometry, window counts, desensitized copy |
+| P4-2 Docs | DONE | README, NOTICE, privacy-and-permissions, release-checklist |
+| P4-3 Release build | DONE | `xcodebuild -configuration Release` succeeds |
+| P4-4 Settings window | DONE | explicit NSWindow host (accessory app); all 5 tabs render |
+| P4-5 Hardware matrix | PARTIAL | single display verified; multi-display/notch/macOS14-15 pending |
+
+**Release artifact:** `AIUnderlay.app` (Release, ad-hoc). Developer ID signing
+and notarization are pending a signing identity.
+
+Evidence: `docs/preview/p4-settings.png`. Total tests: 122 passing.
 
 ## Hardware verification ledger
 

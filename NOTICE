@@ -1,0 +1,15 @@
+AI Underlay — third-party notices
+
+This product uses the following third-party software.
+
+-------------------------------------------------------------------------------
+CodexBar
+https://github.com/steipete/CodexBar
+Used as an external data source (invoked as a separate process; not linked).
+License: see the upstream repository.
+
+-------------------------------------------------------------------------------
+CodeStatus
+https://github.com/henriquegpb/codestatus
+MIT License. Referenced for hook/reducer design principles; no code is copied.
+License text: https://github.com/henriquegpb/codestatus/blob/main/LICENSE

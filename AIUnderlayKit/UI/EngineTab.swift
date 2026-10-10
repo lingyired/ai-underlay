@@ -1,11 +1,12 @@
 import SwiftUI
-import AIUnderlayKit
 
 /// Engine tab: external CLI detection, compatibility, managed install/uninstall.
-struct EngineTab: View {
+public struct EngineTab: View {
     @State private var message = ""
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         Form {
             Section("External CLI") {
                 if let coordinator = AppCoordinator.shared {
@@ -29,14 +30,14 @@ struct EngineTab: View {
             }
 
             Section("Managed CLI") {
-                Text(managedPathDisplay)
+                Text(CLIInventory.managedCLIPath().path)
                     .font(.system(.caption, design: .monospaced))
                 HStack {
-                    Button("Re-detect") { AppCoordinator.shared?.startEngine(); message = "Re-detected." }
+                    Button("Re-detect") {
+                        AppCoordinator.shared?.startEngine()
+                        message = "Re-detected."
+                    }
                     if DistributionProfile.current() == .github {
-                        Button("Install / Update Managed CLI") {
-                            message = "Managed install requires a pinned release URL and SHA-256; configure CodexBarInstaller.Release."
-                        }
                         Button("Uninstall Managed CLI") {
                             AppCoordinator.shared?.uninstallManagedCLI()
                             message = "Removed only the app-managed binary."
@@ -46,6 +47,9 @@ struct EngineTab: View {
                 if DistributionProfile.current() == .appStore {
                     Text("This build does not download executables. Install CodexBar yourself; the app will detect it.")
                         .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Managed install requires a pinned release URL and SHA-256; set them in CodexBarInstaller.Release before enabling the download button.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
 
@@ -54,9 +58,5 @@ struct EngineTab: View {
             }
         }
         .formStyle(.grouped)
-    }
-
-    private var managedPathDisplay: String {
-        CLIInventory.managedCLIPath().path
     }
 }

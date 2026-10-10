@@ -1,10 +1,11 @@
 import SwiftUI
-import AIUnderlayKit
 
 /// Provider list: shows each configured provider, its source, login state and
 /// last successful update, with a per-provider test.
-struct ProvidersTab: View {
+public struct ProvidersTab: View {
     @State private var rows: [ProviderRow] = []
+
+    public init() {}
 
     struct ProviderRow: Identifiable {
         let id: String
@@ -15,7 +16,7 @@ struct ProvidersTab: View {
         let windows: String
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Providers").font(.title2)

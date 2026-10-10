@@ -1,16 +1,17 @@
 import SwiftUI
-import AIUnderlayKit
 
 /// Agent detection setup. Installation is always preview → confirm; the app
 /// never touches `~/.claude/settings.json` on its own.
-struct AgentTab: View {
+public struct AgentTab: View {
     @State private var preview: HookSetupCoordinator.ChangePreview?
     @State private var installed = false
     @State private var status = ""
 
     private let coordinator = HookSetupCoordinator()
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Agent Detection").font(.title2)
             Text("Detects Claude Code (and Codex where the host emits events) lifecycle so the menu bar can show running / waiting states. Nothing is installed until you confirm.")

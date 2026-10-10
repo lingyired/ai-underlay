@@ -1,13 +1,14 @@
 import SwiftUI
 import AppKit
-import AIUnderlayKit
 
 /// Diagnostics. Shows measured geometry and overlay state, with a desensitized
-/// copy button. Expanded in P4.
-struct DiagnosticsTab: View {
+/// copy button.
+public struct DiagnosticsTab: View {
     @State private var snapshot = ""
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Diagnostics")
                 .font(.title2)

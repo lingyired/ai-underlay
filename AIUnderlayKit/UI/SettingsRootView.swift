@@ -1,12 +1,10 @@
 import SwiftUI
-import AIUnderlayKit
 
-/// Root settings window. The four tabs are filled in across P1–P4.
-public struct SettingsWindow: View {
+/// Root settings view: a five-tab container. Hosted by `SettingsWindowController`.
+public struct SettingsRootView: View {
     @ObservedObject private var store: SettingsStore
 
     public init() {
-        // The coordinator is created before the settings scene is shown.
         self.store = AppCoordinator.shared?.settings ?? SettingsStore()
     }
 
@@ -23,6 +21,6 @@ public struct SettingsWindow: View {
             DiagnosticsTab()
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }
-        .frame(width: 640, height: 480)
+        .frame(minWidth: 620, minHeight: 460)
     }
 }
