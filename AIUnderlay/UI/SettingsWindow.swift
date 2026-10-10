@@ -3,19 +3,24 @@ import AIUnderlayKit
 
 /// Root settings window. The four tabs are filled in across P1–P4.
 public struct SettingsWindow: View {
-    public init() {}
+    @ObservedObject private var store: SettingsStore
+
+    public init() {
+        // The coordinator is created before the settings scene is shown.
+        self.store = AppCoordinator.shared?.settings ?? SettingsStore()
+    }
 
     public var body: some View {
         TabView {
-            Text("Providers")
-                .tabItem { Label("Providers", systemImage: "square.stack.3d.up") }
-            Text("Engine")
-                .tabItem { Label("Engine", systemImage: "gearshape.2") }
-            Text("Appearance")
+            AppearanceTab(store: store)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
-            Text("Diagnostics")
+            ProvidersTab()
+                .tabItem { Label("Providers", systemImage: "square.stack.3d.up") }
+            EngineTab()
+                .tabItem { Label("Engine", systemImage: "gearshape.2") }
+            DiagnosticsTab()
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }
-        .frame(width: 620, height: 460)
+        .frame(width: 640, height: 480)
     }
 }

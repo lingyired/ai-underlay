@@ -18,7 +18,18 @@ CLI detected and JSON captured; agent capability matrix written. **P0 complete.*
 
 ## P1 — Domain / Renderer / Mock
 
-TODO
+| Task | Status | Notes |
+|---|---|---|
+| P1-1 Domain models | DONE | QuotaWindow/Snapshot/AgentSession/DisplayConfiguration/AppSettings + purity guard |
+| P1-2 NestedGauge | DONE | chain-break on unknown, 8 tests |
+| P1-3 GaugeLayout | DONE | abstract axis, notch/outerEdge, midline fallback, 9 tests |
+| P1-4 Renderer | DONE | single GaugeLayerRenderer, baseline projection, end-cap, 8 tests |
+| P1-5 Fixtures | DONE | 10 fixtures drive the real renderer |
+| P1-6 Watchdog | DONE | needsReassert pure fn + 5s timer + lifecycle observers |
+| P1-7 Settings UI | DONE | 4 tabs, live Appearance controls, NSStatusItem entry |
+
+Evidence: `docs/preview/p1-*.png` (dual weekLow, dual full, single full).
+Total tests: 74 passing.
 
 ## P2 — 真实额度接入
 
