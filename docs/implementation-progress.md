@@ -9,8 +9,12 @@ Updated at the end of every task. Status values: `DONE`, `PARTIAL`, `BLOCKED`, `
 | P0-1 工程骨架 | DONE | xcodegen project, Kit framework + app shell, smoke tests pass |
 | P0-2 穿透覆盖窗口 | DONE | Band renders behind menu bar, icons on top; evidence `docs/preview/p0-band-menubar.png` |
 | P0-3 菜单栏几何 | DONE | Window-server height + Quartz flip + notch, 7 unit tests. See ledger below. |
-| P0-4 CLI 探测 + Fixture | TODO | |
-| P0-5 Agent 能力报告 | TODO | |
+| P0-4 CLI 探测 + Fixture | DONE | Discovery + client + real desensitized fixtures (CodexBar 0.58.0) |
+| P0-5 Agent 能力报告 | DONE | `docs/agent-capability-report.md`; event whitelist types added |
+
+**P0 gate result:** static band visible behind the menu bar without occluding
+icons or intercepting clicks; real menu bar height read (30pt); real CodexBar
+CLI detected and JSON captured; agent capability matrix written. **P0 complete.**
 
 ## P1 — Domain / Renderer / Mock
 
