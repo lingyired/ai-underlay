@@ -51,7 +51,20 @@ Tests: 97 passing.
 
 ## P3 — Agent 桥接
 
-TODO
+| Task | Status | Notes |
+|---|---|---|
+| P3-1 Socket receiver | DONE | Unix socket 0600, line framing, defensive parsing, verified bound at runtime |
+| P3-2 Adapters | DONE | Claude full mapping; Codex maps unknown → unknown (no invented waiting) |
+| P3-3 Session reducer | DONE | stale-event rejection, aggregation priority, unknown counted |
+| P3-4 Hook installer | DONE | preview → confirm → backup → marker-scoped uninstall |
+| P3-5 Agent effects | DONE | endpoint dot, pulse, reduce-motion suppression |
+| P3-6 E2E | DONE | real socket event → dot; visual evidence `docs/preview/p3-agent-waiting.png` |
+
+Note: real Claude Code hook wiring requires the user to install hooks via the
+Agent tab (not done automatically). The socket path is verified working with a
+synthetic event.
+
+Tests: 122 passing.
 
 ## P4 — 发布收尾
 

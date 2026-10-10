@@ -18,6 +18,8 @@ public struct SettingsWindow: View {
                 .tabItem { Label("Providers", systemImage: "square.stack.3d.up") }
             EngineTab()
                 .tabItem { Label("Engine", systemImage: "gearshape.2") }
+            AgentTab()
+                .tabItem { Label("Agent", systemImage: "bolt.badge.clock") }
             DiagnosticsTab()
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }

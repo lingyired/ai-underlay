@@ -5,11 +5,24 @@ public struct GaugePresentation: Sendable {
     public var windows: [QuotaWindow]
     public var palette: ProviderPalette
     public var baseline: BaselineSpec?
+    public var agentState: AgentState?
+    public var showAgentEffects: Bool
+    public var reduceMotion: Bool
 
-    public init(windows: [QuotaWindow], palette: ProviderPalette, baseline: BaselineSpec? = nil) {
+    public init(
+        windows: [QuotaWindow],
+        palette: ProviderPalette,
+        baseline: BaselineSpec? = nil,
+        agentState: AgentState? = nil,
+        showAgentEffects: Bool = true,
+        reduceMotion: Bool = false
+    ) {
         self.windows = windows
         self.palette = palette
         self.baseline = baseline
+        self.agentState = agentState
+        self.showAgentEffects = showAgentEffects
+        self.reduceMotion = reduceMotion
     }
 }
 
@@ -126,6 +139,11 @@ public final class MenuBarOverlayController {
                 baseline: side.baseline
             )
             root.addSublayer(layer)
+
+            if side.showAgentEffects, let state = side.agentState,
+               let effect = AgentEffectLayer.make(state: state, geometry: gauge.geometry, reduceMotion: side.reduceMotion) {
+                root.addSublayer(effect)
+            }
         }
 
         host.layer = root

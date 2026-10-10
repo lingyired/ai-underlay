@@ -24,6 +24,8 @@ public final class AppCoordinator {
     private var statusItem: StatusItemController?
     private var scheduler: QuotaRefreshScheduler?
     private var cancellables = Set<AnyCancellable>()
+    private var agentReceiver: AgentEventReceiver?
+    private let reducer = AgentSessionReducer()
 
     /// Providers we try to display. Configurable in a later pass.
     public var providers: [String] = ["codex", "claude"]
@@ -58,14 +60,51 @@ public final class AppCoordinator {
             .store(in: &cancellables)
 
         startEngine()
+        startAgentReceiver()
         render()
+    }
+
+    /// Starts the Unix-socket receiver for agent hook events. Failure to bind is
+    /// non-fatal: the overlay simply shows no agent activity.
+    public func startAgentReceiver() {
+        let receiver = AgentEventReceiver { [weak self] event in
+            Task { @MainActor in
+                guard let self else { return }
+                _ = self.reducer.reduce(event)
+                self.render()
+            }
+        }
+        do {
+            try receiver.start()
+            agentReceiver = receiver
+        } catch {
+            agentReceiver = nil
+        }
+    }
+
+    /// The dominant agent state for a provider, or nil when there is no session.
+    public func dominantAgentState(for providerId: String) -> AgentState? {
+        let sessions = reducer.allSessions().filter { $0.providerId == providerId }
+        guard !sessions.isEmpty else { return nil }
+        return AgentActivityAggregator.aggregate(sessions).dominant
     }
 
     public func stop() {
         scheduler?.stop()
+        agentReceiver?.stop()
         overlay.stopLifecycle()
         overlay.hideAll()
         statusItem = nil
+    }
+
+    /// Agent state shown for the agent fixtures, so the effect channel can be
+    /// previewed offline.
+    private func fixtureAgentState(for key: String, provider: String) -> AgentState? {
+        switch key {
+        case "agentRunning": return .running
+        case "agentWaiting": return .waitingApproval
+        default: return nil
+        }
     }
 
     public func applyStatusItemVisibility(_ visible: Bool) {
@@ -130,8 +169,12 @@ public final class AppCoordinator {
         let baseline = s.showBaseline
             ? BaselineSpec(selectedWindowIndex: 0, expectedRemainingFraction: 0.5)
             : nil
-        let left = GaugePresentation(windows: windows, palette: .codex, baseline: baseline)
-        let right = GaugePresentation(windows: windows, palette: .claude, baseline: baseline)
+        let left = GaugePresentation(windows: windows, palette: .codex, baseline: baseline,
+                                     agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "codex") : nil,
+                                     showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion)
+        let right = GaugePresentation(windows: windows, palette: .claude, baseline: baseline,
+                                      agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "claude") : nil,
+                                      showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion)
         apply(left: left, right: right, settings: s)
     }
 
@@ -141,7 +184,15 @@ public final class AppCoordinator {
             let windows = snapshot.windowsLongestFirst
             let palette = ProviderPalette.for(providerId: provider)
             let baseline = s.showBaseline ? baselineSpec(for: windows) : nil
-            return GaugePresentation(windows: windows, palette: palette == .neutral ? fallback : palette, baseline: baseline)
+            let agent = s.showAgentEffects ? dominantAgentState(for: provider) : nil
+            return GaugePresentation(
+                windows: windows,
+                palette: palette == .neutral ? fallback : palette,
+                baseline: baseline,
+                agentState: agent,
+                showAgentEffects: s.showAgentEffects,
+                reduceMotion: s.reduceMotion
+            )
         }
 
         let left = presentation(for: "codex", fallback: .codex)
