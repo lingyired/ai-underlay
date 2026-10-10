@@ -1,0 +1,71 @@
+name: AIUnderlay
+
+options:
+  bundleIdPrefix: com.lingsmbp.aiunderlay
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptySchemes: false
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+
+targets:
+  AIUnderlayKit:
+    type: framework
+    platform: macOS
+    sources:
+      - path: AIUnderlayKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingsmbp.aiunderlay.kit
+        GENERATE_INFOPLIST_FILE: "YES"
+        DEFINES_MODULE: "YES"
+        SWIFT_STRICT_CONCURRENCY: complete
+        ENABLE_TESTABILITY: "YES"
+
+  AIUnderlay:
+    type: application
+    platform: macOS
+    sources:
+      - path: AIUnderlay
+    dependencies:
+      - target: AIUnderlayKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingsmbp.aiunderlay
+        INFOPLIST_FILE: AIUnderlay/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        ENABLE_HARDENED_RUNTIME: "NO"
+
+  AIUnderlayKitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AIUnderlayKitTests
+    dependencies:
+      - target: AIUnderlayKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingsmbp.aiunderlay.kit.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  AIUnderlay:
+    build:
+      targets:
+        AIUnderlay: all
+        AIUnderlayKit: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - AIUnderlayKitTests

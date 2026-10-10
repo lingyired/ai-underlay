@@ -19,3 +19,6 @@ fastlane/screenshots/**/*.png
 
 # Secrets / local config
 *.local.xcconfig
+
+# xcodegen output
+AIUnderlay.xcodeproj/xcuserdata/
