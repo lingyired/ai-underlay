@@ -33,7 +33,21 @@ Total tests: 74 passing.
 
 ## P2 — 真实额度接入
 
-TODO
+| Task | Status | Notes |
+|---|---|---|
+| P2-1/2 QuotaEngine + Manager | DONE | discovery/selection, incompatible-only state, injectable paths |
+| P2-3 Usage Decoder | DONE | windowMinutes mapping, out-of-range→unavailable (no clamp), positional fields |
+| P2-4 Cache + Scheduler | DONE | stale threshold, minute-level refresh, in-flight de-dup |
+| P2-5 Managed installer | DONE | SHA-256 verify, rollback, App Store profile disables it |
+| P2-6 Providers/Engine tabs | DONE | live provider table, engine detection, uninstall |
+| P2-7 Live end-to-end | DONE | real codex quota rendered from CLI; claude unauthenticated → empty track |
+
+**Fix during P2:** live mode previously fell back to a fixture before the first
+snapshot arrived (~7s CLI fetch), which could be mistaken for real data. Now
+live mode shows empty tracks until a real snapshot arrives. Evidence:
+`docs/preview/p2-live-codex.png`.
+
+Tests: 97 passing.
 
 ## P3 — Agent 桥接
 

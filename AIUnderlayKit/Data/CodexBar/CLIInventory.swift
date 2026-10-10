@@ -81,20 +81,29 @@ public enum CLIInventory {
         return CLICandidate(url: resolved, version: version, compatibility: compatibility)
     }
 
-    /// Discovers all usable candidates, de-duplicated by resolved path.
+    /// Discovers usable candidates from an explicit path list, de-duplicated by
+    /// resolved path.
     public static func discover(
-        manualPath: URL? = nil,
-        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        paths: [URL],
         runner: (URL) -> String?
     ) -> [CLICandidate] {
         var seen = Set<String>()
         var results: [CLICandidate] = []
-        for path in candidatePaths(manualPath: manualPath, home: home) {
+        for path in paths {
             guard let candidate = probe(url: path, runner: runner) else { continue }
             guard seen.insert(candidate.url.path).inserted else { continue }
             results.append(candidate)
         }
         return results
+    }
+
+    /// Discovers all usable candidates from the standard search order.
+    public static func discover(
+        manualPath: URL? = nil,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        runner: (URL) -> String?
+    ) -> [CLICandidate] {
+        discover(paths: candidatePaths(manualPath: manualPath, home: home), runner: runner)
     }
 
     /// Extracts a version from `--version` output like "CodexBar 0.58.0".

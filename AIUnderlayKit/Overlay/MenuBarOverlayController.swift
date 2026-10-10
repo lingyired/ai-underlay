@@ -116,7 +116,9 @@ public final class MenuBarOverlayController {
             case (.dual, .left): presentationSide = presentation.left
             case (.dual, .right): presentationSide = presentation.right
             }
-            guard let side = presentationSide else { continue }
+            // Always draw the track so an empty/offline side shows the neutral
+            // groove rather than nothing at all.
+            let side = presentationSide ?? GaugePresentation(windows: [], palette: .neutral)
             let layer = renderer.render(
                 windows: side.windows,
                 geometry: gauge.geometry,
