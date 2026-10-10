@@ -14,8 +14,7 @@ public final class MenuBarOverlayController {
     public func showStaticBand() {
         guard let screen = NSScreen.main else { return }
         let displayID = Self.displayID(for: screen)
-        let height = max(screen.frame.maxY - screen.visibleFrame.maxY, NSStatusBar.system.thickness)
-        showBand(on: screen, displayID: displayID, height: height)
+        showBand(on: screen, displayID: displayID, height: Self.menuBarHeight(for: screen))
     }
 
     private func showBand(on screen: NSScreen, displayID: String, height: CGFloat) {
@@ -67,6 +66,18 @@ public final class MenuBarOverlayController {
         }
         windows.removeAll()
         hostViews.removeAll()
+    }
+
+    /// Real menu bar height for a screen, from the window server, falling back
+    /// to the status bar thickness when no menu bar window matches.
+    static func menuBarHeight(for screen: NSScreen) -> CGFloat {
+        let primaryMaxY = NSScreen.screens.first { $0.frame.origin == .zero }?.frame.maxY
+            ?? screen.frame.maxY
+        let quartz = MenuBarGeometry.quartzFrame(for: screen.frame, primaryMaxY: primaryMaxY)
+        return MenuBarGeometry.menuBarHeight(
+            forQuartzFrame: quartz,
+            menuBarWindowBounds: MenuBarGeometry.onScreenMenuBarBounds()
+        ) ?? NSStatusBar.system.thickness
     }
 
     /// Stable per-display key. Falls back to the frame when no display ID is
