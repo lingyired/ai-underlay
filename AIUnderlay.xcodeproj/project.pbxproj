@@ -8,11 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		049A3D992B407106A351322B /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ACD8F3707FAAA1171E003E2 /* SettingsWindow.swift */; };
+		6230574BCE86B0897CF5A05E /* MenuBarOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */; };
 		6289A67E3199D2230B1421CC /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D124C590445CC238D5D3D32E /* AppCoordinator.swift */; };
 		6D68D027644BFDCE39A4DB11 /* AIUnderlayKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; };
 		73ED65EE20CBA9DA3A2DEECB /* AIUnderlayKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C65AF830637B9C536CEBE3D7 /* AIUnderlayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006332725172C1E3B9ECC6DC /* AIUnderlayApp.swift */; };
 		C6FC91C89DFAC7B4D24E2ECA /* AIUnderlayKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */; };
+		D0B281AE93BA1CCB1AB8A43A /* BandWindowLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */; };
 		D3AB78C6B98D9F652B0BD6ED /* AIUnderlayKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; };
 		E7C623F32F23B9C826476B68 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870311F44BB11C10610E59B6 /* SmokeTests.swift */; };
 		FBC647D583C4C7522D856F26 /* Kit.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD959068C1D8AE7DF9154453 /* Kit.swift */; };
@@ -66,8 +69,11 @@
 		3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AIUnderlayKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DEB6D8D33CFC8FDC106AA4C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		870311F44BB11C10610E59B6 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
+		93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarOverlayController.swift; sourceTree = "<group>"; };
 		98FB8A2030F59A03596BF6A7 /* AIUnderlayKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIUnderlayKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandWindowLevelTests.swift; sourceTree = "<group>"; };
 		CD959068C1D8AE7DF9154453 /* Kit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kit.swift; sourceTree = "<group>"; };
+		D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarBandWindow.swift; sourceTree = "<group>"; };
 		D124C590445CC238D5D3D32E /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		D5912F63C043FFDBA03565D2 /* AIUnderlay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIUnderlay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -92,6 +98,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		150929749F6D67CD7A7636AE /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */,
+				93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */,
+			);
+			path = Overlay;
+			sourceTree = "<group>";
+		};
 		15CCDB3A4C827000FAC0AFEC /* Application */ = {
 			isa = PBXGroup;
 			children = (
@@ -105,6 +120,7 @@
 			children = (
 				CD959068C1D8AE7DF9154453 /* Kit.swift */,
 				15CCDB3A4C827000FAC0AFEC /* Application */,
+				150929749F6D67CD7A7636AE /* Overlay */,
 			);
 			path = AIUnderlayKit;
 			sourceTree = "<group>";
@@ -151,8 +167,17 @@
 			isa = PBXGroup;
 			children = (
 				870311F44BB11C10610E59B6 /* SmokeTests.swift */,
+				F93F991993350AE189CD0EC5 /* OverlayTests */,
 			);
 			path = AIUnderlayKitTests;
+			sourceTree = "<group>";
+		};
+		F93F991993350AE189CD0EC5 /* OverlayTests */ = {
+			isa = PBXGroup;
+			children = (
+				A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */,
+			);
+			path = OverlayTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -254,6 +279,8 @@
 			files = (
 				6289A67E3199D2230B1421CC /* AppCoordinator.swift in Sources */,
 				FBC647D583C4C7522D856F26 /* Kit.swift in Sources */,
+				CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */,
+				6230574BCE86B0897CF5A05E /* MenuBarOverlayController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -270,6 +297,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0B281AE93BA1CCB1AB8A43A /* BandWindowLevelTests.swift in Sources */,
 				E7C623F32F23B9C826476B68 /* SmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
