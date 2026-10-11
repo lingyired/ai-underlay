@@ -78,7 +78,14 @@ public struct DashboardView: View {
         sections = DashboardModel.sections(
             providers: coordinator.providers,
             snapshots: snapshots
-        )
+        ).map { section in
+            let summary = coordinator.agentSessionSummary(for: section.providerId)
+            return DashboardSection(
+                id: section.id, providerId: section.providerId, displayName: section.displayName,
+                availability: section.availability, rows: section.rows,
+                agentRunning: summary?.running, agentTotal: summary.map { $0.running + $0.idle }
+            )
+        }
         lastUpdated = snapshots.values.map(\.fetchedAt).max()
     }
 
@@ -114,6 +121,11 @@ struct ProviderSectionView: View {
                         .fill(paletteColor)
                         .frame(width: 8, height: 8)
                     Text(section.displayName).font(.subheadline).bold()
+                    if let running = section.agentRunning, let total = section.agentTotal, total > 0 {
+                        Text(running > 0 ? "\(running) 个会话运行中" : "\(total) 个会话空闲")
+                            .font(.caption2)
+                            .foregroundStyle(running > 0 ? .green : .secondary)
+                    }
                     Spacer()
                     if section.rows.isEmpty {
                         Text(DashboardModel.emptyStateText(for: section.availability))

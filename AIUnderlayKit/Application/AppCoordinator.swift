@@ -31,6 +31,9 @@ public final class AppCoordinator: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var agentReceiver: AgentEventReceiver?
     private let reducer = AgentSessionReducer()
+    private var sessionTimer: Timer?
+    /// Live agent sessions from CodexBar, keyed by provider (dominant state).
+    public private(set) var agentSessions: [AgentSessionInfo] = []
 
     /// Providers shown in the overlay and dashboard.
     ///
@@ -91,6 +94,7 @@ public final class AppCoordinator: ObservableObject {
 
         startEngine()
         startAgentReceiver()
+        startSessionPolling()
         render()
 
         // A second launch of the app asks us to open settings (see the
@@ -138,15 +142,48 @@ public final class AppCoordinator: ObservableObject {
         return liveSnapshots
     }
 
+    /// Polls `codexbar sessions` for live agent sessions. This works without any
+/// hook installation and covers Codex and Claude Code.
+    public func startSessionPolling() {
+        sessionTimer?.invalidate()
+        Task { @MainActor in await self.pollSessions() }
+        sessionTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.pollSessions() }
+        }
+    }
+
+    private func pollSessions() async {
+        guard let engine = engineManager.activeEngine as? AgentSessionEngine else { return }
+        guard let sessions = try? await engine.listAgentSessions() else { return }
+        agentSessions = sessions
+        dataRevision += 1
+        render()
+    }
+
     /// The dominant agent state for a provider, or nil when there is no session.
+    /// Prefers hook-derived sessions (finer states); falls back to CodexBar's
+    /// recency-based sessions (coarse: running/idle).
     public func dominantAgentState(for providerId: String) -> AgentState? {
-        let sessions = reducer.allSessions().filter { $0.providerId == providerId }
-        guard !sessions.isEmpty else { return nil }
-        return AgentActivityAggregator.aggregate(sessions).dominant
+        let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
+        if !hookSessions.isEmpty {
+            return AgentActivityAggregator.aggregate(hookSessions).dominant
+        }
+        let polled = agentSessions.filter { $0.provider == providerId }
+        guard !polled.isEmpty else { return nil }
+        return AgentActivityAggregator.aggregate(polled.map(\.asAgentSession)).dominant
+    }
+
+    /// Session count summary for a provider, for the popup detail.
+    public func agentSessionSummary(for providerId: String) -> (running: Int, idle: Int)? {
+        let polled = agentSessions.filter { $0.provider == providerId }
+        guard !polled.isEmpty else { return nil }
+        let running = polled.filter { $0.agentState == .running }.count
+        return (running, polled.count - running)
     }
 
     public func stop() {
         scheduler?.stop()
+        sessionTimer?.invalidate()
         agentReceiver?.stop()
         overlay.stopLifecycle()
         overlay.hideAll()

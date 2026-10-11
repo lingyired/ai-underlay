@@ -79,13 +79,21 @@ public struct DashboardSection: Identifiable, Equatable, Sendable {
     public let displayName: String
     public let availability: DataAvailability
     public let rows: [DashboardRow]
+    /// Live agent sessions for this provider (running / total), if any.
+    public let agentRunning: Int?
+    public let agentTotal: Int?
 
-    public init(id: String, providerId: String, displayName: String, availability: DataAvailability, rows: [DashboardRow]) {
+    public init(
+        id: String, providerId: String, displayName: String, availability: DataAvailability,
+        rows: [DashboardRow], agentRunning: Int? = nil, agentTotal: Int? = nil
+    ) {
         self.id = id
         self.providerId = providerId
         self.displayName = displayName
         self.availability = availability
         self.rows = rows
+        self.agentRunning = agentRunning
+        self.agentTotal = agentTotal
     }
 }
 
