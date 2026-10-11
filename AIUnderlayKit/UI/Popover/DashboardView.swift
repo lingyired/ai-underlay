@@ -74,11 +74,12 @@ public struct DashboardView: View {
     }
 
     private func reload() {
+        let snapshots = coordinator.dashboardSnapshots()
         sections = DashboardModel.sections(
             providers: coordinator.providers,
-            snapshots: coordinator.liveSnapshots
+            snapshots: snapshots
         )
-        lastUpdated = coordinator.liveSnapshots.values.map(\.fetchedAt).max()
+        lastUpdated = snapshots.values.map(\.fetchedAt).max()
     }
 
     private static func relative(_ date: Date) -> String {
@@ -89,25 +90,51 @@ public struct DashboardView: View {
     }
 }
 
-/// One provider section: name, status, and a bar per window.
+/// One provider section: name, status, and a bar per window. When the section
+/// has more than one window the header is clickable to collapse/expand, and the
+/// open/closed state persists across popup closes.
 struct ProviderSectionView: View {
     let section: DashboardSection
+    @State private var expanded: Bool
+
+    init(section: DashboardSection) {
+        self.section = section
+        _expanded = State(initialValue: SectionExpansionStore.isExpanded(section.id))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Circle()
-                    .fill(paletteColor)
-                    .frame(width: 8, height: 8)
-                Text(section.displayName).font(.subheadline).bold()
-                Spacer()
-                if section.rows.isEmpty {
-                    Text(DashboardModel.emptyStateText(for: section.availability))
-                        .font(.caption).foregroundStyle(.secondary)
+            Button {
+                guard section.rows.count > 1 else { return }
+                expanded.toggle()
+                SectionExpansionStore.set(section.id, expanded: expanded)
+            } label: {
+                HStack {
+                    Circle()
+                        .fill(paletteColor)
+                        .frame(width: 8, height: 8)
+                    Text(section.displayName).font(.subheadline).bold()
+                    Spacer()
+                    if section.rows.isEmpty {
+                        Text(DashboardModel.emptyStateText(for: section.availability))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if section.rows.count > 1 {
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
+                .contentShape(Rectangle())
             }
-            ForEach(section.rows) { row in
-                MetricRowView(row: row, palette: paletteColor)
+            .buttonStyle(.plain)
+
+            if expanded {
+                ForEach(section.rows) { row in
+                    MetricRowView(row: row, palette: paletteColor)
+                }
+            } else if let first = section.rows.first {
+                // Collapsed: show only the most important (longest) window.
+                MetricRowView(row: first, palette: paletteColor)
             }
         }
     }
@@ -118,15 +145,36 @@ struct ProviderSectionView: View {
     }
 }
 
-/// A single quota window row: label, remaining percent, reset time, and a bar.
+/// Remembers which provider sections are expanded across popup closes.
+enum SectionExpansionStore {
+    private static let key = "popover.expandedSections"
+
+    static func isExpanded(_ id: String) -> Bool {
+        // Default: expanded when never toggled.
+        guard let dict = UserDefaults.standard.dictionary(forKey: key) as? [String: Bool] else { return true }
+        return dict[id] ?? true
+    }
+
+    static func set(_ id: String, expanded: Bool) {
+        var dict = (UserDefaults.standard.dictionary(forKey: key) as? [String: Bool]) ?? [:]
+        dict[id] = expanded
+        UserDefaults.standard.set(dict, forKey: key)
+    }
+}
+
+/// A single quota window row: label, remaining percent, a bar with a baseline
+/// tick, the reset countdown, and a pace note.
 struct MetricRowView: View {
     let row: DashboardRow
     let palette: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(spacing: 6) {
                 Text(row.label).font(.caption)
+                if let note = row.paceNote {
+                    Text(note).font(.caption2).foregroundStyle(.secondary)
+                }
                 Spacer()
                 Text(percentText).font(.caption).bold()
             }
@@ -138,6 +186,13 @@ struct MetricRowView: View {
                         RoundedRectangle(cornerRadius: 3)
                             .fill(palette)
                             .frame(width: max(0, min(1, fraction)) * geo.size.width)
+                    }
+                    // Even-pace baseline tick.
+                    if let expected = row.expectedRemainingFraction {
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.55))
+                            .frame(width: 1.5)
+                            .offset(x: max(0, min(1, expected)) * geo.size.width)
                     }
                 }
             }

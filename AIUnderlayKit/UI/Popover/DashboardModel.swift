@@ -1,20 +1,61 @@
 import Foundation
 
+/// How current usage compares to a constant-rate burn. Neutral wording only.
+public enum PaceVerdict: Equatable, Sendable {
+    /// Remaining is below the even-pace expectation — burning faster than even.
+    case fast
+    /// Remaining is above expectation — a cushion.
+    case surplus
+    /// Close to even.
+    case onTrack
+    /// Not enough information.
+    case unknown
+}
+
 /// One metric row in the dashboard: a quota window rendered as a bar.
 public struct DashboardRow: Identifiable, Equatable, Sendable {
     public let id: String
     public let label: String
     /// 0...1, or nil when unknown (rendered as an empty bar, never as 0%).
     public let remainingFraction: Double?
+    /// Where remaining *should* be at even pace, for the baseline tick.
+    public let expectedRemainingFraction: Double?
     public let resetAt: Date?
     public let availability: DataAvailability
 
-    public init(id: String, label: String, remainingFraction: Double?, resetAt: Date?, availability: DataAvailability) {
+    public init(
+        id: String,
+        label: String,
+        remainingFraction: Double?,
+        expectedRemainingFraction: Double? = nil,
+        resetAt: Date?,
+        availability: DataAvailability
+    ) {
         self.id = id
         self.label = label
         self.remainingFraction = remainingFraction
+        self.expectedRemainingFraction = expectedRemainingFraction
         self.resetAt = resetAt
         self.availability = availability
+    }
+
+    /// Comparison of actual vs even-pace remaining.
+    public var verdict: PaceVerdict {
+        guard let actual = remainingFraction, let expected = expectedRemainingFraction else { return .unknown }
+        let diff = actual - expected
+        if diff < -0.05 { return .fast }
+        if diff > 0.05 { return .surplus }
+        return .onTrack
+    }
+
+    /// A neutral one-line pace note, or nil when there is nothing to say.
+    public var paceNote: String? {
+        switch verdict {
+        case .fast: return "消耗偏快（低于匀速基准）"
+        case .surplus: return "仍有富余（高于匀速基准）"
+        case .onTrack: return "接近匀速消耗"
+        case .unknown: return nil
+        }
     }
 
     /// A short human reset label, e.g. "3 小时 25 分后重置".
@@ -82,6 +123,7 @@ public enum DashboardModel {
                     id: "\(provider)-\(window.id)",
                     label: label(for: window),
                     remainingFraction: window.remainingFraction,
+                    expectedRemainingFraction: QuotaPace.expectedRemaining(window: window),
                     resetAt: window.resetAt,
                     availability: window.availability
                 )

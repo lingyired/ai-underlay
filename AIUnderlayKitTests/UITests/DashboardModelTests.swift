@@ -50,6 +50,39 @@ final class DashboardModelTests: XCTestCase {
         XCTAssertEqual(past.resetLabel(now: now), "即将重置")
     }
 
+    func test_verdict_comparesActualToExpected() {
+        func row(_ actual: Double?, _ expected: Double?) -> DashboardRow {
+            DashboardRow(id: "x", label: "每周", remainingFraction: actual,
+                         expectedRemainingFraction: expected, resetAt: nil, availability: .valid)
+        }
+        XCTAssertEqual(row(0.4, 0.7).verdict, .fast)
+        XCTAssertEqual(row(0.9, 0.7).verdict, .surplus)
+        XCTAssertEqual(row(0.7, 0.7).verdict, .onTrack)
+        XCTAssertEqual(row(nil, 0.7).verdict, .unknown)
+        XCTAssertEqual(row(0.7, nil).verdict, .unknown)
+    }
+
+    func test_paceNote_isNeutral() {
+        let fast = DashboardRow(id: "x", label: "每周", remainingFraction: 0.4,
+                                expectedRemainingFraction: 0.7, resetAt: nil, availability: .valid)
+        XCTAssertEqual(fast.paceNote, "消耗偏快（低于匀速基准）")
+        let unknown = DashboardRow(id: "y", label: "每周", remainingFraction: 0.4,
+                                   expectedRemainingFraction: nil, resetAt: nil, availability: .valid)
+        XCTAssertNil(unknown.paceNote)
+    }
+
+    func test_sectionsCarryExpectedFromPace() {
+        // A window with a reset and duration should get an expected value.
+        let w = QuotaWindow(id: "w", label: "w", kind: .weekly, durationSeconds: 604800,
+                            remainingFraction: 0.5, resetAt: Date().addingTimeInterval(604800 * 0.5),
+                            expectedRemainingFraction: nil, updatedAt: nil, availability: .valid)
+        let sections = DashboardModel.sections(
+            providers: ["codex"],
+            snapshots: ["codex": snapshot(provider: "codex", windows: [w])]
+        )
+        XCTAssertNotNil(sections[0].rows[0].expectedRemainingFraction)
+    }
+
     func test_unknownRemainingIsNilNotZero() {
         let sections = DashboardModel.sections(
             providers: ["codex"],

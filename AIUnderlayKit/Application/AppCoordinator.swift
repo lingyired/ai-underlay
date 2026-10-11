@@ -108,6 +108,23 @@ public final class AppCoordinator: ObservableObject {
         }
     }
 
+    /// Snapshots for the dashboard: live data normally, or fixtures when a
+    /// preview fixture is selected (so the popup can be previewed offline too).
+    public func dashboardSnapshots() -> [String: ProviderQuotaSnapshot] {
+        if let key = settings.settings.previewFixture {
+            let windows = FixtureSnapshots.windows(for: key)
+            let now = Date()
+            return Dictionary(uniqueKeysWithValues: providers.map { provider in
+                (provider, ProviderQuotaSnapshot(
+                    id: provider, providerId: provider, accountKey: nil,
+                    sourceEngineId: "fixture", windows: windows,
+                    fetchedAt: now, availability: .valid
+                ))
+            })
+        }
+        return liveSnapshots
+    }
+
     /// The dominant agent state for a provider, or nil when there is no session.
     public func dominantAgentState(for providerId: String) -> AgentState? {
         let sessions = reducer.allSessions().filter { $0.providerId == providerId }
