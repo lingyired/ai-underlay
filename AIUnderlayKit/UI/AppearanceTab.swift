@@ -30,6 +30,13 @@ public struct AppearanceTab: View {
                 Toggle("启用覆盖层", isOn: binding(\.overlayEnabled))
                 Toggle("显示基准线", isOn: binding(\.showBaseline))
                 Toggle("显示 Agent 动效", isOn: binding(\.showAgentEffects))
+                Picker("运行中动效", selection: binding(\.runningEffect)) {
+                    Text("呼吸灯").tag(RunningEffect.breathing)
+                    Text("扫光").tag(RunningEffect.sweep)
+                    Text("端点脉冲").tag(RunningEffect.dot)
+                    Text("无").tag(RunningEffect.none)
+                }
+                .disabled(!store.settings.showAgentEffects)
                 Toggle("减弱动效", isOn: binding(\.reduceMotion))
                 Toggle("显示菜单栏图标", isOn: binding(\.statusItemVisible))
             }

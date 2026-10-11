@@ -8,6 +8,7 @@ public struct GaugePresentation: Sendable {
     public var agentState: AgentState?
     public var showAgentEffects: Bool
     public var reduceMotion: Bool
+    public var runningEffect: RunningEffect
 
     public init(
         windows: [QuotaWindow],
@@ -15,7 +16,8 @@ public struct GaugePresentation: Sendable {
         baseline: BaselineSpec? = nil,
         agentState: AgentState? = nil,
         showAgentEffects: Bool = true,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        runningEffect: RunningEffect = .breathing
     ) {
         self.windows = windows
         self.palette = palette
@@ -23,6 +25,7 @@ public struct GaugePresentation: Sendable {
         self.agentState = agentState
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion
+        self.runningEffect = runningEffect
     }
 }
 
@@ -141,7 +144,9 @@ public final class MenuBarOverlayController {
             root.addSublayer(layer)
 
             if side.showAgentEffects, let state = side.agentState,
-               let effect = AgentEffectLayer.make(state: state, geometry: gauge.geometry, reduceMotion: side.reduceMotion) {
+               let effect = AgentEffectLayer.make(state: state, geometry: gauge.geometry,
+                                                  reduceMotion: side.reduceMotion,
+                                                  runningEffect: side.runningEffect) {
                 root.addSublayer(effect)
             }
         }

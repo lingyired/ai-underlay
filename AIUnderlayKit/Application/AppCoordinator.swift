@@ -332,10 +332,10 @@ public final class AppCoordinator: ObservableObject {
             : nil
         let left = GaugePresentation(windows: windows, palette: .codex, baseline: baseline,
                                      agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "codex") : nil,
-                                     showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion)
+                                     showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect)
         let right = GaugePresentation(windows: windows, palette: .claude, baseline: baseline,
                                       agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "claude") : nil,
-                                      showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion)
+                                      showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect)
         apply(left: left, right: right, settings: s)
     }
 
@@ -352,7 +352,8 @@ public final class AppCoordinator: ObservableObject {
                 baseline: baseline,
                 agentState: agent,
                 showAgentEffects: s.showAgentEffects,
-                reduceMotion: s.reduceMotion
+                reduceMotion: s.reduceMotion,
+                runningEffect: s.runningEffect
             )
         }
 

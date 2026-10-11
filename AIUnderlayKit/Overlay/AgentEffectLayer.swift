@@ -7,11 +7,14 @@ public struct AgentEffectStyle: Equatable, Sendable {
     public var pulse: Bool
     /// A soft highlight sweeping along the fill direction (used while running).
     public var sweep: Bool
+    /// The whole fill gently brightens and dims.
+    public var breathe: Bool
 
-    public init(color: RGBAColor, pulse: Bool, sweep: Bool) {
+    public init(color: RGBAColor, pulse: Bool, sweep: Bool, breathe: Bool = false) {
         self.color = color
         self.pulse = pulse
         self.sweep = sweep
+        self.breathe = breathe
     }
 
     /// Style for a state. `nil` (no agent activity) returns nil — nothing drawn.
@@ -20,9 +23,8 @@ public struct AgentEffectStyle: Equatable, Sendable {
         case .none, .idle:
             return nil
         case .running:
-            // A moving shimmer across the bar: "the agent is working".
             // Near-white so it reads as a shine over any brand color.
-            return AgentEffectStyle(color: RGBAColor(red: 0.92, green: 0.97, blue: 1.0, alpha: 0.95), pulse: false, sweep: true)
+            return AgentEffectStyle(color: RGBAColor(red: 0.92, green: 0.97, blue: 1.0, alpha: 0.95), pulse: false, sweep: true, breathe: true)
         case .waitingInput:
             return AgentEffectStyle(color: RGBAColor(red: 1.0, green: 0.85, blue: 0.3, alpha: 0.95), pulse: true, sweep: false)
         case .waitingApproval:
@@ -47,12 +49,29 @@ public enum AgentEffectLayer {
     public static func make(
         state: AgentState,
         geometry: GaugeGeometry,
-        reduceMotion: Bool
+        reduceMotion: Bool,
+        runningEffect: RunningEffect = .breathing
     ) -> CALayer? {
         guard let style = AgentEffectStyle.style(for: state) else { return nil }
 
         let container = CALayer()
         container.frame = geometry.trackRect
+
+        // The running state honors the user's chosen effect; other states keep
+        // their fixed treatment (waiting/error pulse, completed sweep).
+        if state == .running {
+            switch runningEffect {
+            case .breathing:
+                container.addSublayer(makeBreathing(geometry: geometry, reduceMotion: reduceMotion))
+            case .sweep:
+                container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion))
+            case .dot:
+                container.addSublayer(makeDot(geometry: geometry, style: style, reduceMotion: reduceMotion))
+            case .none:
+                return nil
+            }
+            return container
+        }
 
         if style.sweep {
             container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion))
@@ -61,6 +80,39 @@ public enum AgentEffectLayer {
             container.addSublayer(makeDot(geometry: geometry, style: style, reduceMotion: reduceMotion))
         }
         return container
+    }
+
+    /// A full-width soft light that gently brightens and dims over the fill —
+    /// the "breathing" look. One layer, animated by opacity only.
+    private static func makeBreathing(geometry: GaugeGeometry, reduceMotion: Bool) -> CALayer {
+        let glow = CAGradientLayer()
+        let white = RGBAColor(red: 1, green: 1, blue: 1, alpha: 1)
+        glow.colors = [
+            white.cgColor(alpha: 0.10),
+            white.cgColor(alpha: 0.55),
+            white.cgColor(alpha: 0.10),
+        ]
+        glow.locations = [0, 0.5, 1]
+        glow.startPoint = CGPoint(x: 0, y: 0)
+        glow.endPoint = CGPoint(x: 1, y: 0)
+        glow.frame = geometry.fillBounds
+
+        let clip = CALayer()
+        clip.frame = geometry.trackRect
+        clip.masksToBounds = true
+        clip.addSublayer(glow)
+
+        if !reduceMotion {
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.fromValue = 0.25
+            anim.toValue = 1.0
+            anim.duration = 1.5
+            anim.autoreverses = true
+            anim.repeatCount = .infinity
+            anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            glow.add(anim, forKey: "breathe")
+        }
+        return clip
     }
 
     /// A soft gradient highlight that travels from the anchor to the far end of
