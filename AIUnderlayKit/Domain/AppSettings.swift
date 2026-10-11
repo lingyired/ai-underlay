@@ -33,7 +33,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         previewFixture: String? = nil,
         statusItemVisible: Bool = true,
         displays: [DisplayConfiguration] = [],
-        displayedProviders: [String] = ["codex", "claude"]
+        displayedProviders: [String] = []
     ) {
         self.layout = layout
         self.anchor = anchor
@@ -50,4 +50,25 @@ public struct AppSettings: Codable, Sendable, Equatable {
     }
 
     public static let `default` = AppSettings()
+
+    /// Tolerant decoding: every field falls back to its default when absent, so
+    /// an older settings file (or one written before a new key existed) still
+    /// loads instead of resetting everything. An absent/empty
+    /// `displayedProviders` means "follow the upstream provider list".
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = AppSettings()
+        layout = try c.decodeIfPresent(LayoutMode.self, forKey: .layout) ?? d.layout
+        anchor = try c.decodeIfPresent(AnchorMode.self, forKey: .anchor) ?? d.anchor
+        singleDirection = try c.decodeIfPresent(SingleBarDirection.self, forKey: .singleDirection) ?? d.singleDirection
+        overlayEnabled = try c.decodeIfPresent(Bool.self, forKey: .overlayEnabled) ?? d.overlayEnabled
+        proxyOverride = try c.decodeIfPresent(String.self, forKey: .proxyOverride) ?? d.proxyOverride
+        showBaseline = try c.decodeIfPresent(Bool.self, forKey: .showBaseline) ?? d.showBaseline
+        showAgentEffects = try c.decodeIfPresent(Bool.self, forKey: .showAgentEffects) ?? d.showAgentEffects
+        reduceMotion = try c.decodeIfPresent(Bool.self, forKey: .reduceMotion) ?? d.reduceMotion
+        previewFixture = try c.decodeIfPresent(String.self, forKey: .previewFixture)
+        statusItemVisible = try c.decodeIfPresent(Bool.self, forKey: .statusItemVisible) ?? d.statusItemVisible
+        displays = try c.decodeIfPresent([DisplayConfiguration].self, forKey: .displays) ?? d.displays
+        displayedProviders = try c.decodeIfPresent([String].self, forKey: .displayedProviders) ?? d.displayedProviders
+    }
 }

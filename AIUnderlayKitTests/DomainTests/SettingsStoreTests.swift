@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class SettingsStoreTests: XCTestCase {
+    func test_tolerantDecode_olderFileWithoutNewKeys() throws {
+        // A file written before `displayedProviders` existed must still decode,
+        // keeping its known values and defaulting the rest — not reset wholesale.
+        let json = """
+        {"layout":"single","anchor":"notch","showBaseline":false,"previewFixture":"full"}
+        """
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertEqual(settings.layout, .single)
+        XCTAssertEqual(settings.anchor, .notch)
+        XCTAssertFalse(settings.showBaseline)
+        XCTAssertEqual(settings.previewFixture, "full")
+        // Absent new key defaults to empty = "follow upstream".
+        XCTAssertTrue(settings.displayedProviders.isEmpty)
+        XCTAssertEqual(settings.singleDirection, AppSettings.default.singleDirection)
+    }
+
     func test_defaultsWhenFileMissing() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("missing-\(UUID().uuidString).json")
         let store = SettingsStore(fileURL: url)

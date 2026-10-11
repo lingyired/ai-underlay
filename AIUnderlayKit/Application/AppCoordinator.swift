@@ -211,6 +211,7 @@ public final class AppCoordinator: ObservableObject {
                 await MainActor.run {
                     let before = self.providers
                     self.availableProviders = list
+                    Log.write("catalog: \(list.count) providers; enabled upstream: \(list.filter(\.enabledInCodexBar).map(\.id)); displaying: \(self.providers)")
                     // If we are following the upstream list, the derived set may
                     // have changed (e.g. a provider enabled in CodexBar). Restart
                     // so its data is fetched too.
@@ -224,12 +225,13 @@ public final class AppCoordinator: ObservableObject {
 
     /// Toggles whether a provider is shown in the overlay/dashboard.
     public func setProviderDisplayed(_ provider: String, displayed: Bool) {
-        settings.update { s in
-            var list = s.displayedProviders.isEmpty ? ["codex", "claude"] : s.displayedProviders
-            if displayed, !list.contains(provider) { list.append(provider) }
-            if !displayed { list.removeAll { $0 == provider } }
-            s.displayedProviders = list
-        }
+        // Start from the currently-effective list (which follows upstream when
+        // the user has not curated one) so the first toggle materializes the
+        // visible set into an explicit list rather than dropping providers.
+        var list = providers
+        if displayed, !list.contains(provider) { list.append(provider) }
+        if !displayed { list.removeAll { $0 == provider } }
+        settings.update { $0.displayedProviders = list }
         startEngine()  // refresh with the new provider set
     }
 

@@ -30,7 +30,7 @@ final class ProviderCatalogTests: XCTestCase {
         XCTAssertEqual(list.map(\.id), ["x"])
     }
 
-    func test_displayedProvidersDefault() {
-        XCTAssertEqual(AppSettings.default.displayedProviders, ["codex", "claude"])
+    func test_displayedProvidersDefaultIsEmptyMeaningFollowUpstream() {
+        XCTAssertTrue(AppSettings.default.displayedProviders.isEmpty)
     }
 }
