@@ -45,8 +45,8 @@ final class CodexBarCLIClientTests: XCTestCase {
     }
 
     func test_desensitize_removesEmail() {
-        let out = CodexBarCLIClient.desensitize("accountEmail: lingyired@outlook.com")
-        XCTAssertFalse(out.contains("lingyired@outlook.com"))
+        let out = CodexBarCLIClient.desensitize("accountEmail: user@example.com")
+        XCTAssertFalse(out.contains("user@example.com"))
         XCTAssertTrue(out.contains("[redacted]"))
     }
 
