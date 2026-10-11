@@ -62,6 +62,15 @@ public final class AppCoordinator {
         startEngine()
         startAgentReceiver()
         render()
+
+        // A second launch of the app asks us to open settings (see the
+        // single-instance guard in the app delegate).
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.lingsmbp.aiunderlay.openSettings"),
+            object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in SettingsOpener.open() }
+        }
     }
 
     /// Starts the Unix-socket receiver for agent hook events. Failure to bind is

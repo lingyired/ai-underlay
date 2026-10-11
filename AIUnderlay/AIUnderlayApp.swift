@@ -31,6 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
             .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
         if let existing = others.first {
+            // Ask the already-running instance to open its settings window, then
+            // exit. This makes "launch the app again" a reliable way to reach
+            // settings even if the status item is hard to find.
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("com.lingsmbp.aiunderlay.openSettings"),
+                object: nil, userInfo: nil, deliverImmediately: true)
             existing.activate(options: [])
             NSApp.terminate(nil)
             return
@@ -51,5 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    /// Fired when the app is reopened while already running (double-click in
+    /// Finder, `open`, or launching again). This is the reliable "get me into
+    /// settings" path for an accessory app with no Dock icon.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        SettingsOpener.open()
+        return true
     }
 }
