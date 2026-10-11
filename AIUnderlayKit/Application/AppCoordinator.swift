@@ -32,10 +32,17 @@ public final class AppCoordinator: ObservableObject {
     private var agentReceiver: AgentEventReceiver?
     private let reducer = AgentSessionReducer()
 
-    /// Providers shown in the overlay and dashboard. Reads from settings.
+    /// Providers shown in the overlay and dashboard.
+    ///
+    /// When the user has not curated a list, we follow the upstream CodexBar
+    /// config: every provider enabled there is shown automatically, so
+    /// "supported by CodexBar" means "supported here". Once the user curates
+    /// the list in settings, that explicit list wins.
     public var providers: [String] {
         let configured = settings.settings.displayedProviders
-        return configured.isEmpty ? ["codex", "claude"] : configured
+        if !configured.isEmpty { return configured }
+        let upstream = availableProviders.filter(\.enabledInCodexBar).map(\.id)
+        return upstream.isEmpty ? ["codex", "claude"] : upstream
     }
 
     /// The full provider catalog from the CLI, if an engine is available.
@@ -201,7 +208,16 @@ public final class AppCoordinator: ObservableObject {
         Task { [weak self] in
             guard let self, let catalog = engine as? ProviderCatalogEngine else { return }
             if let list = try? await catalog.listProviders() {
-                await MainActor.run { self.availableProviders = list }
+                await MainActor.run {
+                    let before = self.providers
+                    self.availableProviders = list
+                    // If we are following the upstream list, the derived set may
+                    // have changed (e.g. a provider enabled in CodexBar). Restart
+                    // so its data is fetched too.
+                    if self.settings.settings.displayedProviders.isEmpty, self.providers != before {
+                        self.startEngine()
+                    }
+                }
             }
         }
     }
