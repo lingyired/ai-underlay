@@ -21,7 +21,8 @@ public struct AgentEffectStyle: Equatable, Sendable {
             return nil
         case .running:
             // A moving shimmer across the bar: "the agent is working".
-            return AgentEffectStyle(color: RGBAColor(red: 0.55, green: 0.85, blue: 1.0, alpha: 0.55), pulse: false, sweep: true)
+            // Near-white so it reads as a shine over any brand color.
+            return AgentEffectStyle(color: RGBAColor(red: 0.92, green: 0.97, blue: 1.0, alpha: 0.95), pulse: false, sweep: true)
         case .waitingInput:
             return AgentEffectStyle(color: RGBAColor(red: 1.0, green: 0.85, blue: 0.3, alpha: 0.95), pulse: true, sweep: false)
         case .waitingApproval:
@@ -41,7 +42,7 @@ public struct AgentEffectStyle: Equatable, Sendable {
 public enum AgentEffectLayer {
     public static let dotSize: CGFloat = 8
     /// How long one shimmer sweep takes.
-    public static let sweepDuration: CFTimeInterval = 2.4
+    public static let sweepDuration: CFTimeInterval = 2.2
 
     public static func make(
         state: AgentState,
@@ -70,14 +71,18 @@ public enum AgentEffectLayer {
         reduceMotion: Bool
     ) -> CALayer {
         let fill = geometry.fillBounds
-        let bandWidth = max(60, fill.width * 0.35)
+        // A solid bright band with soft shoulders — crisp enough to read as a
+        // passing light, not a broad wash.
+        let bandWidth = max(70, fill.width * 0.22)
         let band = CAGradientLayer()
+        let white = RGBAColor(red: 1, green: 1, blue: 1, alpha: 1)
         band.colors = [
-            style.color.cgColor(alpha: 0),
-            style.color.cgColor,
-            style.color.cgColor(alpha: 0),
+            white.cgColor(alpha: 0),
+            white.cgColor(alpha: 0.9),
+            white.cgColor(alpha: 0.9),
+            white.cgColor(alpha: 0),
         ]
-        band.locations = [0, 0.5, 1]
+        band.locations = [0, 0.3, 0.7, 1]
         band.startPoint = CGPoint(x: 0, y: 0.5)
         band.endPoint = CGPoint(x: 1, y: 0.5)
 
