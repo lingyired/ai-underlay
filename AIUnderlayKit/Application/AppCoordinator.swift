@@ -125,7 +125,8 @@ public final class AppCoordinator {
     /// Discovers the CLI and, if a compatible engine exists, begins periodic
     /// refreshes. Without an engine we simply keep rendering fixtures/cache.
     public func startEngine() {
-        engineManager.refresh()
+        let override = settings.settings.proxyOverride
+        engineManager.setProxyOverride(override.isEmpty ? nil : override)
         guard let engine = engineManager.activeEngine else { return }
 
         scheduler = QuotaRefreshScheduler(

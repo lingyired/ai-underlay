@@ -7,6 +7,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var singleDirection: SingleBarDirection
     /// Master on/off for the overlay band.
     public var overlayEnabled: Bool
+    /// Explicit proxy URL for CLI child processes, e.g. "http://127.0.0.1:10808".
+    /// Empty means "use the macOS system proxy settings".
+    public var proxyOverride: String
     public var showBaseline: Bool
     public var showAgentEffects: Bool
     public var reduceMotion: Bool
@@ -21,6 +24,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         anchor: AnchorMode = .outerEdge,
         singleDirection: SingleBarDirection = .leadingToTrailing,
         overlayEnabled: Bool = true,
+        proxyOverride: String = "",
         showBaseline: Bool = true,
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
@@ -32,6 +36,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.anchor = anchor
         self.singleDirection = singleDirection
         self.overlayEnabled = overlayEnabled
+        self.proxyOverride = proxyOverride
         self.showBaseline = showBaseline
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion

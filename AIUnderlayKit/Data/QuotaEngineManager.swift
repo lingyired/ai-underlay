@@ -12,15 +12,25 @@ public final class QuotaEngineManager {
     private let home: URL
     /// When set, overrides the standard search order entirely (used by tests).
     private let searchPaths: [URL]?
+    /// Explicit proxy URL passed to the engine, if any.
+    private var proxyOverride: String?
 
     public init(
         manualPath: URL? = nil,
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
-        searchPaths: [URL]? = nil
+        searchPaths: [URL]? = nil,
+        proxyOverride: String? = nil
     ) {
         self.manualPath = manualPath
         self.home = home
         self.searchPaths = searchPaths
+        self.proxyOverride = proxyOverride
+    }
+
+    /// Updates the proxy override and re-resolves the active engine.
+    public func setProxyOverride(_ value: String?) {
+        proxyOverride = value
+        refresh()
     }
 
     /// Re-runs discovery. The manual override is honoured first; otherwise the
@@ -34,7 +44,11 @@ public final class QuotaEngineManager {
             candidates = CLIInventory.discover(manualPath: manualPath, home: home, runner: runner)
         }
         if let best = candidates.first(where: { $0.compatibility == .compatible }) {
-            activeEngine = CodexBarEngine(executableURL: best.url, version: best.version)
+            activeEngine = CodexBarEngine(
+                executableURL: best.url,
+                version: best.version,
+                proxyOverride: proxyOverride
+            )
         } else {
             activeEngine = nil
         }

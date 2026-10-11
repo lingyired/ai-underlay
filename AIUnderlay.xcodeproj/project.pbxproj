@@ -28,6 +28,7 @@
 		49FD992948D39E3A78CE2EF4 /* EngineTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546BBAADC591098F3B60ADAD /* EngineTab.swift */; };
 		4CCF11CE0C028470CEB24E83 /* AgentSessionReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351770E5E673383B059F5D57 /* AgentSessionReducerTests.swift */; };
 		4E6E70D784AAFFF9A30B34B1 /* QuotaWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D6B1196EA84AC04597F3C4 /* QuotaWindow.swift */; };
+		50AA701F6F6CC995E9B54935 /* ProxyEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */; };
 		56998F3E54C21B21021C62DC /* AgentEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB61B0A84EA0CC8E0FC472B3 /* AgentEvent.swift */; };
 		5AD684F224513AC471E5C882 /* AgentEffectLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2060541D005BBF96ECA85A /* AgentEffectLayer.swift */; };
 		5B1F52CFE32A5F4A022BE979 /* CLIInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E325529F092095FCC948EF09 /* CLIInventoryTests.swift */; };
@@ -41,6 +42,7 @@
 		7A5C219BC4613F88D6A445D9 /* FixtureSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBADAC7037F960D43A380E64 /* FixtureSnapshots.swift */; };
 		7DF0755E2F933C874844E063 /* NestedGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F507F12EE1F97264626E02 /* NestedGauge.swift */; };
 		7E6B4FD205EFA6387201F74D /* DiagnosticsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD05C5511A55871B2AB243B5 /* DiagnosticsTab.swift */; };
+		85389BEC97FE5322827F018A /* ProxyEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08397254C141A1C0C0775AF8 /* ProxyEnvironment.swift */; };
 		85A0473684853F947DB690AC /* BandWatchdogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 666DDB9479CBB79AF6D7DCA6 /* BandWatchdogTests.swift */; };
 		8F741940B6EF21C6BC667FAC /* GaugeGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AEA3EA74D68982CEA5EE0D2 /* GaugeGeometryTests.swift */; };
 		97700A199CCF52F33E97236B /* MenuBarGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E08E4395030A5E27D676867 /* MenuBarGeometryTests.swift */; };
@@ -122,6 +124,8 @@
 /* Begin PBXFileReference section */
 		006332725172C1E3B9ECC6DC /* AIUnderlayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUnderlayApp.swift; sourceTree = "<group>"; };
 		06344A58A3E38193CDD8F1BD /* SettingsRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRootView.swift; sourceTree = "<group>"; };
+		08397254C141A1C0C0775AF8 /* ProxyEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyEnvironment.swift; sourceTree = "<group>"; };
+		116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyEnvironmentTests.swift; sourceTree = "<group>"; };
 		12913375AD25E2CC1B143874 /* CodexBarEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarEngine.swift; sourceTree = "<group>"; };
 		1B2060541D005BBF96ECA85A /* AgentEffectLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEffectLayer.swift; sourceTree = "<group>"; };
 		1B8B613C792520CB731CC3D4 /* DisplayConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayConfiguration.swift; sourceTree = "<group>"; };
@@ -251,6 +255,7 @@
 				80085F21CF6CFFAD1DA77934 /* CodexBarCLIClientTests.swift */,
 				8B6679633CB7EDCF0B2F5D60 /* CodexBarInstallerTests.swift */,
 				B2812158B359CA168BADB1DF /* CodexBarUsageDecoderTests.swift */,
+				116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */,
 				6992B579B02AF713BECB0B82 /* QuotaEngineManagerTests.swift */,
 			);
 			path = DataTests;
@@ -371,6 +376,7 @@
 		9C03520F2A68752AD6FF3F02 /* Data */ = {
 			isa = PBXGroup;
 			children = (
+				08397254C141A1C0C0775AF8 /* ProxyEnvironment.swift */,
 				F26B4D3F0ADD40A6E292A66F /* QuotaEngine.swift */,
 				AD0F4BB73DA071FF23A3A820 /* QuotaEngineManager.swift */,
 				D476B1AC30CB08A243B7DD5C /* QuotaRefreshScheduler.swift */,
@@ -560,6 +566,7 @@
 				7DF0755E2F933C874844E063 /* NestedGauge.swift in Sources */,
 				D4CA811B84A9BA378BF511AA /* ProviderQuotaSnapshot.swift in Sources */,
 				27EA60F27846F15B924AB9C5 /* ProvidersTab.swift in Sources */,
+				85389BEC97FE5322827F018A /* ProxyEnvironment.swift in Sources */,
 				14E138D2E4531C826DE3609A /* QuotaEngine.swift in Sources */,
 				3F1C3A2B5782466C1DFEB2E2 /* QuotaEngineManager.swift in Sources */,
 				D1685E17F47928956FE94DD5 /* QuotaPace.swift in Sources */,
@@ -602,6 +609,7 @@
 				61A9633AB5E284F568A486A1 /* HookSetupCoordinatorTests.swift in Sources */,
 				97700A199CCF52F33E97236B /* MenuBarGeometryTests.swift in Sources */,
 				BE5D2D7CCF7A280587E74BCE /* NestedGaugeTests.swift in Sources */,
+				50AA701F6F6CC995E9B54935 /* ProxyEnvironmentTests.swift in Sources */,
 				06C81CC2B5EEC7B854DB2B8B /* QuotaEngineManagerTests.swift in Sources */,
 				D7A26CF90F88C7AECFAFF488 /* QuotaPaceTests.swift in Sources */,
 				E72A67E3766024F67874674B /* SettingsStoreTests.swift in Sources */,

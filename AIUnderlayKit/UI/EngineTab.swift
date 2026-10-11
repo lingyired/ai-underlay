@@ -3,6 +3,7 @@ import SwiftUI
 /// 引擎设置：外部 CLI 探测、兼容性、托管安装/卸载。
 public struct EngineTab: View {
     @State private var message = ""
+    @State private var proxy = ""
 
     public init() {}
 
@@ -53,11 +54,26 @@ public struct EngineTab: View {
                 }
             }
 
+            Section("代理") {
+                TextField("代理地址（留空则使用系统代理）", text: $proxy, prompt: Text("http://127.0.0.1:10808"))
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("保存并重新检测") {
+                        AppCoordinator.shared?.settings.update { $0.proxyOverride = proxy.trimmingCharacters(in: .whitespaces) }
+                        AppCoordinator.shared?.startEngine()
+                        message = "已应用代理设置并重新检测。"
+                    }
+                    Text("Codex 等需要代理才能联网；GUI 应用默认读不到终端里的代理变量，这里可显式指定。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             if !message.isEmpty {
                 Text(message).font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .onAppear { proxy = AppCoordinator.shared?.settings.settings.proxyOverride ?? "" }
     }
 
     private static func compatibilityLabel(_ compatibility: Compatibility) -> String {
