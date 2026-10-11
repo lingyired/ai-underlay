@@ -50,7 +50,7 @@ extension CodexBarEngine: ProviderCatalogEngine {
     public func listProviders() async throws -> [ProviderInfo] {
         let env = ProxyEnvironment.mergedEnvironment(override: proxyOverride)
         let data = try await client.run(executable: executableURL,
-                                        args: ["config", "providers", "--json", "--no-color"],
+                                        args: ["config", "providers", "--json"],
                                         timeout: 20, environment: env)
         return try CodexBarProviderCatalog.parse(data)
     }
@@ -58,14 +58,14 @@ extension CodexBarEngine: ProviderCatalogEngine {
     public func setProviderEnabled(_ provider: String, enabled: Bool) async throws {
         let env = ProxyEnvironment.mergedEnvironment(override: proxyOverride)
         _ = try await client.run(executable: executableURL,
-                                 args: ["config", enabled ? "enable" : "disable", "--provider", provider, "--no-color"],
+                                 args: ["config", enabled ? "enable" : "disable", "--provider", provider],
                                  timeout: 20, environment: env)
     }
 
     public func setAPIKey(provider: String, key: String) async throws {
         let env = ProxyEnvironment.mergedEnvironment(override: proxyOverride)
         _ = try await client.run(executable: executableURL,
-                                 args: ["config", "set-api-key", "--provider", provider, "--stdin", "--no-color"],
+                                 args: ["config", "set-api-key", "--provider", provider, "--stdin"],
                                  timeout: 20, environment: env,
                                  stdin: Data((key + "\n").utf8))
     }
