@@ -13,6 +13,7 @@ public final class SettingsWindowController {
     public init() {}
 
     public func show<Content: View>(_ content: Content) {
+        Log.write("SettingsWindowController.show called")
         // Bring the app forward first; without this the window is created but
         // stays behind whichever app is currently frontmost.
         NSApp.activate(ignoringOtherApps: true)
