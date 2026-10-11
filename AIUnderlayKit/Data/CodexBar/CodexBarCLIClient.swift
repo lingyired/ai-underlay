@@ -42,7 +42,8 @@ public struct CodexBarCLIClient: Sendable {
         executable: URL,
         args: [String],
         timeout: TimeInterval = 30,
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
+        stdin: Data? = nil
     ) async throws -> Data {
         try Self.validate(executable: executable)
 
@@ -57,6 +58,9 @@ public struct CodexBarCLIClient: Sendable {
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        // Secrets (API keys) are fed on stdin, never as command-line arguments.
+        let stdinPipe = stdin != nil ? Pipe() : nil
+        process.standardInput = stdinPipe
 
         return try await withCheckedThrowingContinuation { continuation in
             let box = ContinuationBox(continuation)
@@ -74,6 +78,10 @@ public struct CodexBarCLIClient: Sendable {
             }
             do {
                 try process.run()
+                if let stdin, let stdinPipe {
+                    stdinPipe.fileHandleForWriting.write(stdin)
+                    try? stdinPipe.fileHandleForWriting.close()
+                }
             } catch {
                 box.resume(throwing: CodexBarCLIError.launchFailed(error.localizedDescription))
                 return

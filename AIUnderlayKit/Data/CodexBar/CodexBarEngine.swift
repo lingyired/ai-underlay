@@ -7,7 +7,7 @@ public struct CodexBarEngine: QuotaEngine {
     public let version: String?
     /// Explicit proxy URL override, e.g. "http://127.0.0.1:10808".
     public let proxyOverride: String?
-    private let client: CodexBarCLIClient
+    let client: CodexBarCLIClient
 
     public init(
         executableURL: URL,

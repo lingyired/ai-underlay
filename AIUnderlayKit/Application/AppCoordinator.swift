@@ -32,8 +32,14 @@ public final class AppCoordinator: ObservableObject {
     private var agentReceiver: AgentEventReceiver?
     private let reducer = AgentSessionReducer()
 
-    /// Providers we try to display. Configurable in a later pass.
-    public var providers: [String] = ["codex", "claude"]
+    /// Providers shown in the overlay and dashboard. Reads from settings.
+    public var providers: [String] {
+        let configured = settings.settings.displayedProviders
+        return configured.isEmpty ? ["codex", "claude"] : configured
+    }
+
+    /// The full provider catalog from the CLI, if an engine is available.
+    public private(set) var availableProviders: [ProviderInfo] = []
 
     public init(
         settings: SettingsStore = SettingsStore(),
@@ -191,6 +197,38 @@ public final class AppCoordinator: ObservableObject {
             }
         )
         scheduler?.start(providers: providers)
+
+        Task { [weak self] in
+            guard let self, let catalog = engine as? ProviderCatalogEngine else { return }
+            if let list = try? await catalog.listProviders() {
+                await MainActor.run { self.availableProviders = list }
+            }
+        }
+    }
+
+    /// Toggles whether a provider is shown in the overlay/dashboard.
+    public func setProviderDisplayed(_ provider: String, displayed: Bool) {
+        settings.update { s in
+            var list = s.displayedProviders.isEmpty ? ["codex", "claude"] : s.displayedProviders
+            if displayed, !list.contains(provider) { list.append(provider) }
+            if !displayed { list.removeAll { $0 == provider } }
+            s.displayedProviders = list
+        }
+        startEngine()  // refresh with the new provider set
+    }
+
+    /// Enables/disables a provider in CodexBar's own config. Modifies shared
+    /// config — callers must confirm with the user first.
+    public func setCodexBarProviderEnabled(_ provider: String, enabled: Bool) async throws {
+        guard let catalog = engineManager.activeEngine as? ProviderCatalogEngine else { return }
+        try await catalog.setProviderEnabled(provider, enabled: enabled)
+        availableProviders = (try? await catalog.listProviders()) ?? availableProviders
+    }
+
+    /// Sets an API key for a provider that supports it (via stdin).
+    public func setProviderAPIKey(_ provider: String, key: String) async throws {
+        guard let catalog = engineManager.activeEngine as? ProviderCatalogEngine else { return }
+        try await catalog.setAPIKey(provider: provider, key: key)
     }
 
     public func refreshNow() {

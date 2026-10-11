@@ -18,6 +18,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var statusItemVisible: Bool
     /// Per-display configurations, keyed by stable display ID.
     public var displays: [DisplayConfiguration]
+    /// Providers shown in the overlay and dashboard, in order.
+    public var displayedProviders: [String]
 
     public init(
         layout: LayoutMode = .dual,
@@ -30,7 +32,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         reduceMotion: Bool = false,
         previewFixture: String? = nil,
         statusItemVisible: Bool = true,
-        displays: [DisplayConfiguration] = []
+        displays: [DisplayConfiguration] = [],
+        displayedProviders: [String] = ["codex", "claude"]
     ) {
         self.layout = layout
         self.anchor = anchor
@@ -43,6 +46,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.previewFixture = previewFixture
         self.statusItemVisible = statusItemVisible
         self.displays = displays
+        self.displayedProviders = displayedProviders
     }
 
     public static let `default` = AppSettings()
