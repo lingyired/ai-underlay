@@ -217,6 +217,23 @@ public final class AppCoordinator: ObservableObject {
         startEngine()  // refresh with the new provider set
     }
 
+    /// Fetches the provider catalog on demand and caches it.
+    @discardableResult
+    public func refreshProviderCatalog() async -> [ProviderInfo] {
+        guard let catalog = engineManager.activeEngine as? ProviderCatalogEngine else { return [] }
+        if let list = try? await catalog.listProviders() {
+            availableProviders = list
+            return list
+        }
+        return availableProviders
+    }
+
+    /// Path to the shared CodexBar config, for the UI to explain sharing.
+    public static var codexBarConfigPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/codexbar/config.json").path
+    }
+
     /// Enables/disables a provider in CodexBar's own config. Modifies shared
     /// config — callers must confirm with the user first.
     public func setCodexBarProviderEnabled(_ provider: String, enabled: Bool) async throws {

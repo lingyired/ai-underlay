@@ -45,14 +45,21 @@ public struct ProvidersTab: View {
             AddProviderSheet(
                 catalog: catalog,
                 displayed: AppCoordinator.shared?.providers ?? [],
-                onAdd: { id in
+                onAddDisplay: { id in
                     AppCoordinator.shared?.setProviderDisplayed(id, displayed: true)
                     reload(test: false)
-                    showAdd = false
                 },
-                onRemove: { id in
+                onRemoveDisplay: { id in
                     AppCoordinator.shared?.setProviderDisplayed(id, displayed: false)
                     reload(test: false)
+                },
+                onEnableUpstream: { id in
+                    Task {
+                        try? await AppCoordinator.shared?.setCodexBarProviderEnabled(id, enabled: true)
+                        AppCoordinator.shared?.setProviderDisplayed(id, displayed: true)
+                        await refreshCatalogAsync()
+                        reload(test: false)
+                    }
                 },
                 onClose: { showAdd = false }
             )
@@ -87,6 +94,13 @@ public struct ProvidersTab: View {
     private func refreshCatalog() {
         catalog = AppCoordinator.shared?.availableProviders ?? []
         if catalog.isEmpty {
+            Task { await refreshCatalogAsync() }
+        }
+    }
+
+    private func refreshCatalogAsync() async {
+        catalog = await AppCoordinator.shared?.refreshProviderCatalog() ?? []
+        if catalog.isEmpty {
             message = "尚未获取到服务商目录，请先到“引擎”页重新检测。"
         }
     }
@@ -99,56 +113,3 @@ public struct ProvidersTab: View {
     }
 }
 
-/// Sheet listing every provider CodexBar knows about, with add/remove.
-struct AddProviderSheet: View {
-    let catalog: [ProviderInfo]
-    let displayed: [String]
-    let onAdd: (String) -> Void
-    let onRemove: (String) -> Void
-    let onClose: () -> Void
-
-    @State private var search = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("添加服务商").font(.headline)
-                Spacer()
-                Button("完成") { onClose() }
-            }
-            TextField("搜索…", text: $search)
-                .textFieldStyle(.roundedBorder)
-
-            if catalog.isEmpty {
-                Text("目录为空。请先确认 CodexBar CLI 可用。")
-                    .foregroundStyle(.secondary)
-            } else {
-                List(filtered, id: \.id) { info in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(info.displayName)
-                            Text(info.id).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if displayed.contains(info.id) {
-                            Button("移除") { onRemove(info.id) }
-                        } else {
-                            Button("添加") { onAdd(info.id) }
-                        }
-                    }
-                }
-                .frame(minHeight: 320)
-            }
-        }
-        .padding()
-        .frame(width: 420, height: 460)
-    }
-
-    private var filtered: [ProviderInfo] {
-        guard !search.isEmpty else { return catalog }
-        return catalog.filter {
-            $0.displayName.localizedCaseInsensitiveContains(search)
-                || $0.id.localizedCaseInsensitiveContains(search)
-        }
-    }
-}

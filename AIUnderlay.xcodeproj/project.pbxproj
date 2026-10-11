@@ -63,6 +63,7 @@
 		BCACEE6D95145886C5F426D2 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D48276430C02EE0ED67D92B /* Log.swift */; };
 		BE5D2D7CCF7A280587E74BCE /* NestedGaugeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B5ECD9EB22C689E847C5D7 /* NestedGaugeTests.swift */; };
 		C02BCC7FBE56FAC207FA9D81 /* MenuBarGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFABB65B186E745FAC57BD84 /* MenuBarGeometry.swift */; };
+		C5919D9E8486E6409DF50DC0 /* AddProviderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F7FB557135FB0B220979D7 /* AddProviderSheet.swift */; };
 		C65AF830637B9C536CEBE3D7 /* AIUnderlayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006332725172C1E3B9ECC6DC /* AIUnderlayApp.swift */; };
 		C6FC91C89DFAC7B4D24E2ECA /* AIUnderlayKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */; };
@@ -133,6 +134,7 @@
 		006332725172C1E3B9ECC6DC /* AIUnderlayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUnderlayApp.swift; sourceTree = "<group>"; };
 		06344A58A3E38193CDD8F1BD /* SettingsRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRootView.swift; sourceTree = "<group>"; };
 		08397254C141A1C0C0775AF8 /* ProxyEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyEnvironment.swift; sourceTree = "<group>"; };
+		08F7FB557135FB0B220979D7 /* AddProviderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProviderSheet.swift; sourceTree = "<group>"; };
 		107C98213BC167CD5510FBA0 /* DashboardModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModelTests.swift; sourceTree = "<group>"; };
 		116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyEnvironmentTests.swift; sourceTree = "<group>"; };
 		12913375AD25E2CC1B143874 /* CodexBarEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarEngine.swift; sourceTree = "<group>"; };
@@ -418,6 +420,7 @@
 		C72B55578EBB034F312BE651 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				08F7FB557135FB0B220979D7 /* AddProviderSheet.swift */,
 				909664B2EFCA70E523248132 /* AgentTab.swift */,
 				292AD150071FF8EB91AFF9E8 /* AppearanceTab.swift */,
 				DD05C5511A55871B2AB243B5 /* DiagnosticsTab.swift */,
@@ -576,6 +579,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C5919D9E8486E6409DF50DC0 /* AddProviderSheet.swift in Sources */,
 				5AD684F224513AC471E5C882 /* AgentEffectLayer.swift in Sources */,
 				56998F3E54C21B21021C62DC /* AgentEvent.swift in Sources */,
 				2BCA783B2D0FD626D0C67D9A /* AgentEventAdapter.swift in Sources */,
