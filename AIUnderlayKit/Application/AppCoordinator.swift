@@ -50,7 +50,7 @@ public final class AppCoordinator {
             onOpenSettings: { SettingsOpener.open() },
             onToggleOverlay: { [weak self] in
                 guard let self else { return }
-                self.settings.update { $0.previewFixture = $0.previewFixture == nil ? "weekLow" : nil }
+                self.settings.update { $0.overlayEnabled.toggle() }
             }
         )
         statusItem?.setVisible(settings.settings.statusItemVisible)
@@ -213,7 +213,7 @@ public final class AppCoordinator {
     private func apply(left: GaugePresentation?, right: GaugePresentation?, settings s: AppSettings) {
         let config = DisplayConfiguration(
             displayID: "primary",
-            isEnabled: true,
+            isEnabled: s.overlayEnabled,
             layout: s.layout,
             anchor: s.anchor,
             singleDirection: s.singleDirection,

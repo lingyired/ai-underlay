@@ -27,6 +27,7 @@ public struct AppearanceTab: View {
             }
 
             Section("覆盖层") {
+                Toggle("启用覆盖层", isOn: binding(\.overlayEnabled))
                 Toggle("显示基准线", isOn: binding(\.showBaseline))
                 Toggle("显示 Agent 动效", isOn: binding(\.showAgentEffects))
                 Toggle("减弱动效", isOn: binding(\.reduceMotion))
