@@ -104,4 +104,29 @@ final class AgentEffectTests: XCTestCase {
     func test_runningEffect_defaultIsBreathing() {
         XCTAssertEqual(AppSettings.default.runningEffect, .breathing)
     }
+
+    func test_stateColorsAreDistinct() {
+        // Color must encode state, so no two states share a color.
+        let states: [AgentState] = [.running, .waitingInput, .waitingApproval, .completed, .error]
+        let colors = states.map { AgentEffectStyle.defaultColor(for: $0) }
+        XCTAssertEqual(Set(colors.map { "\($0.red),\($0.green),\($0.blue)" }).count, states.count)
+    }
+
+    func test_runningColorOverride() {
+        let green = AgentEffectStyle.defaultColor(for: .running)
+        XCTAssertGreaterThan(green.green, green.red, "running default is green-dominant")
+        let custom = RGBAColor(red: 0.1, green: 0.2, blue: 0.9)
+        let style = AgentEffectStyle.style(for: .running, runningColor: custom)
+        XCTAssertEqual(style?.color, custom)
+    }
+
+    func test_waitingColorIsNotOverridable() {
+        // Only the running color is configurable; waiting keeps its amber/orange.
+        let style = AgentEffectStyle.style(for: .waitingApproval, runningColor: RGBAColor(red: 0, green: 1, blue: 0))
+        XCTAssertEqual(style?.color, AgentEffectStyle.defaultColor(for: .waitingApproval))
+    }
+
+    func test_runningColorDefaultIsGreen() {
+        XCTAssertEqual(AppSettings.default.runningEffectColor, .green)
+    }
 }

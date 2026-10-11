@@ -12,6 +12,25 @@ public enum RunningEffect: String, Codable, Sendable, CaseIterable {
     case none
 }
 
+/// Color of the "agent running" animation.
+public enum RunningEffectColor: String, Codable, Sendable, CaseIterable {
+    case green
+    case white
+    case blue
+    case orange
+    case purple
+
+    public var rgba: (red: Double, green: Double, blue: Double) {
+        switch self {
+        case .green: return (0.30, 1.00, 0.45)
+        case .white: return (1.00, 1.00, 1.00)
+        case .blue: return (0.45, 0.80, 1.00)
+        case .orange: return (1.00, 0.65, 0.30)
+        case .purple: return (0.70, 0.55, 1.00)
+        }
+    }
+}
+
 /// User-facing appearance and display settings. Non-secret; persisted as JSON.
 public struct AppSettings: Codable, Sendable, Equatable {
     public var layout: LayoutMode
@@ -21,6 +40,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var overlayEnabled: Bool
     /// How the "agent running" state is animated on the bar.
     public var runningEffect: RunningEffect
+    /// Color of the running animation.
+    public var runningEffectColor: RunningEffectColor
     /// Explicit proxy URL for CLI child processes, e.g. "http://127.0.0.1:10808".
     /// Empty means "use the macOS system proxy settings".
     public var proxyOverride: String
@@ -41,6 +62,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         singleDirection: SingleBarDirection = .leadingToTrailing,
         overlayEnabled: Bool = true,
         runningEffect: RunningEffect = .breathing,
+        runningEffectColor: RunningEffectColor = .green,
         proxyOverride: String = "",
         showBaseline: Bool = true,
         showAgentEffects: Bool = true,
@@ -55,6 +77,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.singleDirection = singleDirection
         self.overlayEnabled = overlayEnabled
         self.runningEffect = runningEffect
+        self.runningEffectColor = runningEffectColor
         self.proxyOverride = proxyOverride
         self.showBaseline = showBaseline
         self.showAgentEffects = showAgentEffects
@@ -79,6 +102,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         singleDirection = try c.decodeIfPresent(SingleBarDirection.self, forKey: .singleDirection) ?? d.singleDirection
         overlayEnabled = try c.decodeIfPresent(Bool.self, forKey: .overlayEnabled) ?? d.overlayEnabled
         runningEffect = try c.decodeIfPresent(RunningEffect.self, forKey: .runningEffect) ?? d.runningEffect
+        runningEffectColor = try c.decodeIfPresent(RunningEffectColor.self, forKey: .runningEffectColor) ?? d.runningEffectColor
         proxyOverride = try c.decodeIfPresent(String.self, forKey: .proxyOverride) ?? d.proxyOverride
         showBaseline = try c.decodeIfPresent(Bool.self, forKey: .showBaseline) ?? d.showBaseline
         showAgentEffects = try c.decodeIfPresent(Bool.self, forKey: .showAgentEffects) ?? d.showAgentEffects

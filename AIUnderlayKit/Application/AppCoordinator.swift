@@ -332,10 +332,12 @@ public final class AppCoordinator: ObservableObject {
             : nil
         let left = GaugePresentation(windows: windows, palette: .codex, baseline: baseline,
                                      agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "codex") : nil,
-                                     showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect)
+                                     showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect,
+                                     runningColor: Self.runningColor(s.runningEffectColor))
         let right = GaugePresentation(windows: windows, palette: .claude, baseline: baseline,
                                       agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "claude") : nil,
-                                      showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect)
+                                      showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect,
+                                     runningColor: Self.runningColor(s.runningEffectColor))
         apply(left: left, right: right, settings: s)
     }
 
@@ -353,7 +355,8 @@ public final class AppCoordinator: ObservableObject {
                 agentState: agent,
                 showAgentEffects: s.showAgentEffects,
                 reduceMotion: s.reduceMotion,
-                runningEffect: s.runningEffect
+                runningEffect: s.runningEffect,
+                runningColor: Self.runningColor(s.runningEffectColor)
             )
         }
 
@@ -388,5 +391,11 @@ public final class AppCoordinator: ObservableObject {
             left: left,
             right: config.layout == .dual ? right : nil
         ))
+    }
+
+    /// Maps the configured running-effect color to an RGBA color.
+    static func runningColor(_ c: RunningEffectColor) -> RGBAColor {
+        let rgb = c.rgba
+        return RGBAColor(red: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 0.95)
     }
 }

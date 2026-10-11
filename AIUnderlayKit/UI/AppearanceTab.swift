@@ -37,6 +37,16 @@ public struct AppearanceTab: View {
                     Text("无").tag(RunningEffect.none)
                 }
                 .disabled(!store.settings.showAgentEffects)
+                Picker("运行中颜色", selection: binding(\.runningEffectColor)) {
+                    Text("绿（工作中）").tag(RunningEffectColor.green)
+                    Text("白").tag(RunningEffectColor.white)
+                    Text("蓝").tag(RunningEffectColor.blue)
+                    Text("橙").tag(RunningEffectColor.orange)
+                    Text("紫").tag(RunningEffectColor.purple)
+                }
+                .disabled(!store.settings.showAgentEffects)
+                Text("状态靠颜色区分：运行=绿、等待=琥珀/橙、错误=红、完成=青。此处只改“运行中”的颜色。")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("减弱动效", isOn: binding(\.reduceMotion))
                 Toggle("显示菜单栏图标", isOn: binding(\.statusItemVisible))
             }

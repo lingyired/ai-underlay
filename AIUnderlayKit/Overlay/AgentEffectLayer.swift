@@ -17,22 +17,37 @@ public struct AgentEffectStyle: Equatable, Sendable {
         self.breathe = breathe
     }
 
+    /// The default color for a state. Color is the primary way a glance tells
+    /// states apart, so each state gets its own:
+    /// green = working, amber = waiting on you, red = error, teal = done.
+    public static func defaultColor(for state: AgentState) -> RGBAColor {
+        switch state {
+        case .running: return RGBAColor(red: 0.30, green: 1.00, blue: 0.45, alpha: 0.95)      // green
+        case .waitingInput: return RGBAColor(red: 1.00, green: 0.85, blue: 0.30, alpha: 0.95) // amber
+        case .waitingApproval: return RGBAColor(red: 1.00, green: 0.55, blue: 0.20, alpha: 0.95) // orange
+        case .completed: return RGBAColor(red: 0.35, green: 0.90, blue: 0.80, alpha: 0.95)    // teal
+        case .error: return RGBAColor(red: 1.00, green: 0.35, blue: 0.30, alpha: 0.95)        // red
+        case .idle, .unknown, .reconnecting: return RGBAColor(red: 0.7, green: 0.7, blue: 0.7, alpha: 0.9)
+        }
+    }
+
     /// Style for a state. `nil` (no agent activity) returns nil — nothing drawn.
-    public static func style(for state: AgentState?) -> AgentEffectStyle? {
+    /// `runningColor` overrides the running color only; other states keep their
+    /// state colors so color always encodes state.
+    public static func style(for state: AgentState?, runningColor: RGBAColor? = nil) -> AgentEffectStyle? {
         switch state {
         case .none, .idle:
             return nil
         case .running:
-            // Near-white so it reads as a shine over any brand color.
-            return AgentEffectStyle(color: RGBAColor(red: 0.92, green: 0.97, blue: 1.0, alpha: 0.95), pulse: false, sweep: true, breathe: true)
+            return AgentEffectStyle(color: runningColor ?? defaultColor(for: .running), pulse: false, sweep: true, breathe: true)
         case .waitingInput:
-            return AgentEffectStyle(color: RGBAColor(red: 1.0, green: 0.85, blue: 0.3, alpha: 0.95), pulse: true, sweep: false)
+            return AgentEffectStyle(color: defaultColor(for: .waitingInput), pulse: true, sweep: false)
         case .waitingApproval:
-            return AgentEffectStyle(color: RGBAColor(red: 1.0, green: 0.55, blue: 0.2, alpha: 0.95), pulse: true, sweep: false)
+            return AgentEffectStyle(color: defaultColor(for: .waitingApproval), pulse: true, sweep: false)
         case .completed:
-            return AgentEffectStyle(color: RGBAColor(red: 0.4, green: 0.9, blue: 0.5, alpha: 0.95), pulse: false, sweep: true)
+            return AgentEffectStyle(color: defaultColor(for: .completed), pulse: false, sweep: true)
         case .error:
-            return AgentEffectStyle(color: RGBAColor(red: 1.0, green: 0.35, blue: 0.3, alpha: 0.95), pulse: true, sweep: false)
+            return AgentEffectStyle(color: defaultColor(for: .error), pulse: true, sweep: false)
         case .unknown, .reconnecting:
             return nil  // never animate a state we cannot observe
         }
@@ -50,9 +65,10 @@ public enum AgentEffectLayer {
         state: AgentState,
         geometry: GaugeGeometry,
         reduceMotion: Bool,
-        runningEffect: RunningEffect = .breathing
+        runningEffect: RunningEffect = .breathing,
+        runningColor: RGBAColor? = nil
     ) -> CALayer? {
-        guard let style = AgentEffectStyle.style(for: state) else { return nil }
+        guard let style = AgentEffectStyle.style(for: state, runningColor: runningColor) else { return nil }
 
         let container = CALayer()
         container.frame = geometry.trackRect
@@ -62,7 +78,7 @@ public enum AgentEffectLayer {
         if state == .running {
             switch runningEffect {
             case .breathing:
-                container.addSublayer(makeBreathing(geometry: geometry, reduceMotion: reduceMotion))
+                container.addSublayer(makeBreathing(geometry: geometry, color: style.color, reduceMotion: reduceMotion))
             case .sweep:
                 container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion))
             case .dot:
@@ -84,17 +100,11 @@ public enum AgentEffectLayer {
 
     /// A full-width soft light that gently brightens and dims over the fill —
     /// the "breathing" look. One layer, animated by opacity only.
-    private static func makeBreathing(geometry: GaugeGeometry, reduceMotion: Bool) -> CALayer {
-        let glow = CAGradientLayer()
-        let white = RGBAColor(red: 1, green: 1, blue: 1, alpha: 1)
-        glow.colors = [
-            white.cgColor(alpha: 0.10),
-            white.cgColor(alpha: 0.55),
-            white.cgColor(alpha: 0.10),
-        ]
-        glow.locations = [0, 0.5, 1]
-        glow.startPoint = CGPoint(x: 0, y: 0)
-        glow.endPoint = CGPoint(x: 1, y: 0)
+    private static func makeBreathing(geometry: GaugeGeometry, color: RGBAColor, reduceMotion: Bool) -> CALayer {
+        // A solid, saturated layer that fades in and out — at the peak the whole
+        // fill clearly shows the state color, so a glance reads it instantly.
+        let glow = CALayer()
+        glow.backgroundColor = color.cgColor(alpha: 0.9)
         glow.frame = geometry.fillBounds
 
         let clip = CALayer()
@@ -104,13 +114,15 @@ public enum AgentEffectLayer {
 
         if !reduceMotion {
             let anim = CABasicAnimation(keyPath: "opacity")
-            anim.fromValue = 0.25
+            anim.fromValue = 0.05
             anim.toValue = 1.0
-            anim.duration = 1.5
+            anim.duration = 1.3
             anim.autoreverses = true
             anim.repeatCount = .infinity
             anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             glow.add(anim, forKey: "breathe")
+        } else {
+            glow.opacity = 0.6
         }
         return clip
     }
