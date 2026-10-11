@@ -1,15 +1,19 @@
 import AppKit
 import Combine
+import SwiftUI
 
 /// Top-level orchestrator: owns settings, the overlay controller, the quota
 /// engine manager, the snapshot cache, the refresh scheduler, and the status
 /// item. It is the only place that turns domain state into an
 /// `OverlayPresentation`.
 @MainActor
-public final class AppCoordinator {
+public final class AppCoordinator: ObservableObject {
     /// The live coordinator, so the SwiftUI settings scene can reach it without
     /// threading an instance through the App struct.
     public private(set) static weak var shared: AppCoordinator?
+
+    /// Bumped whenever live data changes, so the dashboard popup re-renders.
+    @Published public private(set) var dataRevision = 0
 
     public let settings: SettingsStore
     public let overlay: MenuBarOverlayController
@@ -22,6 +26,7 @@ public final class AppCoordinator {
     public private(set) var lastErrors: [String: String] = [:]
 
     private var statusItem: StatusItemController?
+    private var panel: DashboardPanelController?
     private var scheduler: QuotaRefreshScheduler?
     private var cancellables = Set<AnyCancellable>()
     private var agentReceiver: AgentEventReceiver?
@@ -47,6 +52,7 @@ public final class AppCoordinator {
         overlay.startLifecycle()
 
         statusItem = StatusItemController(
+            onTogglePopover: { [weak self] in self?.togglePopover() },
             onOpenSettings: { SettingsOpener.open() },
             onToggleOverlay: { [weak self] in
                 guard let self else { return }
@@ -54,6 +60,17 @@ public final class AppCoordinator {
             }
         )
         statusItem?.setVisible(settings.settings.statusItemVisible)
+
+        // The dashboard popup, anchored to the status item.
+        panel = DashboardPanelController(
+            anchor: { [weak self] in self?.statusItem?.buttonScreenRect },
+            content: AnyView(DashboardView(
+                coordinator: self,
+                store: settings,
+                onRefresh: { [weak self] in self?.refreshNow() },
+                onOpenSettings: { SettingsOpener.open() }
+            ))
+        )
 
         settings.$settings
             .sink { [weak self] _ in self?.render() }
@@ -120,6 +137,11 @@ public final class AppCoordinator {
         statusItem?.setVisible(visible)
     }
 
+    /// Toggles the dashboard popup below the status item.
+    public func togglePopover() {
+        panel?.toggle()
+    }
+
     // MARK: - Engine
 
     /// Discovers the CLI and, if a compatible engine exists, begins periodic
@@ -137,6 +159,7 @@ public final class AppCoordinator {
                 self.liveSnapshots[snapshot.providerId] = snapshot
                 self.cache.store(snapshot)
                 self.lastErrors[snapshot.providerId] = nil
+                self.dataRevision += 1
                 self.render()
             },
             onError: { [weak self] provider, error in
@@ -146,6 +169,7 @@ public final class AppCoordinator {
                 if let cached = self.cache.cached(id: "\(provider):default") {
                     self.liveSnapshots[provider] = cached
                 }
+                self.dataRevision += 1
                 self.render()
             }
         )

@@ -1,19 +1,21 @@
 import AppKit
 
-/// The one narrow status item that opens settings. The overlay itself is
-/// click-through, so this is the only menu bar affordance we add — and the user
-/// can hide it.
-///
-/// Left-click opens the settings window directly (no menu step). Right-click
-/// shows a small menu with the overlay toggle and Quit. This avoids the
-/// ambiguity of a click that only reveals a menu.
+/// The menu bar affordance. Left-click toggles the dashboard popup; right-click
+/// shows a small menu. The overlay itself is click-through, so this is the only
+/// interactive menu bar element we add — and the user can hide it.
 @MainActor
 public final class StatusItemController {
     private let statusItem: NSStatusItem
+    private let onTogglePopover: () -> Void
     private let onOpenSettings: () -> Void
     private let onToggleOverlay: () -> Void
 
-    public init(onOpenSettings: @escaping () -> Void, onToggleOverlay: @escaping () -> Void) {
+    public init(
+        onTogglePopover: @escaping () -> Void,
+        onOpenSettings: @escaping () -> Void,
+        onToggleOverlay: @escaping () -> Void
+    ) {
+        self.onTogglePopover = onTogglePopover
         self.onOpenSettings = onOpenSettings
         self.onToggleOverlay = onToggleOverlay
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -31,6 +33,12 @@ public final class StatusItemController {
         }
     }
 
+    /// The status button's frame in screen coordinates, for anchoring the popup.
+    public var buttonScreenRect: NSRect? {
+        guard let button = statusItem.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
     public func setVisible(_ visible: Bool) {
         statusItem.isVisible = visible
         Log.write("setVisible(\(visible)) -> isVisible=\(statusItem.isVisible)")
@@ -42,7 +50,7 @@ public final class StatusItemController {
         if isRightClick {
             showMenu()
         } else {
-            onOpenSettings()
+            onTogglePopover()
         }
     }
 

@@ -53,6 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 SettingsOpener.open()
             }
         }
+        if CommandLine.arguments.contains("--open-popup") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                AppCoordinator.shared?.togglePopover()
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -60,10 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Fired when the app is reopened while already running (double-click in
-    /// Finder, `open`, or launching again). This is the reliable "get me into
-    /// settings" path for an accessory app with no Dock icon.
+    /// Finder, `open`, or launching again). Toggles the dashboard popup, the
+    /// same as a left-click on the status item — a reliable way in for an
+    /// accessory app with no Dock icon.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        SettingsOpener.open()
+        AppCoordinator.shared?.togglePopover()
         return true
     }
 }
