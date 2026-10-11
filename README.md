@@ -1,5 +1,11 @@
 # AI Underlay
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)](#requirements)
+[![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
+[![Tests: 163 passing](https://img.shields.io/badge/Tests-163%20passing-brightgreen.svg)](Scripts/test.sh)
+[![No telemetry](https://img.shields.io/badge/Telemetry-none-lightgrey.svg)](docs/privacy-and-permissions.md)
+
 Draws an AI quota and agent-activity bar **into the macOS menu bar background**.
 It does not add menu bar items for each provider — instead it paints a single
 nested progress bar behind the system menu bar, using a click-through window
@@ -83,8 +89,9 @@ data-source type.
 
 ## License / third-party
 
-See `NOTICE`. CodexBar and CodeStatus are separate projects; this app invokes
-CodexBar as an external process and references CodeStatus only for design.
+This project is [MIT licensed](LICENSE). See `NOTICE` for third-party notices.
+CodexBar and CodeStatus are separate projects; this app invokes CodexBar as an
+external process and references CodeStatus only for design.
 
 ## Known limitations
 
