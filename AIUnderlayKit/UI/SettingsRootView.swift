@@ -11,16 +11,16 @@ public struct SettingsRootView: View {
     public var body: some View {
         TabView {
             AppearanceTab(store: store)
-                .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                .tabItem { Label("外观", systemImage: "paintbrush") }
             ProvidersTab()
-                .tabItem { Label("Providers", systemImage: "square.stack.3d.up") }
+                .tabItem { Label("服务商", systemImage: "square.stack.3d.up") }
             EngineTab()
-                .tabItem { Label("Engine", systemImage: "gearshape.2") }
+                .tabItem { Label("引擎", systemImage: "gearshape.2") }
             AgentTab()
                 .tabItem { Label("Agent", systemImage: "bolt.badge.clock") }
             DiagnosticsTab()
-                .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
+                .tabItem { Label("诊断", systemImage: "stethoscope") }
         }
-        .frame(minWidth: 620, minHeight: 460)
+        .frame(minWidth: 640, minHeight: 480)
     }
 }

@@ -15,17 +15,17 @@ public final class StatusItemController {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         let menu = NSMenu()
-        menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        menu.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
             .target = self
-        menu.addItem(withTitle: "Toggle Overlay", action: #selector(toggleOverlay), keyEquivalent: "o")
+        menu.addItem(withTitle: "切换覆盖层", action: #selector(toggleOverlay), keyEquivalent: "o")
             .target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q")
             .target = self
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "gauge.with.dots.needle.bottom.50percent",
-                                   accessibilityDescription: "AI Underlay")
+                                   accessibilityDescription: "AI 下划线")
             button.image?.isTemplate = true
             button.menu = menu
         }

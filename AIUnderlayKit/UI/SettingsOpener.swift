@@ -1,8 +1,7 @@
 import AppKit
 
 /// Opens the settings window. Because the app is an accessory (`LSUIElement`)
-/// app, we host the settings view in our own window rather than relying on the
-/// SwiftUI `Settings` scene, which is unreliable when there is no Dock presence.
+/// app, we host the settings view in our own window and explicitly activate.
 @MainActor
 public enum SettingsOpener {
     private static var controller: SettingsWindowController?
@@ -14,6 +13,5 @@ public enum SettingsOpener {
             return created
         }()
         controller.show(SettingsRootView())
-        NSApp.activate(ignoringOtherApps: true)
     }
 }

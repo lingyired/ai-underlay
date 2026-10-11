@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Engine tab: external CLI detection, compatibility, managed install/uninstall.
+/// 引擎设置：外部 CLI 探测、兼容性、托管安装/卸载。
 public struct EngineTab: View {
     @State private var message = ""
 
@@ -8,47 +8,47 @@ public struct EngineTab: View {
 
     public var body: some View {
         Form {
-            Section("External CLI") {
+            Section("外部 CLI") {
                 if let coordinator = AppCoordinator.shared {
                     let candidates = coordinator.engineManager.candidates
                     if candidates.isEmpty {
-                        Text("No CodexBar CLI found.").foregroundStyle(.secondary)
+                        Text("未找到 CodexBar CLI。").foregroundStyle(.secondary)
                     } else {
                         ForEach(candidates, id: \.url.path) { candidate in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(candidate.url.path).font(.system(.caption, design: .monospaced))
-                                Text("version \(candidate.version ?? "?") · \(String(describing: candidate.compatibility))")
+                                Text("版本 \(candidate.version ?? "?") · \(Self.compatibilityLabel(candidate.compatibility))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
                     if coordinator.engineManager.hasIncompatibleOnly {
-                        Text("A CLI was found but is not compatible. Install the managed build below.")
+                        Text("找到了 CLI 但版本不兼容。请在下方安装托管版本。")
                             .font(.caption).foregroundStyle(.orange)
                     }
                 }
             }
 
-            Section("Managed CLI") {
+            Section("托管 CLI") {
                 Text(CLIInventory.managedCLIPath().path)
                     .font(.system(.caption, design: .monospaced))
                 HStack {
-                    Button("Re-detect") {
+                    Button("重新检测") {
                         AppCoordinator.shared?.startEngine()
-                        message = "Re-detected."
+                        message = "已重新检测。"
                     }
                     if DistributionProfile.current() == .github {
-                        Button("Uninstall Managed CLI") {
+                        Button("卸载托管 CLI") {
                             AppCoordinator.shared?.uninstallManagedCLI()
-                            message = "Removed only the app-managed binary."
+                            message = "已删除仅由本应用安装的二进制。"
                         }
                     }
                 }
                 if DistributionProfile.current() == .appStore {
-                    Text("This build does not download executables. Install CodexBar yourself; the app will detect it.")
+                    Text("此构建不会下载可执行文件。请自行安装 CodexBar，本应用会自动检测。")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
-                    Text("Managed install requires a pinned release URL and SHA-256; set them in CodexBarInstaller.Release before enabling the download button.")
+                    Text("托管安装需要固定的发布地址与 SHA-256；启用下载前请先在 CodexBarInstaller.Release 中填写。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -58,5 +58,13 @@ public struct EngineTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private static func compatibilityLabel(_ compatibility: Compatibility) -> String {
+        switch compatibility {
+        case .compatible: return "兼容"
+        case .incompatible: return "不兼容"
+        case .notLoggedIn: return "未登录"
+        }
     }
 }

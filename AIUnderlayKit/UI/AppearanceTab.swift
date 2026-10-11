@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Live appearance controls. Every change re-renders the real overlay via the
-/// coordinator, so what you see in the menu bar is the true renderer output.
+/// 外观设置。每次改动都会通过 coordinator 重新渲染真实的覆盖层，因此你在菜单栏
+/// 看到的就是真实渲染结果。
 public struct AppearanceTab: View {
     @ObservedObject var store: SettingsStore
 
@@ -11,36 +11,36 @@ public struct AppearanceTab: View {
 
     public var body: some View {
         Form {
-            Section("Layout") {
-                Picker("Mode", selection: binding(\.layout)) {
-                    Text("Dual (two sides)").tag(LayoutMode.dual)
-                    Text("Single (full width)").tag(LayoutMode.single)
+            Section("布局") {
+                Picker("模式", selection: binding(\.layout)) {
+                    Text("双侧（左右各一个）").tag(LayoutMode.dual)
+                    Text("单条（整条菜单栏）").tag(LayoutMode.single)
                 }
-                Picker("Anchor (dual)", selection: binding(\.anchor)) {
-                    Text("Notch edge").tag(AnchorMode.notch)
-                    Text("Screen edge").tag(AnchorMode.outerEdge)
+                Picker("锚点（双侧）", selection: binding(\.anchor)) {
+                    Text("刘海边缘").tag(AnchorMode.notch)
+                    Text("屏幕外缘").tag(AnchorMode.outerEdge)
                 }
-                Picker("Direction (single)", selection: binding(\.singleDirection)) {
-                    Text("Left to right").tag(SingleBarDirection.leadingToTrailing)
-                    Text("Right to left").tag(SingleBarDirection.trailingToLeading)
+                Picker("方向（单条）", selection: binding(\.singleDirection)) {
+                    Text("从左到右").tag(SingleBarDirection.leadingToTrailing)
+                    Text("从右到左").tag(SingleBarDirection.trailingToLeading)
                 }
             }
 
-            Section("Overlay") {
-                Toggle("Show baseline marker", isOn: binding(\.showBaseline))
-                Toggle("Show agent effects", isOn: binding(\.showAgentEffects))
-                Toggle("Reduce motion", isOn: binding(\.reduceMotion))
-                Toggle("Show status bar icon", isOn: binding(\.statusItemVisible))
+            Section("覆盖层") {
+                Toggle("显示基准线", isOn: binding(\.showBaseline))
+                Toggle("显示 Agent 动效", isOn: binding(\.showAgentEffects))
+                Toggle("减弱动效", isOn: binding(\.reduceMotion))
+                Toggle("显示菜单栏图标", isOn: binding(\.statusItemVisible))
             }
 
-            Section("Preview (offline fixtures)") {
-                Picker("Fixture", selection: binding(\.previewFixture)) {
-                    Text("Live data").tag(String?.none)
+            Section("预览（离线样例）") {
+                Picker("样例", selection: binding(\.previewFixture)) {
+                    Text("实时数据").tag(String?.none)
                     ForEach(FixtureSnapshots.allKeys, id: \.self) { key in
                         Text(key).tag(String?.some(key))
                     }
                 }
-                Text("Fixtures drive the real renderer — no login required.")
+                Text("样例数据走的是真实渲染器，无需登录任何服务商。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
