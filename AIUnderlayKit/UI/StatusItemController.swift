@@ -28,14 +28,27 @@ public final class StatusItemController {
                                    accessibilityDescription: "AI 下划线")
             button.image?.isTemplate = true
             button.menu = menu
+            NSLog("[AIUnderlay] status item created; visible=\(statusItem.isVisible) button=\(button)")
+        } else {
+            NSLog("[AIUnderlay] status item has NO button")
         }
     }
 
     public func setVisible(_ visible: Bool) {
         statusItem.isVisible = visible
+        NSLog("[AIUnderlay] setVisible(\(visible)) -> isVisible=\(statusItem.isVisible)")
     }
 
-    @objc private func openSettings() { onOpenSettings() }
-    @objc private func toggleOverlay() { onToggleOverlay() }
-    @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func openSettings() {
+        NSLog("[AIUnderlay] menu: 设置")
+        onOpenSettings()
+    }
+    @objc private func toggleOverlay() {
+        NSLog("[AIUnderlay] menu: 切换覆盖层")
+        onToggleOverlay()
+    }
+    @objc private func quit() {
+        NSLog("[AIUnderlay] menu: 退出")
+        NSApp.terminate(nil)
+    }
 }

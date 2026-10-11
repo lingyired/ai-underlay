@@ -23,6 +23,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        // Single-instance guard: a second copy would create a duplicate status
+        // item and its own overlay bands. If we are not the first instance,
+        // hand focus to the existing one and exit.
+        let bundleID = Bundle.main.bundleIdentifier ?? ""
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+        if let existing = others.first {
+            existing.activate(options: [])
+            NSApp.terminate(nil)
+            return
+        }
+
         let coordinator = AppCoordinator()
         coordinator.start()
         self.coordinator = coordinator
