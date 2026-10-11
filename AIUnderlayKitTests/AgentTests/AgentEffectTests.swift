@@ -42,4 +42,34 @@ final class AgentEffectTests: XCTestCase {
         let dot = layer?.sublayers?.first
         XCTAssertNil(dot?.animation(forKey: "pulse"), "reduce-motion must suppress the pulse animation")
     }
+
+    func test_running_drawsShimmerNotDot() {
+        let layer = AgentEffectLayer.make(state: .running, geometry: geometry, reduceMotion: false)
+        XCTAssertNotNil(layer)
+        XCTAssertEqual(layer?.sublayers?.count, 1, "running draws a single shimmer layer")
+        // The shimmer band carries a repeating position animation.
+        let clip = layer?.sublayers?.first
+        let band = clip?.sublayers?.first
+        XCTAssertNotNil(band?.animation(forKey: "shimmer"))
+    }
+
+    func test_running_reduceMotion_drawsStaticShimmer() {
+        let layer = AgentEffectLayer.make(state: .running, geometry: geometry, reduceMotion: true)
+        let band = layer?.sublayers?.first?.sublayers?.first
+        XCTAssertNotNil(band, "the shimmer band still exists without motion")
+        XCTAssertNil(band?.animation(forKey: "shimmer"), "reduce-motion suppresses the sweep")
+    }
+
+    func test_shimmer_isClippedToTrack() {
+        let layer = AgentEffectLayer.make(state: .running, geometry: geometry, reduceMotion: false)
+        let clip = layer?.sublayers?.first
+        XCTAssertEqual(clip?.frame, geometry.trackRect)
+        XCTAssertTrue(clip?.masksToBounds ?? false, "the sweep must not leave the fill area")
+    }
+
+    func test_style_runningIsSweepNotPulse() {
+        let style = AgentEffectStyle.style(for: .running)
+        XCTAssertEqual(style?.sweep, true)
+        XCTAssertEqual(style?.pulse, false)
+    }
 }
