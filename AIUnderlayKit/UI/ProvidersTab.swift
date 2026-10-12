@@ -1,16 +1,17 @@
 import SwiftUI
 
-/// 服务商设置：直接列出 CodexBar 支持的全部服务商，勾选即显示。
-/// 配置与 CodexBar 共享——在 CodexBar 或 CLI 里启用的服务商这里会显示“已在上游启用”。
+/// 服务商设置：只列出本应用支持的两家（Codex 与 Claude Code）。
+/// 额度数据仍来自 CodexBar CLI，因此这里保留「启用上游」入口——Claude 在
+/// CodexBar 里默认是关闭的，不启用就拿不到它的额度。
 public struct ProvidersTab: View {
-    @State private var providers: [ProviderInfo] = []
-    @State private var displayed: Set<String> = []
+    @State private var catalog: [String: ProviderInfo] = [:]
     @State private var snapshots: [String: ProviderQuotaSnapshot] = [:]
-    @State private var search = ""
     @State private var loading = true
     @State private var message = ""
 
     public init() {}
+
+    private var providers: [String] { AIUnderlayKit.supportedProviders }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -18,30 +19,23 @@ public struct ProvidersTab: View {
                 Text("服务商").font(.title2)
                 Spacer()
                 Button("测试连接") { refresh(test: true) }
-                Button("刷新目录") { refresh(test: false) }
+                Button("刷新") { refresh(test: false) }
             }
 
-            Text("勾选即在覆盖层与弹窗中显示。配置与 CodexBar 共享：在 CodexBar 应用或 codexbar CLI 里启用的服务商，这里会标记为“已在上游启用”并可直接复用。")
+            Text("本应用目前仅支持 Codex 与 Claude Code。额度数据来自 CodexBar CLI；若某家显示「未在上游启用」，需要先启用它才能取到额度。")
                 .font(.caption).foregroundStyle(.secondary)
-
-            TextField("搜索服务商…", text: $search)
-                .textFieldStyle(.roundedBorder)
 
             if loading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if providers.isEmpty {
-                Text("目录为空。请确认 CodexBar CLI 可用，然后点“刷新目录”。")
-                    .foregroundStyle(.secondary)
-                Spacer()
             } else {
-                List(filtered, id: \.id) { info in
+                List(providers, id: \.self) { id in
                     ProviderRowView(
-                        info: info,
-                        isDisplayed: displayed.contains(info.id),
-                        status: statusText(for: info.id),
-                        windows: windowsText(for: info.id),
-                        onToggleDisplay: { on in toggleDisplay(info.id, on: on) },
-                        onEnableUpstream: { enableUpstream(info.id) }
+                        id: id,
+                        displayName: displayName(for: id),
+                        upstreamEnabled: catalog[id]?.enabledInCodexBar ?? false,
+                        status: statusText(for: id),
+                        windows: windowsText(for: id),
+                        onEnableUpstream: { enableUpstream(id) }
                     )
                 }
             }
@@ -54,12 +48,8 @@ public struct ProvidersTab: View {
         .onAppear { refresh(test: false) }
     }
 
-    private var filtered: [ProviderInfo] {
-        guard !search.isEmpty else { return providers }
-        return providers.filter {
-            $0.displayName.localizedCaseInsensitiveContains(search)
-                || $0.id.localizedCaseInsensitiveContains(search)
-        }
+    private func displayName(for id: String) -> String {
+        catalog[id]?.displayName ?? DashboardModel.displayName(for: id)
     }
 
     private func statusText(for id: String) -> String {
@@ -76,16 +66,10 @@ public struct ProvidersTab: View {
         snapshots[id]?.windowsLongestFirst.map(\.label).joined(separator: " / ") ?? ""
     }
 
-    private func toggleDisplay(_ id: String, on: Bool) {
-        if on { displayed.insert(id) } else { displayed.remove(id) }
-        AppCoordinator.shared?.setProviderDisplayed(id, displayed: on)
-    }
-
     private func enableUpstream(_ id: String) {
         Task {
             do {
                 try await AppCoordinator.shared?.setCodexBarProviderEnabled(id, enabled: true)
-                AppCoordinator.shared?.setProviderDisplayed(id, displayed: true)
                 message = "已在上游启用 \(id)。"
                 await loadCatalog()
             } catch {
@@ -102,36 +86,30 @@ public struct ProvidersTab: View {
     private func loadCatalog() async {
         loading = true
         defer { loading = false }
-        if let coordinator = AppCoordinator.shared {
-            var list = coordinator.availableProviders
-            if list.isEmpty { list = await coordinator.refreshProviderCatalog() }
-            providers = list
-            displayed = Set(coordinator.providers)
-            snapshots = coordinator.liveSnapshots
-            if list.isEmpty { message = "未能获取服务商目录。" }
-        }
+        guard let coordinator = AppCoordinator.shared else { return }
+        var list = coordinator.availableProviders
+        if list.isEmpty { list = await coordinator.refreshProviderCatalog() }
+        catalog = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
+        snapshots = coordinator.liveSnapshots
+        if list.isEmpty { message = "未能获取服务商目录。" }
     }
 }
 
-/// One row: a checkbox, the name/id, upstream + login status, and an
-/// "enable upstream" action for providers not yet enabled.
+/// One supported provider: name/id, upstream status, login status, and an
+/// "enable upstream" action for providers not yet enabled in CodexBar.
 struct ProviderRowView: View {
-    let info: ProviderInfo
-    let isDisplayed: Bool
+    let id: String
+    let displayName: String
+    let upstreamEnabled: Bool
     let status: String
     let windows: String
-    let onToggleDisplay: (Bool) -> Void
     let onEnableUpstream: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Toggle("", isOn: Binding(get: { isDisplayed }, set: onToggleDisplay))
-                .labelsHidden()
-                .toggleStyle(.checkbox)
-
             VStack(alignment: .leading, spacing: 1) {
-                Text(info.displayName)
-                Text(info.id).font(.caption2).foregroundStyle(.secondary)
+                Text(displayName)
+                Text(id).font(.caption2).foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -140,7 +118,7 @@ struct ProviderRowView: View {
                 Text(windows).font(.caption2).foregroundStyle(.secondary)
             }
 
-            if info.enabledInCodexBar {
+            if upstreamEnabled {
                 Text("已在上游启用").font(.caption2).foregroundStyle(.green)
             } else {
                 Button("启用上游") { onEnableUpstream() }

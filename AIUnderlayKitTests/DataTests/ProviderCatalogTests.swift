@@ -30,7 +30,10 @@ final class ProviderCatalogTests: XCTestCase {
         XCTAssertEqual(list.map(\.id), ["x"])
     }
 
-    func test_displayedProvidersDefaultIsEmptyMeaningFollowUpstream() {
-        XCTAssertTrue(AppSettings.default.displayedProviders.isEmpty)
+    func test_supportedProvidersAreCodexAndClaude() {
+        XCTAssertEqual(AIUnderlayKit.supportedProviders, ["codex", "claude"])
+        XCTAssertTrue(AIUnderlayKit.isSupported(provider: "codex"))
+        XCTAssertTrue(AIUnderlayKit.isSupported(provider: "claude"))
+        XCTAssertFalse(AIUnderlayKit.isSupported(provider: "cursor"))
     }
 }

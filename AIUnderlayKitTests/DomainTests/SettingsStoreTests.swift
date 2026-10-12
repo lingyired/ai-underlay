@@ -14,7 +14,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.anchor, .notch)
         XCTAssertFalse(settings.showBaseline)
         XCTAssertEqual(settings.previewFixture, "full")
-        // Absent new key defaults to empty = "follow upstream".
+        // Absent deprecated key defaults to empty; it no longer affects display.
         XCTAssertTrue(settings.displayedProviders.isEmpty)
         XCTAssertEqual(settings.singleDirection, AppSettings.default.singleDirection)
     }

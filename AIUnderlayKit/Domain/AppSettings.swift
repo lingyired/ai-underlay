@@ -53,7 +53,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var statusItemVisible: Bool
     /// Per-display configurations, keyed by stable display ID.
     public var displays: [DisplayConfiguration]
-    /// Providers shown in the overlay and dashboard, in order.
+    /// Deprecated: the provider set is now fixed to `AIUnderlayKit.supportedProviders`.
+    /// Kept only so older settings files still decode; it no longer affects
+    /// what is shown.
     public var displayedProviders: [String]
 
     public init(
@@ -92,8 +94,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
 
     /// Tolerant decoding: every field falls back to its default when absent, so
     /// an older settings file (or one written before a new key existed) still
-    /// loads instead of resetting everything. An absent/empty
-    /// `displayedProviders` means "follow the upstream provider list".
+    /// loads instead of resetting everything.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings()

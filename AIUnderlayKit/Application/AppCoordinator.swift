@@ -37,18 +37,15 @@ public final class AppCoordinator: ObservableObject {
 
     /// Providers shown in the overlay and dashboard.
     ///
-    /// When the user has not curated a list, we follow the upstream CodexBar
-    /// config: every provider enabled there is shown automatically, so
-    /// "supported by CodexBar" means "supported here". Once the user curates
-    /// the list in settings, that explicit list wins.
-    public var providers: [String] {
-        let configured = settings.settings.displayedProviders
-        if !configured.isEmpty { return configured }
-        let upstream = availableProviders.filter(\.enabledInCodexBar).map(\.id)
-        return upstream.isEmpty ? ["codex", "claude"] : upstream
-    }
+    /// Deliberately fixed to the supported pair for now (see
+    /// `AIUnderlayKit.supportedProviders`). We no longer follow the upstream
+    /// CodexBar list: "enabled in CodexBar" is not the same as "supported here",
+    /// and showing a provider we cannot render agent state for is misleading.
+    public var providers: [String] { AIUnderlayKit.supportedProviders }
 
-    /// The full provider catalog from the CLI, if an engine is available.
+    /// The full provider catalog from the CLI, if an engine is available. Used
+    /// only for metadata (display name, login status, upstream enablement) —
+    /// never to decide which providers we support.
     public private(set) var availableProviders: [ProviderInfo] = []
 
     public init(
@@ -246,30 +243,11 @@ public final class AppCoordinator: ObservableObject {
             guard let self, let catalog = engine as? ProviderCatalogEngine else { return }
             if let list = try? await catalog.listProviders() {
                 await MainActor.run {
-                    let before = self.providers
                     self.availableProviders = list
                     Log.write("catalog: \(list.count) providers; enabled upstream: \(list.filter(\.enabledInCodexBar).map(\.id)); displaying: \(self.providers)")
-                    // If we are following the upstream list, the derived set may
-                    // have changed (e.g. a provider enabled in CodexBar). Restart
-                    // so its data is fetched too.
-                    if self.settings.settings.displayedProviders.isEmpty, self.providers != before {
-                        self.startEngine()
-                    }
                 }
             }
         }
-    }
-
-    /// Toggles whether a provider is shown in the overlay/dashboard.
-    public func setProviderDisplayed(_ provider: String, displayed: Bool) {
-        // Start from the currently-effective list (which follows upstream when
-        // the user has not curated one) so the first toggle materializes the
-        // visible set into an explicit list rather than dropping providers.
-        var list = providers
-        if displayed, !list.contains(provider) { list.append(provider) }
-        if !displayed { list.removeAll { $0 == provider } }
-        settings.update { $0.displayedProviders = list }
-        startEngine()  // refresh with the new provider set
     }
 
     /// Fetches the provider catalog on demand and caches it.

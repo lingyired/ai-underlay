@@ -11,4 +11,15 @@ public enum AIUnderlayKit {
     /// Marker embedded into hook commands so the installer can identify
     /// exactly the entries it owns and remove only those on uninstall.
     public static let hookMarker = "--managed-by=\(bundleIdentifier)"
+
+    /// The only providers this app supports for now. Codex and Claude Code have
+    /// first-party lifecycle hooks and a shared CodexBar usage source, so their
+    /// quota and agent state are both trustworthy. Everything else CodexBar
+    /// knows about is deliberately out of scope until this pair is solid.
+    public static let supportedProviders: [String] = ["codex", "claude"]
+
+    /// Whether a provider id is one this app supports.
+    public static func isSupported(provider: String) -> Bool {
+        supportedProviders.contains(provider.lowercased())
+    }
 }
