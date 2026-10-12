@@ -33,11 +33,16 @@ public struct ClaudeCodeAdapter: AgentEventAdapter {
               let sessionId = raw.payload["session_id"] as? String
         else { return nil }
 
-        let kind = Self.kind(forHookName: name)
+        let kind = Self.kind(forHookName: name, notificationType: raw.payload["notification_type"] as? String)
         return AgentEvent(providerId: providerId, sessionId: sessionId, kind: kind, at: Date())
     }
 
-    public static func kind(forHookName name: String) -> AgentEventKind {
+    /// Maps a hook event name to a normalized kind. `Notification` carries a
+    /// `notification_type`; only the types that genuinely mean "Claude needs
+    /// you" become `.notification`. The rest (`auth_success`, `agent_completed`,
+    /// quota resumes, …) are `.unknown` so they can never light the amber
+    /// "waiting on you" state.
+    public static func kind(forHookName name: String, notificationType: String? = nil) -> AgentEventKind {
         switch name {
         case "SessionStart": return .sessionStart
         case "SessionEnd": return .sessionEnd
@@ -45,18 +50,35 @@ public struct ClaudeCodeAdapter: AgentEventAdapter {
         case "PreToolUse": return .toolUseStarted
         case "PostToolUse", "PostToolUseFailure": return .toolUseFinished
         case "PermissionRequest": return .permissionRequested
-        case "Notification": return .notification
+        case "Notification": return notificationKind(notificationType)
         case "Stop", "StopFailure": return .stopped
         case "SubagentStart": return .subagentStarted
         case "SubagentStop": return .subagentFinished
         default: return .unknown
         }
     }
+
+    /// Notification types that mean the session is waiting on the user. Anything
+    /// else — including a missing type — is `.unknown`, never a fabricated wait.
+    ///
+    /// `permission_prompt` asks for approval (orange), so it maps to the same
+    /// kind as `PermissionRequest`; the free-text waits map to `.notification`
+    /// (amber). This keeps the two "needs you" states visually distinct.
+    public static func notificationKind(_ type: String?) -> AgentEventKind {
+        switch type {
+        case "permission_prompt": return .permissionRequested
+        case "idle_prompt", "agent_needs_input": return .notification
+        default: return .unknown
+        }
+    }
 }
 
-/// Codex CLI adapter. Codex does not reliably emit a "waiting for free-text
-/// answer" event, so anything we cannot classify becomes `.unknown` rather than
-/// a fabricated waiting state.
+/// Codex CLI adapter.
+///
+/// Codex fires `PreToolUse` for ordinary work *and* for its interactive
+/// question tool (`request_user_input`), so the event name alone cannot tell
+/// "running" from "waiting on you" — the tool name is what disambiguates. Any
+/// event we cannot classify stays `.unknown` rather than a fabricated state.
 public struct CodexAdapter: AgentEventAdapter {
     public let providerId = "codex"
 
@@ -67,21 +89,34 @@ public struct CodexAdapter: AgentEventAdapter {
             return nil
         }
         let name = (raw.payload["hook_event_name"] as? String) ?? (raw.payload["event"] as? String) ?? ""
+        let toolName = raw.payload["tool_name"] as? String
         return AgentEvent(providerId: providerId, sessionId: sessionId,
-                          kind: Self.kind(forEventName: name), at: Date())
+                          kind: Self.kind(forEventName: name, toolName: toolName), at: Date())
     }
 
-    public static func kind(forEventName name: String) -> AgentEventKind {
+    public static func kind(forEventName name: String, toolName: String? = nil) -> AgentEventKind {
         switch name.lowercased() {
         case "sessionstart", "session_start": return .sessionStart
         case "sessionend", "session_end": return .sessionEnd
-        case "prettooluse", "pretooluse", "tooluse", "tool_start": return .toolUseStarted
+        case "prettooluse", "pretooluse", "tooluse", "tool_start":
+            // An interactive question tool means Codex is blocked on the user,
+            // not working — show "waiting for input", not "running".
+            return isInteractiveTool(toolName) ? .notification : .toolUseStarted
         case "posttooluse", "tool_end": return .toolUseFinished
         case "permissionrequest", "approval", "approval_request": return .permissionRequested
         case "stop", "complete", "completed": return .stopped
-        // Codex has no reliable "waiting for input"; do not invent one.
         default: return .unknown
         }
+    }
+
+    /// Codex tools that pause the turn for a user answer. `request_user_input`
+    /// is the one observed in real sessions; the others are matched defensively
+    /// by name so a renamed variant does not silently become "running".
+    public static func isInteractiveTool(_ toolName: String?) -> Bool {
+        guard let toolName = toolName?.lowercased() else { return false }
+        return toolName == "request_user_input"
+            || toolName.contains("ask_user")
+            || toolName.contains("user_input")
     }
 }
 

@@ -31,6 +31,7 @@ public final class AppCoordinator: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var agentReceiver: AgentEventReceiver?
     private let reducer = AgentSessionReducer()
+    private let agentStateStore = AgentStateStore()
     private var sessionTimer: Timer?
     /// Live agent sessions from CodexBar, keyed by provider (dominant state).
     public private(set) var agentSessions: [AgentSessionInfo] = []
@@ -107,18 +108,30 @@ public final class AppCoordinator: ObservableObject {
     /// Starts the Unix-socket receiver for agent hook events. Failure to bind is
     /// non-fatal: the overlay simply shows no agent activity.
     public func startAgentReceiver() {
+        // Restore sessions from the last run so a pending wait (which never
+        // re-fires an event) survives a restart.
+        if let snapshot = agentStateStore.load() {
+            reducer.restore(snapshot)
+            Log.write("agent state restored: \(reducer.allSessions().count) session(s)")
+        }
+
         let receiver = AgentEventReceiver { [weak self] event in
             Task { @MainActor in
                 guard let self else { return }
-                _ = self.reducer.reduce(event)
+                let session = self.reducer.reduce(event)
+                Log.write("agent event: provider=\(event.providerId) kind=\(event.kind.rawValue) "
+                    + "session=\(event.sessionId) -> \(session.state.rawValue) (\(session.confidence.rawValue))")
+                self.agentStateStore.save(self.reducer.snapshot())
                 self.render()
             }
         }
         do {
             try receiver.start()
             agentReceiver = receiver
+            Log.write("agent receiver listening on \(AgentEventReceiver.defaultSocketURL().path)")
         } catch {
             agentReceiver = nil
+            Log.write("agent receiver failed to start: \(error)")
         }
     }
 
@@ -158,16 +171,20 @@ public final class AppCoordinator: ObservableObject {
     }
 
     /// The dominant agent state for a provider, or nil when there is no session.
-    /// Prefers hook-derived sessions (finer states); falls back to CodexBar's
-    /// recency-based sessions (coarse: running/idle).
+    /// All of a provider's sessions are merged by priority, so one session
+    /// waiting on the user outranks any number of others that are merely
+    /// running — the light asks for attention, it does not report the latest
+    /// event. Prefers hook-derived sessions (finer states); falls back to
+    /// CodexBar's recency-based sessions (coarse: running/idle).
     public func dominantAgentState(for providerId: String) -> AgentState? {
+        let now = Date()
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
         if !hookSessions.isEmpty {
-            return AgentActivityAggregator.aggregate(hookSessions).dominant
+            return AgentActivityAggregator.aggregate(hookSessions, now: now).dominant
         }
         let polled = agentSessions.filter { $0.provider == providerId }
         guard !polled.isEmpty else { return nil }
-        return AgentActivityAggregator.aggregate(polled.map(\.asAgentSession)).dominant
+        return AgentActivityAggregator.aggregate(polled.map(\.asAgentSession), now: now).dominant
     }
 
     /// Session count summary for a provider, for the popup detail.

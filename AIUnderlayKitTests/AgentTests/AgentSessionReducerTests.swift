@@ -72,4 +72,59 @@ final class AgentSessionReducerTests: XCTestCase {
         ]
         XCTAssertEqual(AgentActivityAggregator.aggregate(sessions).dominant, .error)
     }
+
+    // MARK: - Staleness
+
+    func test_staleRunningDecaysToIdle() {
+        let now = Date()
+        let old = now.addingTimeInterval(-(AgentActivityAggregator.runningStaleness + 1))
+        let session = AgentSession(id: "a", providerId: "codex", state: .running,
+                                   confidence: .exact, observedAt: old)
+        XCTAssertEqual(AgentActivityAggregator.effectiveState(session, now: now), .idle)
+    }
+
+    func test_freshRunningStaysRunning() {
+        let now = Date()
+        let recent = now.addingTimeInterval(-10)
+        let session = AgentSession(id: "a", providerId: "codex", state: .running,
+                                   confidence: .exact, observedAt: recent)
+        XCTAssertEqual(AgentActivityAggregator.effectiveState(session, now: now), .running)
+    }
+
+    func test_waitingNeverDecaysNoMatterHowOld() {
+        // The whole point of a "needs you" light is to survive until you act —
+        // a wait from an hour ago is still a wait.
+        let now = Date()
+        let ancient = now.addingTimeInterval(-3600)
+        for state in [AgentState.waitingInput, .waitingApproval, .error] {
+            let session = AgentSession(id: "a", providerId: "codex", state: state,
+                                       confidence: .exact, observedAt: ancient)
+            XCTAssertEqual(AgentActivityAggregator.effectiveState(session, now: now), state,
+                           "\(state) must not decay")
+        }
+    }
+
+    func test_staleRunningDoesNotBeatAFreshWaitingSession() {
+        // A silent, stale "running" must never keep the bar green while another
+        // session is genuinely waiting on the user.
+        let now = Date()
+        let sessions = [
+            AgentSession(id: "stale", providerId: "codex", state: .running, confidence: .exact,
+                         observedAt: now.addingTimeInterval(-(AgentActivityAggregator.runningStaleness + 60))),
+            AgentSession(id: "waiting", providerId: "codex", state: .waitingInput, confidence: .exact,
+                         observedAt: now.addingTimeInterval(-5)),
+        ]
+        let aggregate = AgentActivityAggregator.aggregate(sessions, now: now)
+        XCTAssertEqual(aggregate.dominant, .waitingInput)
+    }
+
+    func test_allStaleRunningAggregatesToIdle() {
+        let now = Date()
+        let old = now.addingTimeInterval(-(AgentActivityAggregator.runningStaleness + 1))
+        let sessions = [
+            AgentSession(id: "a", providerId: "codex", state: .running, confidence: .exact, observedAt: old),
+            AgentSession(id: "b", providerId: "codex", state: .running, confidence: .exact, observedAt: old),
+        ]
+        XCTAssertEqual(AgentActivityAggregator.aggregate(sessions, now: now).dominant, .idle)
+    }
 }

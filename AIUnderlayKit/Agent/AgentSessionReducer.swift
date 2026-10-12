@@ -38,6 +38,38 @@ public final class AgentSessionReducer {
         lastEventAt.removeValue(forKey: id)
     }
 
+    // MARK: - Persistence
+
+    /// A serializable snapshot of the reducer's state, so a restart does not
+    /// forget a session that is waiting on the user (those never re-fire an
+    /// event, so losing them means losing the light until the user acts).
+    public struct Snapshot: Codable, Sendable, Equatable {
+        public var sessions: [AgentSession]
+        public var lastEventAt: [String: Date]
+
+        public init(sessions: [AgentSession], lastEventAt: [String: Date]) {
+            self.sessions = sessions
+            self.lastEventAt = lastEventAt
+        }
+    }
+
+    public func snapshot() -> Snapshot {
+        Snapshot(sessions: allSessions(), lastEventAt: lastEventAt)
+    }
+
+    /// Replaces the current state with a restored snapshot, dropping entries
+    /// older than `maxAge` so a snapshot from days ago cannot resurrect zombie
+    /// lights. `running` entries are kept and left to the staleness rule; only
+    /// the age cutoff is applied here.
+    public func restore(_ snapshot: Snapshot, now: Date = Date(), maxAge: TimeInterval = 6 * 3600) {
+        sessions.removeAll()
+        lastEventAt.removeAll()
+        for session in snapshot.sessions where now.timeIntervalSince(session.observedAt) <= maxAge {
+            sessions[session.id] = session
+            lastEventAt[session.id] = snapshot.lastEventAt[session.id] ?? session.observedAt
+        }
+    }
+
     private func make(_ event: AgentEvent, state: AgentState, confidence: AgentConfidence) -> AgentSession {
         AgentSession(id: event.sessionId, providerId: event.providerId,
                      state: state, confidence: confidence, observedAt: event.at)
@@ -87,14 +119,40 @@ public enum AgentActivityAggregator {
     }
 
     public static func aggregate(_ sessions: [AgentSession]) -> Aggregate {
+        aggregate(sessions, now: Date())
+    }
+
+    /// Aggregates with an explicit clock so the staleness rule is testable.
+    ///
+    /// A `running` session that has gone quiet is *stale*: an agent that stopped
+    /// firing events is either idle or blocked, and either way we no longer know
+    /// it is working — so it must not keep the bar green. States that ask the
+    /// user for something (`waitingInput`, `waitingApproval`, `error`) never go
+    /// stale: the whole point of those lights is to survive until the user acts.
+    public static func aggregate(_ sessions: [AgentSession], now: Date) -> Aggregate {
         var counts: [AgentState: Int] = [:]
         for session in sessions {
-            counts[session.state, default: 0] += 1
+            counts[effectiveState(session, now: now), default: 0] += 1
         }
         let unknownCount = (counts[.unknown] ?? 0) + (counts[.reconnecting] ?? 0)
         let dominant = counts.keys
             .filter { $0 != .unknown && $0 != .reconnecting }
             .max { priority($0) < priority($1) } ?? .idle
         return Aggregate(dominant: dominant, counts: counts, unknownCount: unknownCount)
+    }
+
+    /// How long a `running` session may go without a new event before we stop
+    /// calling it running. Long enough to survive a slow tool call or a thinking
+    /// pause (a build can take minutes), short enough that a finished-but-silent
+    /// session — one whose `Stop` we never saw — does not linger green.
+    public static let runningStaleness: TimeInterval = 180
+
+    /// The state a session actually contributes right now. Only `running` decays
+    /// (to `idle`); every other state is reported as-is.
+    public static func effectiveState(_ session: AgentSession, now: Date) -> AgentState {
+        guard session.state == .running,
+              now.timeIntervalSince(session.observedAt) > runningStaleness
+        else { return session.state }
+        return .idle
     }
 }
