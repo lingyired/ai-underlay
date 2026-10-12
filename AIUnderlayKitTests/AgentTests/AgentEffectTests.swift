@@ -29,18 +29,20 @@ final class AgentEffectTests: XCTestCase {
         XCTAssertNil(AgentEffectLayer.make(state: .unknown, geometry: geometry, reduceMotion: false))
     }
 
-    func test_layer_addsDotWithoutChangingFill() {
+    func test_layer_waitsWithFullWidthWash() {
         let layer = AgentEffectLayer.make(state: .waitingApproval, geometry: geometry, reduceMotion: false)
         XCTAssertNotNil(layer)
-        // The effect layer spans the track but contains only the endpoint dot.
+        // A "needs you" state is a full-width breathing wash — no endpoint dot
+        // crowding the menu bar's left edge.
         XCTAssertEqual(layer?.frame.width, 1000)
         XCTAssertEqual(layer?.sublayers?.count, 1)
     }
 
     func test_reduceMotion_suppressesPulse() {
         let layer = AgentEffectLayer.make(state: .waitingApproval, geometry: geometry, reduceMotion: true)
-        let dot = layer?.sublayers?.first
-        XCTAssertNil(dot?.animation(forKey: "pulse"), "reduce-motion must suppress the pulse animation")
+        let wash = layer?.sublayers?.first
+        XCTAssertNil(wash?.sublayers?.first?.animation(forKey: "breathe"),
+                     "reduce-motion must suppress the breathe animation")
     }
 
     func test_running_sweepMode_drawsShimmer() {
@@ -91,8 +93,9 @@ final class AgentEffectTests: XCTestCase {
     func test_running_dotMode() {
         let layer = AgentEffectLayer.make(state: .running, geometry: geometry,
                                           reduceMotion: false, runningEffect: .dot)
-        XCTAssertEqual(layer?.sublayers?.count, 1)
-        XCTAssertNotNil(layer?.sublayers?.first?.animation(forKey: "pulse"))
+        let container = layer?.sublayers?.first
+        XCTAssertEqual(container?.sublayers?.count, 1)
+        XCTAssertNotNil(container?.sublayers?.first?.animation(forKey: "pulse"))
     }
 
     func test_running_noneMode_drawsNothing() {

@@ -93,7 +93,10 @@ public enum AgentEffectLayer {
             container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion))
         }
         if style.pulse {
-            container.addSublayer(makeDot(geometry: geometry, style: style, reduceMotion: reduceMotion))
+            // The "needs you" states show as a full-width breathing wash in the
+            // state color — as loud as the running breathe, and with no marker
+            // crowding the menu bar's left edge.
+            container.addSublayer(makeBreathing(geometry: geometry, color: style.color, reduceMotion: reduceMotion))
         }
         return container
     }
@@ -173,28 +176,47 @@ public enum AgentEffectLayer {
     }
 
     /// A pulsing endpoint dot at the anchor, for the "needs you" states.
+    ///
+    /// The full-width breathing wash already carries the "needs you" signal, so
+    /// the dot is a modest accent marker at the anchor — a status light, not a
+    /// badge. It pulses between bright and brighter so it never fades into a
+    /// smudge, and a thin dark ring keeps it legible on a light menu bar.
     private static func makeDot(
         geometry: GaugeGeometry,
         style: AgentEffectStyle,
         reduceMotion: Bool
     ) -> CALayer {
+        // A fixed, modest size: big enough to read, small enough not to dominate
+        // the menu bar or collide with the Apple menu.
+        let diameter = min(dotSize, geometry.trackRect.height - 12)
+        let x = geometry.growsTowardRight ? geometry.fillBounds.minX : geometry.fillBounds.maxX - diameter
+        let rect = CGRect(x: x, y: (geometry.trackRect.height - diameter) / 2,
+                          width: diameter, height: diameter)
+
+        let container = CALayer()
+        container.frame = geometry.trackRect
+
         let dot = CALayer()
-        let x = geometry.growsTowardRight ? geometry.fillBounds.minX : geometry.fillBounds.maxX - dotSize
-        dot.frame = CGRect(x: x, y: (geometry.trackRect.height - dotSize) / 2,
-                           width: dotSize, height: dotSize)
-        dot.cornerRadius = dotSize / 2
+        dot.frame = rect
+        dot.cornerRadius = diameter / 2
         dot.backgroundColor = style.color.cgColor
+        // A thin dark ring for contrast; not a large halo.
+        dot.borderWidth = 1.5
+        dot.borderColor = CGColor(red: 0, green: 0, blue: 0, alpha: 0.5)
+        container.addSublayer(dot)
 
         if !reduceMotion {
+            // Pulse between bright and brighter — the minimum stays high so the
+            // light never disappears mid-pulse.
             let animation = CABasicAnimation(keyPath: "opacity")
-            animation.fromValue = 0.3
+            animation.fromValue = 0.7
             animation.toValue = 1.0
             animation.duration = 0.9
             animation.autoreverses = true
             animation.repeatCount = .infinity
             dot.add(animation, forKey: "pulse")
         }
-        return dot
+        return container
     }
 }
 
