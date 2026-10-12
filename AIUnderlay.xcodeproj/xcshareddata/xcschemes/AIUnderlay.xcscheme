@@ -29,6 +29,20 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "AD98426927033FD02C9AE9A5"
+               BuildableName = "AIUnderlayHook"
+               BlueprintName = "AIUnderlayHook"
+               ReferencedContainer = "container:AIUnderlay.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "71ED07F8030C62DDAA8CF806"
                BuildableName = "AIUnderlayKit.framework"
                BlueprintName = "AIUnderlayKit"

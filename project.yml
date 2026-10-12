@@ -37,6 +37,9 @@ targets:
       - path: AIUnderlay
     dependencies:
       - target: AIUnderlayKit
+      - target: AIUnderlayHook
+        embed: true
+        codeSign: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lingsmbp.aiunderlay
@@ -44,11 +47,30 @@ targets:
         GENERATE_INFOPLIST_FILE: "NO"
         ENABLE_HARDENED_RUNTIME: "NO"
 
+  # The hook bridge the agents invoke. A dependency-free executable so it can be
+  # embedded in the app bundle and invoked on every hook event without linking a
+  # framework. The app resolves it via the `aiunderlay-hook` command name.
+  AIUnderlayHook:
+    type: tool
+    platform: macOS
+    sources:
+      - path: AIUnderlayHook
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingsmbp.aiunderlay.hook
+        PRODUCT_NAME: aiunderlay-hook
+        GENERATE_INFOPLIST_FILE: "YES"
+        SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+
   AIUnderlayKitTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: AIUnderlayKitTests
+      - path: AIUnderlayHook/HookEventPayload.swift
     dependencies:
       - target: AIUnderlayKit
     settings:
@@ -62,6 +84,7 @@ schemes:
       targets:
         AIUnderlay: all
         AIUnderlayKit: all
+        AIUnderlayHook: all
     run:
       config: Debug
     test:
