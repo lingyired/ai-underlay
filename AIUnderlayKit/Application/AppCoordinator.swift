@@ -33,6 +33,7 @@ public final class AppCoordinator: ObservableObject {
     private let reducer = AgentSessionReducer()
     private let agentStateStore = AgentStateStore()
     private var sessionTimer: Timer?
+    private var lastAgentSignature: String?
     /// Live agent sessions from CodexBar, keyed by provider (dominant state).
     public private(set) var agentSessions: [AgentSessionInfo] = []
 
@@ -163,11 +164,28 @@ public final class AppCoordinator: ObservableObject {
     }
 
     private func pollSessions() async {
-        guard let engine = engineManager.activeEngine as? AgentSessionEngine else { return }
-        guard let sessions = try? await engine.listAgentSessions() else { return }
-        agentSessions = sessions
-        dataRevision += 1
-        render()
+        if let engine = engineManager.activeEngine as? AgentSessionEngine,
+           let sessions = try? await engine.listAgentSessions() {
+            agentSessions = sessions
+            dataRevision += 1
+        }
+        // The staleness rule needs a periodic tick, but rendering every tick
+        // rebuilds the band layer tree and restarts running/pulse animations.
+        let signature = agentSignature()
+        if signature != lastAgentSignature {
+            render()
+        }
+    }
+
+    private func agentSignature() -> String {
+        let settings = settings.settings
+        guard settings.showAgentEffects else { return "effects-off" }
+        if let fixture = settings.previewFixture {
+            return "fixture:\(fixture)"
+        }
+        return providers.map { provider in
+            "\(provider):\(dominantAgentState(for: provider)?.rawValue ?? "none")"
+        }.joined(separator: "|")
     }
 
     /// The dominant agent state for a provider, or nil when there is no session.
@@ -210,6 +228,7 @@ public final class AppCoordinator: ObservableObject {
         switch key {
         case "agentRunning": return .running
         case "agentWaiting": return .waitingApproval
+        case "agentError": return .error
         default: return nil
         }
     }
@@ -312,6 +331,7 @@ public final class AppCoordinator: ObservableObject {
 
     public func render() {
         let s = settings.settings
+        lastAgentSignature = agentSignature()
 
         if s.previewFixture == nil {
             // Live mode. Before the first snapshot arrives we show empty tracks —

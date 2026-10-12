@@ -34,6 +34,7 @@ public struct AppearanceTab: View {
                     Text("呼吸灯").tag(RunningEffect.breathing)
                     Text("扫光").tag(RunningEffect.sweep)
                     Text("端点脉冲").tag(RunningEffect.dot)
+                    Text("频谱柱").tag(RunningEffect.spectrum)
                     Text("无").tag(RunningEffect.none)
                 }
                 .disabled(!store.settings.showAgentEffects)

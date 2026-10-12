@@ -24,7 +24,7 @@ CLI detected and JSON captured; agent capability matrix written. **P0 complete.*
 | P1-2 NestedGauge | DONE | chain-break on unknown, 8 tests |
 | P1-3 GaugeLayout | DONE | abstract axis, notch/outerEdge, midline fallback, 9 tests |
 | P1-4 Renderer | DONE | single GaugeLayerRenderer, baseline projection, end-cap, 8 tests |
-| P1-5 Fixtures | DONE | 10 fixtures drive the real renderer |
+| P1-5 Fixtures | DONE | 11 fixtures drive the real renderer (11th added 2026-10-13: `agentError`) |
 | P1-6 Watchdog | DONE | needsReassert pure fn + 5s timer + lifecycle observers |
 | P1-7 Settings UI | DONE | 4 tabs, live Appearance controls, NSStatusItem entry |
 
@@ -80,6 +80,19 @@ Tests: 122 passing.
 and notarization are pending a signing identity.
 
 Evidence: `docs/preview/p4-settings.png`. Total tests: 122 passing.
+
+## P5 — Agent 动态特效（2026-10-13）
+
+| Task | Status | Notes |
+|---|---|---|
+| P5-1 频谱柱动效 | DONE | `RunningEffect.spectrum` 为**新增**第 5 个选项；既有 4 个动效与默认值不变。柱从菜单栏下边缘向上生长，全量 Core Animation |
+| P5-2 速度→节奏 | DONE | `SpectrumRhythm` 纯函数 0.18–0.62 Hz；`nil` 测速 = 最慢节奏。真实 TPS 数据源尚未接入 |
+| P5-3 等待/故障边框 | DONE | waiting 黄、error 红的上下列细边框；原呼吸蒙层/脉冲保留 |
+| P5-4 预览与文档 | DONE | 新增 `agentError` 样例；`docs/superpowers/specs/2026-10-13-agent-dynamic-effects-design.md` |
+| P5-5 主题 JSON 引擎 | TODO | 待用户确认 Schema 字段名与默认色值（共识 spec §11） |
+
+Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`、
+`p7-agent-error-borders.png`. Total tests: 226 passing.
 
 ## Hardware verification ledger
 

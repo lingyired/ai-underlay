@@ -8,6 +8,9 @@ public enum RunningEffect: String, Codable, Sendable, CaseIterable {
     case sweep
     /// A small pulsing dot at the fill's anchor.
     case dot
+    /// Equalizer-style bars rising from the menu bar's bottom edge; the rhythm
+    /// follows the agent's output speed (see `SpectrumRhythm`).
+    case spectrum
     /// No animation.
     case none
 }

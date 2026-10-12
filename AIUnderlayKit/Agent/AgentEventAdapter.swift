@@ -98,6 +98,7 @@ public struct CodexAdapter: AgentEventAdapter {
         switch name.lowercased() {
         case "sessionstart", "session_start": return .sessionStart
         case "sessionend", "session_end": return .sessionEnd
+        case "userpromptsubmit", "user_prompt_submit": return .userPromptSubmitted
         case "prettooluse", "pretooluse", "tooluse", "tool_start":
             // An interactive question tool means Codex is blocked on the user,
             // not working — show "waiting for input", not "running".

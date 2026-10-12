@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01F7CDD5DFEADA1AE3092E94 /* SpectrumRhythmTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BAFC71C23F973301794AA5C /* SpectrumRhythmTests.swift */; };
 		03A502E286714E5DBA364EA4 /* ThemePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905706BFAEDD3BB94BA83E73 /* ThemePalette.swift */; };
+		044080B1380EAD414A09952C /* FixtureSnapshotsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84328370A1CE4A719D2F9314 /* FixtureSnapshotsTests.swift */; };
 		0519B471A59601F2C9F59E9F /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63F7AAA27190E34A22733A3B /* SettingsStore.swift */; };
 		05D00590A880D397402DEE8A /* AgentStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F18C72C66838E0074B68016 /* AgentStateStore.swift */; };
 		064137C00C8186038038E6D3 /* CodexBarCLIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF35BD5DB6896B04ED5C0DD /* CodexBarCLIClient.swift */; };
@@ -36,6 +38,7 @@
 		50AA701F6F6CC995E9B54935 /* ProxyEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */; };
 		543E4A9E01226CCC6DB6E168 /* ProviderCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A287A900B1E0ABC0BD2513BA /* ProviderCatalogTests.swift */; };
 		56998F3E54C21B21021C62DC /* AgentEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB61B0A84EA0CC8E0FC472B3 /* AgentEvent.swift */; };
+		59AF096E4CCBE85665B8376C /* SpectrumRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3882DEB5863B6DE396FC725 /* SpectrumRhythm.swift */; };
 		5AD684F224513AC471E5C882 /* AgentEffectLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2060541D005BBF96ECA85A /* AgentEffectLayer.swift */; };
 		5B1F52CFE32A5F4A022BE979 /* CLIInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E325529F092095FCC948EF09 /* CLIInventoryTests.swift */; };
 		5CA5CC6292F38CA8737B19F2 /* PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5934EB281BFE20A72EB88463 /* PanelGeometry.swift */; };
@@ -186,6 +189,7 @@
 		749068D7C45E2EDEC8649A3F /* CodexBarInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarInstaller.swift; sourceTree = "<group>"; };
 		7AEDF841598A1B9016E0D729 /* codex-usage.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "codex-usage.json"; sourceTree = "<group>"; };
 		80085F21CF6CFFAD1DA77934 /* CodexBarCLIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarCLIClientTests.swift; sourceTree = "<group>"; };
+		84328370A1CE4A719D2F9314 /* FixtureSnapshotsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSnapshotsTests.swift; sourceTree = "<group>"; };
 		870311F44BB11C10610E59B6 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		8B6679633CB7EDCF0B2F5D60 /* CodexBarInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarInstallerTests.swift; sourceTree = "<group>"; };
 		8F03C528E3D81E52D25F3E2F /* AgentEffectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEffectTests.swift; sourceTree = "<group>"; };
@@ -194,6 +198,7 @@
 		93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarOverlayController.swift; sourceTree = "<group>"; };
 		97C88035D344707F24402DA5 /* SessionCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCatalogTests.swift; sourceTree = "<group>"; };
 		98FB8A2030F59A03596BF6A7 /* AIUnderlayKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIUnderlayKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9BAFC71C23F973301794AA5C /* SpectrumRhythmTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumRhythmTests.swift; sourceTree = "<group>"; };
 		9C22E7BD8D324BADEC3B32CF /* CodexBarProviderCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarProviderCatalog.swift; sourceTree = "<group>"; };
 		9E48A5ACFB73D713B7C5DD84 /* PanelGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelGeometryTests.swift; sourceTree = "<group>"; };
 		A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandWindowLevelTests.swift; sourceTree = "<group>"; };
@@ -207,6 +212,7 @@
 		B7CC6F624028B244518D4F53 /* AgentStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStateStoreTests.swift; sourceTree = "<group>"; };
 		BBADAC7037F960D43A380E64 /* FixtureSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSnapshots.swift; sourceTree = "<group>"; };
 		BBF35BD5DB6896B04ED5C0DD /* CodexBarCLIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarCLIClient.swift; sourceTree = "<group>"; };
+		C3882DEB5863B6DE396FC725 /* SpectrumRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumRhythm.swift; sourceTree = "<group>"; };
 		C412EC1DB7C77A838C6DDB23 /* DomainModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainModelTests.swift; sourceTree = "<group>"; };
 		C75C6FF65167D88935719DDF /* BandWatchdog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandWatchdog.swift; sourceTree = "<group>"; };
 		CB61B0A84EA0CC8E0FC472B3 /* AgentEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEvent.swift; sourceTree = "<group>"; };
@@ -266,6 +272,7 @@
 				B7CC6F624028B244518D4F53 /* AgentStateStoreTests.swift */,
 				3E574582EF39BA5655DE53B7 /* HookEventPayloadTests.swift */,
 				DF87FF9C0603B695DD938782 /* HookSetupCoordinatorTests.swift */,
+				9BAFC71C23F973301794AA5C /* SpectrumRhythmTests.swift */,
 			);
 			path = AgentTests;
 			sourceTree = "<group>";
@@ -279,6 +286,7 @@
 				D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */,
 				CFABB65B186E745FAC57BD84 /* MenuBarGeometry.swift */,
 				93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */,
+				C3882DEB5863B6DE396FC725 /* SpectrumRhythm.swift */,
 				905706BFAEDD3BB94BA83E73 /* ThemePalette.swift */,
 			);
 			path = Overlay;
@@ -300,6 +308,7 @@
 				80085F21CF6CFFAD1DA77934 /* CodexBarCLIClientTests.swift */,
 				8B6679633CB7EDCF0B2F5D60 /* CodexBarInstallerTests.swift */,
 				B2812158B359CA168BADB1DF /* CodexBarUsageDecoderTests.swift */,
+				84328370A1CE4A719D2F9314 /* FixtureSnapshotsTests.swift */,
 				A287A900B1E0ABC0BD2513BA /* ProviderCatalogTests.swift */,
 				116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */,
 				6992B579B02AF713BECB0B82 /* QuotaEngineManagerTests.swift */,
@@ -695,6 +704,7 @@
 				0519B471A59601F2C9F59E9F /* SettingsStore.swift in Sources */,
 				E8E8089539B58E02737966AD /* SettingsWindowController.swift in Sources */,
 				E0E28D57DC8D8A4FB4C40447 /* SnapshotCache.swift in Sources */,
+				59AF096E4CCBE85665B8376C /* SpectrumRhythm.swift in Sources */,
 				A10F478BFEDEBF4B3CC20633 /* StatusItemController.swift in Sources */,
 				03A502E286714E5DBA364EA4 /* ThemePalette.swift in Sources */,
 			);
@@ -734,6 +744,7 @@
 				BB3187006570E1C27CC40537 /* CodexBarUsageDecoderTests.swift in Sources */,
 				FA0A308D67649744A5FAE364 /* DashboardModelTests.swift in Sources */,
 				204A77A89F5AFE0A83CB9332 /* DomainModelTests.swift in Sources */,
+				044080B1380EAD414A09952C /* FixtureSnapshotsTests.swift in Sources */,
 				8F741940B6EF21C6BC667FAC /* GaugeGeometryTests.swift in Sources */,
 				BA77A4A7787D25DBB874D04B /* GaugeLayerRendererTests.swift in Sources */,
 				88D524F8A9BA5D6159BC6D33 /* HookEventPayload.swift in Sources */,
@@ -749,6 +760,7 @@
 				C6DE3F6CB2B4BBBF7B8CDF0E /* SessionCatalogTests.swift in Sources */,
 				E72A67E3766024F67874674B /* SettingsStoreTests.swift in Sources */,
 				E7C623F32F23B9C826476B68 /* SmokeTests.swift in Sources */,
+				01F7CDD5DFEADA1AE3092E94 /* SpectrumRhythmTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

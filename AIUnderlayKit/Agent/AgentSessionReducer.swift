@@ -129,6 +129,8 @@ public enum AgentActivityAggregator {
     /// it is working — so it must not keep the bar green. States that ask the
     /// user for something (`waitingInput`, `waitingApproval`, `error`) never go
     /// stale: the whole point of those lights is to survive until the user acts.
+    /// A `completed` light is a transient acknowledgement and decays after its
+    /// short sweep window.
     public static func aggregate(_ sessions: [AgentSession], now: Date) -> Aggregate {
         var counts: [AgentState: Int] = [:]
         for session in sessions {
@@ -147,12 +149,19 @@ public enum AgentActivityAggregator {
     /// session — one whose `Stop` we never saw — does not linger green.
     public static let runningStaleness: TimeInterval = 180
 
-    /// The state a session actually contributes right now. Only `running` decays
-    /// (to `idle`); every other state is reported as-is.
+    /// A completed light is a transient acknowledgement; its overlay plays one
+    /// short sweep, then returns to a plain quota bar.
+    public static let completedStaleness: TimeInterval = 20
+
+    /// The state a session actually contributes right now. `running` and
+    /// `completed` decay to `idle`; every other state is reported as-is.
     public static func effectiveState(_ session: AgentSession, now: Date) -> AgentState {
-        guard session.state == .running,
-              now.timeIntervalSince(session.observedAt) > runningStaleness
-        else { return session.state }
-        return .idle
+        let staleness: TimeInterval
+        switch session.state {
+        case .running: staleness = runningStaleness
+        case .completed: staleness = completedStaleness
+        default: return session.state
+        }
+        return now.timeIntervalSince(session.observedAt) > staleness ? .idle : session.state
     }
 }

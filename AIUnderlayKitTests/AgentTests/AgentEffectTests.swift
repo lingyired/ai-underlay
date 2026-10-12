@@ -33,9 +33,28 @@ final class AgentEffectTests: XCTestCase {
         let layer = AgentEffectLayer.make(state: .waitingApproval, geometry: geometry, reduceMotion: false)
         XCTAssertNotNil(layer)
         // A "needs you" state is a full-width breathing wash — no endpoint dot
-        // crowding the menu bar's left edge.
+        // crowding the menu bar's left edge — plus the yellow edge highlights.
         XCTAssertEqual(layer?.frame.width, 1000)
-        XCTAssertEqual(layer?.sublayers?.count, 1)
+        XCTAssertEqual(layer?.sublayers?.count, 2)
+        XCTAssertNotNil(layer?.sublayers?.first?.sublayers?.first?.animation(forKey: "breathe"))
+    }
+
+    func test_waiting_drawsYellowEdgeHighlights() {
+        let layer = AgentEffectLayer.make(state: .waitingInput, geometry: geometry, reduceMotion: false)
+        let borders = layer?.sublayers?.last
+        XCTAssertEqual(borders?.sublayers?.count, 2, "one edge at the top, one at the bottom")
+        XCTAssertEqual(borders?.sublayers?.first?.frame.minY, geometry.fillBounds.minY)
+        XCTAssertEqual(borders?.sublayers?.first?.frame.width, geometry.fillBounds.width)
+        XCTAssertEqual(borders?.sublayers?.last?.frame.maxY, geometry.fillBounds.maxY)
+    }
+
+    func test_error_drawsFailureBorder() {
+        let layer = AgentEffectLayer.make(state: .error, geometry: geometry, reduceMotion: false)
+        XCTAssertEqual(layer?.sublayers?.count, 2, "wash + failure border")
+        XCTAssertEqual(AgentEffectStyle.style(for: .error)?.borderColor, AgentEffectStyle.failureBorder)
+        XCTAssertEqual(AgentEffectStyle.style(for: .waitingInput)?.borderColor, AgentEffectStyle.attentionBorder)
+        XCTAssertNil(AgentEffectStyle.style(for: .running)?.borderColor)
+        XCTAssertNil(AgentEffectStyle.style(for: .completed)?.borderColor)
     }
 
     func test_reduceMotion_suppressesPulse() {
@@ -52,6 +71,21 @@ final class AgentEffectTests: XCTestCase {
         XCTAssertEqual(layer?.sublayers?.count, 1, "running draws a single effect layer")
         let band = layer?.sublayers?.first?.sublayers?.first
         XCTAssertNotNil(band?.animation(forKey: "shimmer"))
+        XCTAssertEqual(band?.animation(forKey: "shimmer")?.repeatCount, .infinity)
+        XCTAssertNil(band?.animation(forKey: "shimmerFade"))
+    }
+
+    func test_completed_sweepPlaysOnce() {
+        let layer = AgentEffectLayer.make(state: .completed, geometry: geometry, reduceMotion: false)
+        let band = layer?.sublayers?.first?.sublayers?.first
+        let animation = band?.animation(forKey: "shimmer") as? CABasicAnimation
+        XCTAssertNotNil(animation)
+        XCTAssertEqual(animation?.repeatCount, 1)
+        XCTAssertEqual(animation?.fillMode, .forwards)
+        XCTAssertFalse(animation?.isRemovedOnCompletion ?? true)
+        let fade = band?.animation(forKey: "shimmerFade") as? CAKeyframeAnimation
+        XCTAssertNotNil(fade)
+        XCTAssertEqual((fade?.values?.last as? NSNumber)?.doubleValue, 0)
     }
 
     func test_running_sweepReduceMotion_static() {
@@ -96,6 +130,49 @@ final class AgentEffectTests: XCTestCase {
         let container = layer?.sublayers?.first
         XCTAssertEqual(container?.sublayers?.count, 1)
         XCTAssertNotNil(container?.sublayers?.first?.animation(forKey: "pulse"))
+    }
+
+    func test_running_spectrumMode_drawsBarsGrowingFromTheLowerEdge() {
+        let layer = AgentEffectLayer.make(state: .running, geometry: geometry, reduceMotion: false,
+                                          runningEffect: .spectrum)
+        let container = layer?.sublayers?.first
+        XCTAssertTrue(container?.masksToBounds ?? false, "bars never leave the strip")
+        XCTAssertEqual(container?.frame, geometry.trackRect)
+
+        let bars = container?.sublayers ?? []
+        XCTAssertGreaterThan(bars.count, 1)
+        for bar in bars {
+            XCTAssertEqual(bar.position.y, geometry.fillBounds.minY, "bars sit on the lower edge")
+            XCTAssertEqual(bar.anchorPoint, CGPoint(x: 0.5, y: 0), "they grow upward")
+            XCTAssertEqual(bar.bounds.width, SpectrumRhythm.barWidth)
+            let animation = bar.animation(forKey: "spectrum") as? CAKeyframeAnimation
+            XCTAssertNotNil(animation)
+            XCTAssertEqual(animation?.repeatCount, .infinity)
+            XCTAssertEqual(animation?.duration, SpectrumRhythm.cycleDuration(outputTPS: nil))
+        }
+    }
+
+    func test_running_spectrumReduceMotion_isStatic() {
+        let layer = AgentEffectLayer.make(state: .running, geometry: geometry, reduceMotion: true,
+                                          runningEffect: .spectrum)
+        let bars = layer?.sublayers?.first?.sublayers ?? []
+        XCTAssertFalse(bars.isEmpty)
+        for bar in bars {
+            XCTAssertNil(bar.animation(forKey: "spectrum"))
+            XCTAssertLessThanOrEqual(bar.bounds.height, geometry.fillBounds.height)
+            XCTAssertGreaterThan(bar.bounds.height, 0)
+        }
+    }
+
+    func test_running_spectrumHonorsTheConfiguredColor() {
+        let color = RGBAColor(red: 0.2, green: 0.4, blue: 0.9)
+        let layer = AgentEffectLayer.make(state: .running, geometry: geometry, reduceMotion: false,
+                                          runningEffect: .spectrum, runningColor: color)
+        let bar = layer?.sublayers?.first?.sublayers?.first
+        let components = bar?.backgroundColor?.components ?? []
+        XCTAssertEqual(components.count, 4)
+        XCTAssertEqual(components[0], 0.2, accuracy: 0.001)
+        XCTAssertEqual(components[2], 0.9, accuracy: 0.001)
     }
 
     func test_running_noneMode_drawsNothing() {

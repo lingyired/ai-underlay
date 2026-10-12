@@ -9,13 +9,33 @@ public struct AgentEffectStyle: Equatable, Sendable {
     public var sweep: Bool
     /// The whole fill gently brightens and dims.
     public var breathe: Bool
+    /// Top and bottom edge highlight — yellow for "needs you", red for a
+    /// confirmed failure (spec §5.3). `nil` draws no border.
+    public var borderColor: RGBAColor?
+    /// Border thickness in points.
+    public var borderWidth: CGFloat
 
-    public init(color: RGBAColor, pulse: Bool, sweep: Bool, breathe: Bool = false) {
+    public init(
+        color: RGBAColor,
+        pulse: Bool,
+        sweep: Bool,
+        breathe: Bool = false,
+        borderColor: RGBAColor? = nil,
+        borderWidth: CGFloat = 2
+    ) {
         self.color = color
         self.pulse = pulse
         self.sweep = sweep
         self.breathe = breathe
+        self.borderColor = borderColor
+        self.borderWidth = borderWidth
     }
+
+    /// Yellow edge used by the "needs you" states. Distinct from the amber fill
+    /// so the warning survives even when the provider's own color is orange.
+    public static let attentionBorder = RGBAColor(red: 1.00, green: 0.93, blue: 0.35, alpha: 0.95)
+    /// Red edge used by a confirmed failure.
+    public static let failureBorder = RGBAColor(red: 1.00, green: 0.32, blue: 0.42, alpha: 0.95)
 
     /// The default color for a state. Color is the primary way a glance tells
     /// states apart, so each state gets its own:
@@ -41,13 +61,16 @@ public struct AgentEffectStyle: Equatable, Sendable {
         case .running:
             return AgentEffectStyle(color: runningColor ?? defaultColor(for: .running), pulse: false, sweep: true, breathe: true)
         case .waitingInput:
-            return AgentEffectStyle(color: defaultColor(for: .waitingInput), pulse: true, sweep: false)
+            return AgentEffectStyle(color: defaultColor(for: .waitingInput), pulse: true, sweep: false,
+                                    borderColor: attentionBorder)
         case .waitingApproval:
-            return AgentEffectStyle(color: defaultColor(for: .waitingApproval), pulse: true, sweep: false)
+            return AgentEffectStyle(color: defaultColor(for: .waitingApproval), pulse: true, sweep: false,
+                                    borderColor: attentionBorder)
         case .completed:
             return AgentEffectStyle(color: defaultColor(for: .completed), pulse: false, sweep: true)
         case .error:
-            return AgentEffectStyle(color: defaultColor(for: .error), pulse: true, sweep: false)
+            return AgentEffectStyle(color: defaultColor(for: .error), pulse: true, sweep: false,
+                                    borderColor: failureBorder)
         case .unknown, .reconnecting:
             return nil  // never animate a state we cannot observe
         }
@@ -66,7 +89,8 @@ public enum AgentEffectLayer {
         geometry: GaugeGeometry,
         reduceMotion: Bool,
         runningEffect: RunningEffect = .breathing,
-        runningColor: RGBAColor? = nil
+        runningColor: RGBAColor? = nil,
+        outputTPS: Double? = nil
     ) -> CALayer? {
         guard let style = AgentEffectStyle.style(for: state, runningColor: runningColor) else { return nil }
 
@@ -80,9 +104,13 @@ public enum AgentEffectLayer {
             case .breathing:
                 container.addSublayer(makeBreathing(geometry: geometry, color: style.color, reduceMotion: reduceMotion))
             case .sweep:
-                container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion))
+                container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion,
+                                                  repeatForever: true))
             case .dot:
                 container.addSublayer(makeDot(geometry: geometry, style: style, reduceMotion: reduceMotion))
+            case .spectrum:
+                container.addSublayer(makeSpectrum(geometry: geometry, style: style,
+                                                   reduceMotion: reduceMotion, outputTPS: outputTPS))
             case .none:
                 return nil
             }
@@ -90,13 +118,17 @@ public enum AgentEffectLayer {
         }
 
         if style.sweep {
-            container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion))
+            container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion,
+                                              repeatForever: false))
         }
         if style.pulse {
             // The "needs you" states show as a full-width breathing wash in the
             // state color — as loud as the running breathe, and with no marker
             // crowding the menu bar's left edge.
             container.addSublayer(makeBreathing(geometry: geometry, color: style.color, reduceMotion: reduceMotion))
+        }
+        if let borderColor = style.borderColor {
+            container.addSublayer(makeEdgeBorders(geometry: geometry, color: borderColor, width: style.borderWidth))
         }
         return container
     }
@@ -135,7 +167,8 @@ public enum AgentEffectLayer {
     private static func makeShimmer(
         geometry: GaugeGeometry,
         style: AgentEffectStyle,
-        reduceMotion: Bool
+        reduceMotion: Bool,
+        repeatForever: Bool
     ) -> CALayer {
         let fill = geometry.fillBounds
         // A solid bright band with soft shoulders — crisp enough to read as a
@@ -168,11 +201,109 @@ public enum AgentEffectLayer {
             anim.fromValue = fromX + bandWidth / 2
             anim.toValue = toX + bandWidth / 2
             anim.duration = sweepDuration
-            anim.repeatCount = .infinity
+            anim.repeatCount = repeatForever ? .infinity : 1
+            if !repeatForever {
+                anim.fillMode = .forwards
+                anim.isRemovedOnCompletion = false
+
+                let fade = CAKeyframeAnimation(keyPath: "opacity")
+                fade.values = [1, 1, 0]
+                fade.keyTimes = [0, 0.65, 1]
+                fade.duration = sweepDuration
+                fade.fillMode = .forwards
+                fade.isRemovedOnCompletion = false
+                band.add(fade, forKey: "shimmerFade")
+            }
             anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             band.add(anim, forKey: "shimmer")
         }
         return clip
+    }
+
+    /// Equalizer bars rising from the menu bar's lower edge. One `CALayer` per
+    /// bar, driven by a keyframe animation on `bounds.size.height`, so the whole
+    /// wave runs in Core Animation with no per-frame CPU work.
+    ///
+    /// Active is the on/off switch and speed only changes the rhythm (spec
+    /// §6.2); a missing speed measurement falls back to the slowest rhythm
+    /// rather than stopping. Bar count is a texture, never a session count.
+    private static func makeSpectrum(
+        geometry: GaugeGeometry,
+        style: AgentEffectStyle,
+        reduceMotion: Bool,
+        outputTPS: Double?
+    ) -> CALayer {
+        let fill = geometry.fillBounds
+        let container = CALayer()
+        container.frame = geometry.trackRect
+        container.masksToBounds = true
+
+        let barHeight = fill.height
+        let offsets = SpectrumRhythm.barOffsets(width: fill.width,
+                                                growsTowardRight: geometry.growsTowardRight)
+        let cycle = SpectrumRhythm.cycleDuration(outputTPS: outputTPS)
+        let now = CACurrentMediaTime()
+
+        for (index, offset) in offsets.enumerated() {
+            let bar = CALayer()
+            bar.backgroundColor = style.color.cgColor(alpha: 0.9)
+            bar.cornerRadius = min(SpectrumRhythm.barWidth, barHeight) / 2
+            // Anchored at the lower edge, so growing the bounds grows the bar up.
+            bar.anchorPoint = CGPoint(x: 0.5, y: 0)
+            bar.bounds = CGRect(x: 0, y: 0, width: SpectrumRhythm.barWidth, height: barHeight)
+            bar.position = CGPoint(x: fill.minX + offset, y: fill.minY)
+
+            let factors = SpectrumRhythm.keyframeValues(index: index)
+            let heights = factors.map { CGFloat($0) * barHeight }
+
+            guard !reduceMotion, heights.count > 1 else {
+                bar.bounds.size.height = heights.first ?? barHeight
+                container.addSublayer(bar)
+                continue
+            }
+
+            let animation = CAKeyframeAnimation(keyPath: "bounds.size.height")
+            animation.values = heights
+            animation.keyTimes = heights.indices.map { NSNumber(value: Double($0) / Double(heights.count)) }
+            animation.duration = cycle
+            animation.repeatCount = .infinity
+            animation.timingFunction = CAMediaTimingFunction(name: .linear)
+            // Start each bar earlier than the last so the row reads as a wave
+            // travelling along the bar instead of one block flashing together.
+            let phase = Double(index % heights.count) / Double(heights.count)
+            animation.beginTime = now - cycle * phase
+            bar.add(animation, forKey: "spectrum")
+            container.addSublayer(bar)
+        }
+        return container
+    }
+
+    /// Top and bottom edge highlights. Thin, high-contrast lines that stay
+    /// legible on both light and dark menu bars, and are the only signal left
+    /// when Reduce Motion turns the wash off.
+    private static func makeEdgeBorders(
+        geometry: GaugeGeometry,
+        color: RGBAColor,
+        width: CGFloat
+    ) -> CALayer {
+        let fill = geometry.fillBounds
+        let thickness = max(1, min(width, fill.height / 2))
+
+        let container = CALayer()
+        container.frame = geometry.trackRect
+        container.masksToBounds = true
+
+        let bottom = CALayer()
+        bottom.frame = CGRect(x: fill.minX, y: fill.minY, width: fill.width, height: thickness)
+        bottom.backgroundColor = color.cgColor
+        container.addSublayer(bottom)
+
+        let top = CALayer()
+        top.frame = CGRect(x: fill.minX, y: fill.maxY - thickness, width: fill.width, height: thickness)
+        top.backgroundColor = color.cgColor
+        container.addSublayer(top)
+
+        return container
     }
 
     /// A pulsing endpoint dot at the anchor, for the "needs you" states.

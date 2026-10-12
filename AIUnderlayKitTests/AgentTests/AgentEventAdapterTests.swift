@@ -50,6 +50,15 @@ final class AgentEventAdapterTests: XCTestCase {
 
     // MARK: - Codex
 
+    func test_codexAdapter_mapsUserPromptSubmit() {
+        let adapter = CodexAdapter()
+        let event = adapter.adapt(RawAgentEvent(providerId: "codex", payload: [
+            "hook_event_name": "UserPromptSubmit", "session_id": "t1",
+        ]))
+        XCTAssertEqual(event?.kind, .userPromptSubmitted)
+        XCTAssertEqual(event?.providerId, "codex")
+    }
+
     func test_codexAdapter_mapsPermissionRequest() {
         // Codex's PermissionRequest payload uses session_id + hook_event_name,
         // the same shape as Claude's.

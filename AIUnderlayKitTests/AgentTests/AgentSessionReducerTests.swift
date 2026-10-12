@@ -91,6 +91,33 @@ final class AgentSessionReducerTests: XCTestCase {
         XCTAssertEqual(AgentActivityAggregator.effectiveState(session, now: now), .running)
     }
 
+    func test_staleCompletedDecaysToIdle() {
+        let now = Date()
+        let old = now.addingTimeInterval(-(AgentActivityAggregator.completedStaleness + 1))
+        let session = AgentSession(id: "a", providerId: "codex", state: .completed,
+                                   confidence: .exact, observedAt: old)
+        XCTAssertEqual(AgentActivityAggregator.effectiveState(session, now: now), .idle)
+    }
+
+    func test_freshCompletedStaysCompleted() {
+        let now = Date()
+        let recent = now.addingTimeInterval(-5)
+        let session = AgentSession(id: "a", providerId: "codex", state: .completed,
+                                   confidence: .exact, observedAt: recent)
+        XCTAssertEqual(AgentActivityAggregator.effectiveState(session, now: now), .completed)
+    }
+
+    func test_staleCompletedDoesNotBeatFreshRunning() {
+        let now = Date()
+        let sessions = [
+            AgentSession(id: "stale", providerId: "codex", state: .completed, confidence: .exact,
+                         observedAt: now.addingTimeInterval(-(AgentActivityAggregator.completedStaleness + 1))),
+            AgentSession(id: "running", providerId: "codex", state: .running, confidence: .exact,
+                         observedAt: now.addingTimeInterval(-5)),
+        ]
+        XCTAssertEqual(AgentActivityAggregator.aggregate(sessions, now: now).dominant, .running)
+    }
+
     func test_waitingNeverDecaysNoMatterHowOld() {
         // The whole point of a "needs you" light is to survive until you act —
         // a wait from an hour ago is still a wait.
