@@ -181,8 +181,44 @@ final class AgentEffectTests: XCTestCase {
         XCTAssertNil(layer)
     }
 
-    func test_runningEffect_defaultIsBreathing() {
-        XCTAssertEqual(AppSettings.default.runningEffect, .breathing)
+    func test_runningEffect_defaultIsSpectrumGlow() {
+        XCTAssertEqual(AppSettings.default.runningEffect, .spectrumGlow)
+    }
+
+    func test_spectrumGlow_drawsAmbientLightAndThreeRayGroups() {
+        let effect = AgentEffectLayer.make(state: .running, geometry: geometry,
+                                            reduceMotion: false, runningEffect: .spectrumGlow)
+        let field = effect?.sublayers?.first
+        XCTAssertEqual(field?.sublayers?.count, 4, "ambient field + three interleaved ray groups")
+        let moving = field?.sublayers?.last
+        XCTAssertNotNil(moving?.animation(forKey: "spectralBreath"))
+        XCTAssertEqual(moving?.sublayers?.count, 2, "bloom + thin white highlight")
+    }
+
+    func test_spectrumGlow_preservesWaitingMotionAndShowsLightRibbon() {
+        let effect = AgentEffectLayer.make(signals: AgentSignals(activeCount: 1, waitingApprovalCount: 1),
+                                            geometry: geometry, reduceMotion: false, runningEffect: .spectrumGlow)
+        XCTAssertEqual(effect?.sublayers?.count, 2, "moving spectral field + attention ribbon")
+        let ribbon = effect?.sublayers?.last
+        XCTAssertEqual(ribbon?.sublayers?.count, 3, "top line + diffused glow + bottom ribbon")
+        XCTAssertNotNil(ribbon?.sublayers?.last?.sublayers?.first?.animation(forKey: "attentionGlint"))
+    }
+
+    func test_spectrumGlow_reduceMotion_hasNoContinuousAnimations() {
+        let effect = AgentEffectLayer.make(signals: AgentSignals(activeCount: 1, errorCount: 1),
+                                            geometry: geometry, reduceMotion: true, runningEffect: .spectrumGlow)
+        let field = effect?.sublayers?.first
+        XCTAssertNil(field?.sublayers?.last?.animation(forKey: "spectralBreath"))
+        let ribbon = effect?.sublayers?.last
+        XCTAssertEqual(ribbon?.sublayers?.last?.sublayers?.count ?? 0, 0)
+    }
+
+    func test_waitingOverlay_respectsThemeOpacity() {
+        let custom = AgentEffectTheme(waitingOverlay: RGBAColor(red: 1, green: 0.7, blue: 0.2, alpha: 0.19))
+        let effect = AgentEffectLayer.make(state: .waitingInput, geometry: geometry,
+                                            reduceMotion: false, theme: custom)
+        let wash = effect?.sublayers?.first?.sublayers?.first
+        XCTAssertEqual(wash?.backgroundColor?.alpha ?? 0, 0.19, accuracy: 0.0001)
     }
 
     func test_stateColorsAreDistinct() {
