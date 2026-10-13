@@ -221,6 +221,24 @@ final class AgentEffectTests: XCTestCase {
         XCTAssertEqual(wash?.backgroundColor?.alpha ?? 0, 0.19, accuracy: 0.0001)
     }
 
+    func test_classicWash_keepsAVisiblePeak() {
+        let effect = AgentEffectLayer.make(state: .waitingInput, geometry: geometry,
+                                            reduceMotion: false, runningEffect: .breathing)
+        let breathe = effect?.sublayers?.first?.sublayers?.first?
+            .animation(forKey: "breathe") as? CABasicAnimation
+        XCTAssertEqual(breathe?.toValue as? Double, 0.9,
+                       "respecting the theme alpha must not dim the classic wash's peak")
+    }
+
+    func test_spectrumGlow_attentionBandStaysTranslucent() {
+        let effect = AgentEffectLayer.make(state: .waitingInput, geometry: geometry,
+                                            reduceMotion: false, runningEffect: .spectrumGlow)
+        let band = effect?.sublayers?.last?.sublayers?.last
+        let alpha = band?.backgroundColor?.alpha ?? 1
+        XCTAssertGreaterThan(alpha, 0)
+        XCTAssertLessThanOrEqual(alpha, 0.55, "the light ribbon must not cover the quota fill")
+    }
+
     func test_stateColorsAreDistinct() {
         // Color must encode state, so no two states share a color.
         let states: [AgentState] = [.running, .waitingInput, .waitingApproval, .completed, .error]

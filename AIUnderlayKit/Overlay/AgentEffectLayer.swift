@@ -281,14 +281,17 @@ public enum AgentEffectLayer {
         if !reduceMotion {
             let anim = CABasicAnimation(keyPath: "opacity")
             anim.fromValue = 0.05
-            anim.toValue = 0.48
+            // Classic modes keep their loud peak: with the authored alpha no
+            // longer forced to 0.9, the peak is what makes the wash readable at
+            // a glance. Spectrum Glow uses its own, calmer light field instead.
+            anim.toValue = 0.9
             anim.duration = 1.8
             anim.autoreverses = true
             anim.repeatCount = .infinity
             anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             glow.add(anim, forKey: "breathe")
         } else {
-            glow.opacity = 0.32
+            glow.opacity = 0.6
         }
         return clip
     }
@@ -579,7 +582,9 @@ public enum AgentEffectLayer {
 
         let band = CALayer()
         band.frame = CGRect(x: fill.minX, y: fill.minY, width: fill.width, height: lower)
-        band.backgroundColor = color.cgColor
+        // A translucent light corridor, not an opaque bar: the quota fill has to
+        // stay readable through it. The theme's own alpha remains the ceiling.
+        band.backgroundColor = color.cgColor(alpha: min(max(color.alpha, 0), 0.55))
         band.masksToBounds = true
         clip.addSublayer(band)
 
