@@ -223,7 +223,10 @@ public final class AppCoordinator: ObservableObject {
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
         if !hookSessions.isEmpty {
             let signals = AgentSignals.counting(hookSessions, now: now)
-            return signals.isEmpty ? nil : signals
+            // Historical hook sessions can all decay to idle. In that case
+            // they must not permanently suppress a live coarse polling source.
+            // Active hook evidence still takes precedence over inferred states.
+            if !signals.isEmpty { return signals }
         }
         let polled = agentSessions.filter { $0.provider == providerId }
         guard !polled.isEmpty else { return nil }
