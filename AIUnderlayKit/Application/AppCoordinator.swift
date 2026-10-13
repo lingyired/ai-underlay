@@ -404,8 +404,9 @@ public final class AppCoordinator: ObservableObject {
 
     private func renderLive(_ s: AppSettings, theme: ThemeDocument?) {
         func presentation(for provider: String, fallback: ProviderPalette) -> GaugePresentation? {
-            guard let snapshot = liveSnapshots[provider] else { return nil }
-            let windows = snapshot.windowsLongestFirst
+            // Agent activity must remain visible even when quota data is
+            // unavailable (logged out, stale source, or before the first fetch).
+            let windows = liveSnapshots[provider]?.windowsLongestFirst ?? []
             let base = ProviderPalette.for(providerId: provider)
             let palette = ThemeResolver.palette(theme: theme, providerId: provider, base: base)
             let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)
