@@ -54,23 +54,37 @@ public struct AgentEffectStyle: Equatable, Sendable {
     /// Style for a state. `nil` (no agent activity) returns nil — nothing drawn.
     /// `runningColor` overrides the running color only; other states keep their
     /// state colors so color always encodes state.
-    public static func style(for state: AgentState?, runningColor: RGBAColor? = nil) -> AgentEffectStyle? {
+    /// Style for a state. `runningColor` is an explicit user choice and wins over
+    /// the theme; `theme` only fills in what the user did not pick. The
+    /// Error > Waiting > Normal priority is fixed here, never in a theme file.
+    public static func style(
+        for state: AgentState?,
+        runningColor: RGBAColor? = nil,
+        theme: AgentEffectTheme? = nil
+    ) -> AgentEffectStyle? {
         switch state {
         case .none, .idle:
             return nil
         case .running:
-            return AgentEffectStyle(color: runningColor ?? defaultColor(for: .running), pulse: false, sweep: true, breathe: true)
+            let color = runningColor ?? theme?.runningColor ?? defaultColor(for: .running)
+            return AgentEffectStyle(color: color, pulse: false, sweep: true, breathe: true)
         case .waitingInput:
-            return AgentEffectStyle(color: defaultColor(for: .waitingInput), pulse: true, sweep: false,
-                                    borderColor: attentionBorder)
+            return AgentEffectStyle(color: theme?.waitingOverlay ?? defaultColor(for: .waitingInput),
+                                    pulse: true, sweep: false,
+                                    borderColor: theme?.waitingBorder ?? attentionBorder,
+                                    borderWidth: theme?.waitingBorderWidth ?? 2)
         case .waitingApproval:
-            return AgentEffectStyle(color: defaultColor(for: .waitingApproval), pulse: true, sweep: false,
-                                    borderColor: attentionBorder)
+            return AgentEffectStyle(color: theme?.waitingOverlay ?? defaultColor(for: .waitingApproval),
+                                    pulse: true, sweep: false,
+                                    borderColor: theme?.waitingBorder ?? attentionBorder,
+                                    borderWidth: theme?.waitingBorderWidth ?? 2)
         case .completed:
             return AgentEffectStyle(color: defaultColor(for: .completed), pulse: false, sweep: true)
         case .error:
-            return AgentEffectStyle(color: defaultColor(for: .error), pulse: true, sweep: false,
-                                    borderColor: failureBorder)
+            return AgentEffectStyle(color: theme?.errorOverlay ?? defaultColor(for: .error),
+                                    pulse: true, sweep: false,
+                                    borderColor: theme?.errorBorder ?? failureBorder,
+                                    borderWidth: theme?.errorBorderWidth ?? 2)
         case .unknown, .reconnecting:
             return nil  // never animate a state we cannot observe
         }
@@ -90,9 +104,10 @@ public enum AgentEffectLayer {
         reduceMotion: Bool,
         runningEffect: RunningEffect = .breathing,
         runningColor: RGBAColor? = nil,
-        outputTPS: Double? = nil
+        outputTPS: Double? = nil,
+        theme: AgentEffectTheme? = nil
     ) -> CALayer? {
-        guard let style = AgentEffectStyle.style(for: state, runningColor: runningColor) else { return nil }
+        guard let style = AgentEffectStyle.style(for: state, runningColor: runningColor, theme: theme) else { return nil }
 
         let container = CALayer()
         container.frame = geometry.trackRect

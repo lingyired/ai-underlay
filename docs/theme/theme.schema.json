@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lingsmbp/ai-underlay/theme.schema.json",
+  "title": "AIUnderlay theme",
+  "description": "Appearance only. A theme can never change the Error > Waiting > Normal priority, invent quota windows, or alter monitoring data.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Only version 1 is understood; anything else is rejected rather than guessed at."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/\\\\]+$",
+      "description": "Stable identity of the theme. Must not contain path separators."
+    },
+    "name": { "type": "string", "minLength": 1, "description": "Shown in the theme picker." },
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trackColor": { "$ref": "#/definitions/color" },
+        "trackOpacity": { "$ref": "#/definitions/opacity" },
+        "baselineColor": { "$ref": "#/definitions/color" },
+        "baselineOpacity": { "$ref": "#/definitions/opacity" },
+        "baselineEnabled": {
+          "type": "boolean",
+          "description": "false hides the pace baseline. It can never switch it on against the user's own setting."
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "Keyed by provider id, e.g. codex, claude.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "quotaLayers": {
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "items": { "$ref": "#/definitions/color" },
+            "description": "Longest window first: index 0 is the outermost layer. Only as many layers as the provider really reports — never invent a month."
+          },
+          "spectrumColor": { "$ref": "#/definitions/color" },
+          "spectrumOpacity": { "$ref": "#/definitions/opacity" }
+        }
+      }
+    },
+    "states": {
+      "type": "object",
+      "description": "Keyed by state: waiting, error (recovering may be added later).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "overlayColor": { "$ref": "#/definitions/color" },
+          "overlayOpacity": { "$ref": "#/definitions/opacity" },
+          "spectrumColor": { "$ref": "#/definitions/color" },
+          "borderColor": { "$ref": "#/definitions/color" },
+          "borderWidth": { "type": "number", "minimum": 0, "maximum": 10, "description": "Top and bottom edge thickness, in points." }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "color": {
+      "type": "string",
+      "pattern": "^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "examples": ["#4361EE", "#FF8000CC"]
+    },
+    "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

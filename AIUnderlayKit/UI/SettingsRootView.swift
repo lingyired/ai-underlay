@@ -1,17 +1,21 @@
 import SwiftUI
 
-/// Root settings view: a five-tab container. Hosted by `SettingsWindowController`.
+/// Root settings view: a six-tab container. Hosted by `SettingsWindowController`.
 public struct SettingsRootView: View {
     @ObservedObject private var store: SettingsStore
+    @ObservedObject private var themes: ThemeStore
 
     public init() {
         self.store = AppCoordinator.shared?.settings ?? SettingsStore()
+        self.themes = AppCoordinator.shared?.themes ?? ThemeStore()
     }
 
     public var body: some View {
         TabView {
             AppearanceTab(store: store)
                 .tabItem { Label("外观", systemImage: "paintbrush") }
+            ThemeTab(settings: store, themes: themes)
+                .tabItem { Label("主题", systemImage: "swatchpalette") }
             ProvidersTab()
                 .tabItem { Label("服务商", systemImage: "square.stack.3d.up") }
             EngineTab()

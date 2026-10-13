@@ -1,7 +1,7 @@
 # Agent 动态特效 — 设计（Design Spec）
 
 > 日期：2026-10-13
-> 状态：已实现并验证（频谱柱 / 等待与故障边框）；主题引擎待确认
+> 状态：已实现并验证（频谱柱 / 等待与故障边框 / 主题 JSON 引擎）
 > 上游共识：`AIUnderlay-Agreed-Product-Spec-2026-10-13.md`（下称「共识 spec」）
 > 本文性质：记录本轮"新增动态特效、现有特效不变"的设计取舍、已验证结果与未决项。
 
@@ -67,13 +67,33 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| 主题 JSON 引擎（共识 spec §7.3） | **未做** | §11 明确「主题 Schema 的最终字段名与层级」及「默认主题色值」**不该由 Agent 擅自锁定**。实现前需要你定：字段名是否照抄 §7.3 示例、默认色板取哪套。 |
+| 主题 JSON 引擎（共识 spec §7.3） | **DONE** | 用户确认「字段名照抄 §7.3 示例」。见 §5。 |
 | TPS → 频率的真实数据 | **接缝已就绪** | 仓库当前没有采集 output tokens/s（CodexBar `sessions --json` 未提供）。`SpectrumRhythm` 已支持 `outputTPS`，现在按最慢节奏跑；接入数据源即可生效。 |
 | 「Active + Waiting → 橙色频谱」（共识 spec §5.2） | **未做** | 需要先落地四维度（Health/Attention/Activity/Performance）模型；当前每个 Provider 仍是单一 dominant state。 |
 | Recovering 的动画 | **未做** | §11 列为待 UX 验证。 |
 
 ## 4. 下一步建议
 
-1. 你确认主题引擎的两项未决参数 → 落地 `ThemeDocument` + 热重载 + `theme.schema.json`。
-2. 找到可用的 TPS 来源（Codex/Claude 会话日志或 CodexBar 新字段）→ 接上 `outputTPS`。
-3. 把 Waiting / Error / Recovering 的动画细节按真实使用做一轮调参。
+1. 找到可用的 TPS 来源（Codex/Claude 会话日志或 CodexBar 新字段）→ 接上 `outputTPS`。
+2. 把 Waiting / Error / Recovering 的动画细节按真实使用做一轮调参。
+3. 设置页里的图形化取色器（当前是「编辑 JSON + 热重载 + 复制给 AI」）。
+
+## 5. 主题 JSON 引擎（本轮补做）
+
+共识 spec §7.3 的方向全部落地，字段名按 §7.3 示例：
+
+- **模型**：`ThemeDocument`（`schemaVersion: 1` / `id` / `name` / `global` / `providers` /
+  `states`），纯 Foundation，可单测。
+- **校验**：颜色（`#RGB` / `#RRGGBB` / `#RRGGBBAA`）、透明度 0…1、`quotaLayers` 最多 3 层、
+  `borderWidth` 0…10、id 不含路径分隔符。**未知 schemaVersion 直接拒绝**，不猜测。
+- **存放**：`~/Library/Application Support/<bundle>/Themes/*.json`，一个文件一个主题；
+  内置主题在代码里，App 更新不会覆盖用户文件。
+- **热重载**：目录监听（新增/删除/改名）+ **每个文件的 vnode 监听**（内容修改）双层，
+  300ms 防抖。只监听目录会漏掉「原地编辑已有文件」，这是实现时实测发现的坑。
+- **失败回退**：坏文件跳过并显示原因；若坏的正是当前主题，继续渲染上一个正常版本。
+- **边界**：主题只能改外观。`Error > Waiting > Normal` 的优先级在 `AgentEffectStyle` 里，
+  主题文件无法表达优先级，也无法编造额度层。
+- **接线**：`ThemeResolver` 只覆盖主题写明的字段；用户显式选择的「运行中颜色」优先于主题。
+  `runningEffectColor` 新默认是 `theme`（跟随主题），没有主题时解析为内置绿色 —— 视觉不变。
+- **上下文**：`docs/theme/theme.schema.json`、`docs/theme/examples/vivid.json`、
+  `docs/theme/README.md`，设置页可一键复制给 AI 的写作指令。

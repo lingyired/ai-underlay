@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "my-vivid-theme",
+  "name": "My Vivid Theme",
+  "global": {
+    "trackColor": "#253043",
+    "trackOpacity": 0.4,
+    "baselineColor": "#FFFFFF",
+    "baselineEnabled": true
+  },
+  "providers": {
+    "codex": {
+      "quotaLayers": ["#4361EE", "#48C7FF"],
+      "spectrumColor": "#D5F6FF"
+    },
+    "claude": {
+      "quotaLayers": ["#F66A42", "#FFB071"],
+      "spectrumColor": "#FFF0C2"
+    }
+  },
+  "states": {
+    "waiting": {
+      "overlayColor": "#FFAA22",
+      "overlayOpacity": 0.2,
+      "spectrumColor": "#FFC247",
+      "borderColor": "#FFE15C",
+      "borderWidth": 2
+    },
+    "error": {
+      "overlayColor": "#FF355E",
+      "overlayOpacity": 0.22,
+      "spectrumColor": "#FF5578",
+      "borderColor": "#FF526A",
+      "borderWidth": 2
+    }
+  }
+}

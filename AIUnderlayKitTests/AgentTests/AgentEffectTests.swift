@@ -207,6 +207,10 @@ final class AgentEffectTests: XCTestCase {
     }
 
     func test_runningColorDefaultIsGreen() {
-        XCTAssertEqual(AppSettings.default.runningEffectColor, .green)
+        // Default defers to the theme; with no theme installed that is the
+        // built-in green, so the out-of-the-box look is unchanged.
+        XCTAssertEqual(AppSettings.default.runningEffectColor, .theme)
+        XCTAssertEqual(AgentEffectStyle.style(for: .running, runningColor: nil, theme: nil)?.color,
+                       AgentEffectStyle.defaultColor(for: .running))
     }
 }

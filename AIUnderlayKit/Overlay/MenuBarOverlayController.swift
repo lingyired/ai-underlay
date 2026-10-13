@@ -10,6 +10,8 @@ public struct GaugePresentation: Sendable {
     public var reduceMotion: Bool
     public var runningEffect: RunningEffect
     public var runningColor: RGBAColor?
+    /// Appearance overrides from the active theme, if any.
+    public var effectTheme: AgentEffectTheme?
 
     public init(
         windows: [QuotaWindow],
@@ -19,7 +21,8 @@ public struct GaugePresentation: Sendable {
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
         runningEffect: RunningEffect = .breathing,
-        runningColor: RGBAColor? = nil
+        runningColor: RGBAColor? = nil,
+        effectTheme: AgentEffectTheme? = nil
     ) {
         self.windows = windows
         self.palette = palette
@@ -29,6 +32,7 @@ public struct GaugePresentation: Sendable {
         self.reduceMotion = reduceMotion
         self.runningEffect = runningEffect
         self.runningColor = runningColor
+        self.effectTheme = effectTheme
     }
 }
 
@@ -149,7 +153,8 @@ public final class MenuBarOverlayController {
             if side.showAgentEffects, let state = side.agentState,
                let effect = AgentEffectLayer.make(state: state, geometry: gauge.geometry,
                                                   reduceMotion: side.reduceMotion,
-                                                  runningEffect: side.runningEffect, runningColor: side.runningColor) {
+                                                  runningEffect: side.runningEffect, runningColor: side.runningColor,
+                                                  theme: side.effectTheme) {
                 root.addSublayer(effect)
             }
         }

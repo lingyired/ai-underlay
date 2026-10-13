@@ -19,6 +19,8 @@ public final class AppCoordinator: ObservableObject {
     public let overlay: MenuBarOverlayController
     public let engineManager: QuotaEngineManager
     public let cache: SnapshotCache
+    /// Themes on disk (appearance only). Changes hot-reload and re-render.
+    public let themes: ThemeStore
 
     /// Live snapshots by provider id (from real CLI fetches).
     public private(set) var liveSnapshots: [String: ProviderQuotaSnapshot] = [:]
@@ -54,12 +56,14 @@ public final class AppCoordinator: ObservableObject {
         settings: SettingsStore = SettingsStore(),
         overlay: MenuBarOverlayController = MenuBarOverlayController(),
         engineManager: QuotaEngineManager = QuotaEngineManager(),
-        cache: SnapshotCache = SnapshotCache()
+        cache: SnapshotCache = SnapshotCache(),
+        themes: ThemeStore? = nil
     ) {
         self.settings = settings
         self.overlay = overlay
         self.engineManager = engineManager
         self.cache = cache
+        self.themes = themes ?? ThemeStore(activeId: settings.settings.activeThemeId)
         Self.shared = self
     }
 
@@ -88,6 +92,20 @@ public final class AppCoordinator: ObservableObject {
         )
 
         settings.$settings
+            .sink { [weak self] settings in
+                guard let self else { return }
+                if self.themes.selectedThemeId != settings.activeThemeId {
+                    // setActive publishes `revision`, which renders for us.
+                    self.themes.setActive(id: settings.activeThemeId)
+                } else {
+                    self.render()
+                }
+            }
+            .store(in: &cancellables)
+
+        // A theme file edit (ours or an agent's) must repaint without a restart.
+        themes.$revision
+            .dropFirst()
             .sink { [weak self] _ in self?.render() }
             .store(in: &cancellables)
 
@@ -332,36 +350,49 @@ public final class AppCoordinator: ObservableObject {
     public func render() {
         let s = settings.settings
         lastAgentSignature = agentSignature()
+        let theme = themes.activeTheme
 
         if s.previewFixture == nil {
             // Live mode. Before the first snapshot arrives we show empty tracks —
             // never fixture data, which could be mistaken for real usage.
-            renderLive(s)
+            renderLive(s, theme: theme)
             return
         }
 
         let key = s.previewFixture!
         let windows = FixtureSnapshots.windows(for: key)
-        let baseline = s.showBaseline
+        // A theme may switch the baseline off; it never switches it on against
+        // the user's own setting.
+        let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)
             ? BaselineSpec(selectedWindowIndex: 0, expectedRemainingFraction: 0.5)
             : nil
-        let left = GaugePresentation(windows: windows, palette: .codex, baseline: baseline,
-                                     agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "codex") : nil,
-                                     showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect,
-                                     runningColor: Self.runningColor(s.runningEffectColor))
-        let right = GaugePresentation(windows: windows, palette: .claude, baseline: baseline,
-                                      agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: "claude") : nil,
-                                      showAgentEffects: s.showAgentEffects, reduceMotion: s.reduceMotion, runningEffect: s.runningEffect,
-                                     runningColor: Self.runningColor(s.runningEffectColor))
-        apply(left: left, right: right, settings: s)
+        func presentation(_ providerId: String, base: ProviderPalette) -> GaugePresentation {
+            GaugePresentation(
+                windows: windows,
+                palette: ThemeResolver.palette(theme: theme, providerId: providerId, base: base),
+                baseline: baseline,
+                agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: providerId) : nil,
+                showAgentEffects: s.showAgentEffects,
+                reduceMotion: s.reduceMotion,
+                runningEffect: s.runningEffect,
+                runningColor: Self.runningColor(s.runningEffectColor),
+                effectTheme: ThemeResolver.effects(theme: theme, providerId: providerId)
+            )
+        }
+        apply(left: presentation("codex", base: .codex),
+              right: presentation("claude", base: .claude),
+              settings: s)
     }
 
-    private func renderLive(_ s: AppSettings) {
+    private func renderLive(_ s: AppSettings, theme: ThemeDocument?) {
         func presentation(for provider: String, fallback: ProviderPalette) -> GaugePresentation? {
             guard let snapshot = liveSnapshots[provider] else { return nil }
             let windows = snapshot.windowsLongestFirst
-            let palette = ProviderPalette.for(providerId: provider)
-            let baseline = s.showBaseline ? baselineSpec(for: windows) : nil
+            let base = ProviderPalette.for(providerId: provider)
+            let palette = ThemeResolver.palette(theme: theme, providerId: provider, base: base)
+            let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)
+                ? baselineSpec(for: windows)
+                : nil
             let agent = s.showAgentEffects ? dominantAgentState(for: provider) : nil
             return GaugePresentation(
                 windows: windows,
@@ -371,7 +402,8 @@ public final class AppCoordinator: ObservableObject {
                 showAgentEffects: s.showAgentEffects,
                 reduceMotion: s.reduceMotion,
                 runningEffect: s.runningEffect,
-                runningColor: Self.runningColor(s.runningEffectColor)
+                runningColor: Self.runningColor(s.runningEffectColor),
+                effectTheme: ThemeResolver.effects(theme: theme, providerId: provider)
             )
         }
 
@@ -408,8 +440,10 @@ public final class AppCoordinator: ObservableObject {
         ))
     }
 
-    /// Maps the configured running-effect color to an RGBA color.
-    static func runningColor(_ c: RunningEffectColor) -> RGBAColor {
+    /// Maps the configured running-effect color. `nil` means "follow the theme"
+    /// — which, with no theme installed, is the built-in running color.
+    static func runningColor(_ c: RunningEffectColor) -> RGBAColor? {
+        guard c.isExplicit else { return nil }
         let rgb = c.rgba
         return RGBAColor(red: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 0.95)
     }

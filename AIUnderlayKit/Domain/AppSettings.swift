@@ -22,6 +22,10 @@ public enum RunningEffectColor: String, Codable, Sendable, CaseIterable {
     case blue
     case orange
     case purple
+    /// Follow the active theme's provider color. With no theme installed this
+    /// resolves to the built-in running color, so nothing changes for anyone who
+    /// never installs one.
+    case theme
 
     public var rgba: (red: Double, green: Double, blue: Double) {
         switch self {
@@ -30,8 +34,12 @@ public enum RunningEffectColor: String, Codable, Sendable, CaseIterable {
         case .blue: return (0.45, 0.80, 1.00)
         case .orange: return (1.00, 0.65, 0.30)
         case .purple: return (0.70, 0.55, 1.00)
+        case .theme: return (0.30, 1.00, 0.45)
         }
     }
+
+    /// Whether this choice names an explicit color. `theme` defers to the theme.
+    public var isExplicit: Bool { self != .theme }
 }
 
 /// User-facing appearance and display settings. Non-secret; persisted as JSON.
@@ -51,6 +59,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var showBaseline: Bool
     public var showAgentEffects: Bool
     public var reduceMotion: Bool
+    /// Id of the active theme, or nil for the built-in default look. Themes live
+    /// outside the app bundle, so app updates never overwrite them.
+    public var activeThemeId: String?
     /// Preview fixture key, or nil for live data.
     public var previewFixture: String?
     public var statusItemVisible: Bool
@@ -67,11 +78,12 @@ public struct AppSettings: Codable, Sendable, Equatable {
         singleDirection: SingleBarDirection = .leadingToTrailing,
         overlayEnabled: Bool = true,
         runningEffect: RunningEffect = .breathing,
-        runningEffectColor: RunningEffectColor = .green,
+        runningEffectColor: RunningEffectColor = .theme,
         proxyOverride: String = "",
         showBaseline: Bool = true,
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
+        activeThemeId: String? = nil,
         previewFixture: String? = nil,
         statusItemVisible: Bool = true,
         displays: [DisplayConfiguration] = [],
@@ -87,6 +99,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.showBaseline = showBaseline
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion
+        self.activeThemeId = activeThemeId
         self.previewFixture = previewFixture
         self.statusItemVisible = statusItemVisible
         self.displays = displays
@@ -111,6 +124,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         showBaseline = try c.decodeIfPresent(Bool.self, forKey: .showBaseline) ?? d.showBaseline
         showAgentEffects = try c.decodeIfPresent(Bool.self, forKey: .showAgentEffects) ?? d.showAgentEffects
         reduceMotion = try c.decodeIfPresent(Bool.self, forKey: .reduceMotion) ?? d.reduceMotion
+        activeThemeId = try c.decodeIfPresent(String.self, forKey: .activeThemeId)
         previewFixture = try c.decodeIfPresent(String.self, forKey: .previewFixture)
         statusItemVisible = try c.decodeIfPresent(Bool.self, forKey: .statusItemVisible) ?? d.statusItemVisible
         displays = try c.decodeIfPresent([DisplayConfiguration].self, forKey: .displays) ?? d.displays

@@ -89,10 +89,12 @@ Evidence: `docs/preview/p4-settings.png`. Total tests: 122 passing.
 | P5-2 速度→节奏 | DONE | `SpectrumRhythm` 纯函数 0.18–0.62 Hz；`nil` 测速 = 最慢节奏。真实 TPS 数据源尚未接入 |
 | P5-3 等待/故障边框 | DONE | waiting 黄、error 红的上下列细边框；原呼吸蒙层/脉冲保留 |
 | P5-4 预览与文档 | DONE | 新增 `agentError` 样例；`docs/superpowers/specs/2026-10-13-agent-dynamic-effects-design.md` |
-| P5-5 主题 JSON 引擎 | TODO | 待用户确认 Schema 字段名与默认色值（共识 spec §11） |
+| P5-5 主题 JSON 引擎 | DONE | 版本化 JSON + schema + 示例；`ThemeStore` 载入/校验/热重载（目录 + 每文件 vnode 双层监听，300ms 防抖）；坏文件跳过并保留上一个正常主题；设置新增「主题」页 |
+| P5-6 主题接线 | DONE | 主题只覆盖它写明的字段；`Error > Waiting > Normal` 优先级仍在代码里；`spectrumColor` 在「运行中颜色 = 跟随主题」（新默认）时生效 |
 
 Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`、
-`p7-agent-error-borders.png`. Total tests: 226 passing.
+`p7-agent-error-borders.png`、`p8-theme-hot-reload-1.png`、`p9-theme-hot-reload-2.png`.
+Total tests: 249 passing.
 
 ## Hardware verification ledger
 

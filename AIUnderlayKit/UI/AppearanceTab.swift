@@ -39,6 +39,7 @@ public struct AppearanceTab: View {
                 }
                 .disabled(!store.settings.showAgentEffects)
                 Picker("运行中颜色", selection: binding(\.runningEffectColor)) {
+                    Text("跟随主题").tag(RunningEffectColor.theme)
                     Text("绿（工作中）").tag(RunningEffectColor.green)
                     Text("白").tag(RunningEffectColor.white)
                     Text("蓝").tag(RunningEffectColor.blue)

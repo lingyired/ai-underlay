@@ -48,11 +48,14 @@ Scripts/check-domain-purity.sh
    icon). Click it → **Settings…**.
 2. **Appearance** — choose dual/single, anchor (notch or screen edge),
    direction, and a preview fixture. Changes render live.
-3. **Providers / Engine** — see the detected CodexBar CLI and each provider's
+3. **Theme** — pick a theme, drop your own JSON into the Themes folder, or copy
+   the authoring instructions to an AI agent. Themes are appearance-only:
+   `docs/theme/README.md`.
+4. **Providers / Engine** — see the detected CodexBar CLI and each provider's
    login state. *Test Connection* refreshes immediately.
-4. **Agent** — preview and install Claude Code hooks (this is the only way the
+5. **Agent** — preview and install Claude Code hooks (this is the only way the
    app modifies `~/.claude/settings.json`, and it backs the file up first).
-5. **Diagnostics** — measured geometry and overlay state, with a desensitized
+6. **Diagnostics** — measured geometry and overlay state, with a desensitized
    copy button.
 
 ### Offline preview
