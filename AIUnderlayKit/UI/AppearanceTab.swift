@@ -35,6 +35,7 @@ public struct AppearanceTab: View {
                     Text("扫光").tag(RunningEffect.sweep)
                     Text("端点脉冲").tag(RunningEffect.dot)
                     Text("频谱柱").tag(RunningEffect.spectrum)
+                    Text("光谱辉光 · Spectrum Glow").tag(RunningEffect.spectrumGlow)
                     Text("无").tag(RunningEffect.none)
                 }
                 .disabled(!store.settings.showAgentEffects)
