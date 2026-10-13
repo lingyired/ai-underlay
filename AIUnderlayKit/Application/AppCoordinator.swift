@@ -202,25 +202,39 @@ public final class AppCoordinator: ObservableObject {
             return "fixture:\(fixture)"
         }
         return providers.map { provider in
-            "\(provider):\(dominantAgentState(for: provider)?.rawValue ?? "none")"
+            let signals = agentSignals(for: provider)
+            // Every dimension is part of the signature: waiting + working must
+            // repaint even when the highest-priority state did not change.
+            let detail = signals.map {
+                "a\($0.activeCount)w\($0.waitingCount)e\($0.errorCount)c\($0.completedCount)u\($0.unknownCount)"
+            } ?? "none"
+            return "\(provider):\(detail)"
         }.joined(separator: "|")
     }
 
-    /// The dominant agent state for a provider, or nil when there is no session.
-    /// All of a provider's sessions are merged by priority, so one session
-    /// waiting on the user outranks any number of others that are merely
-    /// running — the light asks for attention, it does not report the latest
-    /// event. Prefers hook-derived sessions (finer states); falls back to
-    /// CodexBar's recency-based sessions (coarse: running/idle).
-    public func dominantAgentState(for providerId: String) -> AgentState? {
+    /// Live signals for a provider, or nil when nothing is known about it.
+    ///
+    /// The dimensions stay separate: a provider whose session A waits for you
+    /// while session B works must report both (§4.1). Prefers hook-derived
+    /// sessions (finer states); falls back to CodexBar's recency-based sessions
+    /// (coarse: running/idle).
+    public func agentSignals(for providerId: String) -> AgentSignals? {
         let now = Date()
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
         if !hookSessions.isEmpty {
-            return AgentActivityAggregator.aggregate(hookSessions, now: now).dominant
+            let signals = AgentSignals.counting(hookSessions, now: now)
+            return signals.isEmpty ? nil : signals
         }
         let polled = agentSessions.filter { $0.provider == providerId }
         guard !polled.isEmpty else { return nil }
-        return AgentActivityAggregator.aggregate(polled.map(\.asAgentSession), now: now).dominant
+        let signals = AgentSignals.counting(polled.map(\.asAgentSession), now: now)
+        return signals.isEmpty ? nil : signals
+    }
+
+    /// The single state a caller that can only show one should use, e.g. the
+    /// dashboard's one-line summary. Never used for the overlay.
+    public func dominantAgentState(for providerId: String) -> AgentState? {
+        agentSignals(for: providerId)?.primaryState
     }
 
     /// Session count summary for a provider, for the popup detail.
@@ -242,11 +256,15 @@ public final class AppCoordinator: ObservableObject {
 
     /// Agent state shown for the agent fixtures, so the effect channel can be
     /// previewed offline.
-    private func fixtureAgentState(for key: String, provider: String) -> AgentState? {
+    /// Offline preview signals, so every cell of the §5.2 matrix can be looked
+    /// at without real providers.
+    private func fixtureSignals(for key: String) -> AgentSignals? {
         switch key {
-        case "agentRunning": return .running
-        case "agentWaiting": return .waitingApproval
-        case "agentError": return .error
+        case "agentRunning": return AgentSignals(activeCount: 1)
+        case "agentWaiting": return AgentSignals(waitingApprovalCount: 1)
+        case "agentError": return AgentSignals(errorCount: 1)
+        case "agentRunningWaiting": return AgentSignals(activeCount: 2, waitingApprovalCount: 1)
+        case "agentRunningError": return AgentSignals(activeCount: 1, errorCount: 1)
         default: return nil
         }
     }
@@ -371,7 +389,7 @@ public final class AppCoordinator: ObservableObject {
                 windows: windows,
                 palette: ThemeResolver.palette(theme: theme, providerId: providerId, base: base),
                 baseline: baseline,
-                agentState: s.showAgentEffects ? fixtureAgentState(for: key, provider: providerId) : nil,
+                agentSignals: s.showAgentEffects ? fixtureSignals(for: key) : nil,
                 showAgentEffects: s.showAgentEffects,
                 reduceMotion: s.reduceMotion,
                 runningEffect: s.runningEffect,
@@ -393,12 +411,12 @@ public final class AppCoordinator: ObservableObject {
             let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)
                 ? baselineSpec(for: windows)
                 : nil
-            let agent = s.showAgentEffects ? dominantAgentState(for: provider) : nil
+            let agent = s.showAgentEffects ? agentSignals(for: provider) : nil
             return GaugePresentation(
                 windows: windows,
                 palette: palette == .neutral ? fallback : palette,
                 baseline: baseline,
-                agentState: agent,
+                agentSignals: agent,
                 showAgentEffects: s.showAgentEffects,
                 reduceMotion: s.reduceMotion,
                 runningEffect: s.runningEffect,

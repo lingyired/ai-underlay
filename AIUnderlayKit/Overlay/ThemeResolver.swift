@@ -9,26 +9,34 @@ import Foundation
 public struct AgentEffectTheme: Equatable, Sendable {
     public var runningColor: RGBAColor?
     public var waitingOverlay: RGBAColor?
+    /// Spectrum color used while something is still running in a waiting state.
+    public var waitingSpectrum: RGBAColor?
     public var waitingBorder: RGBAColor?
     public var waitingBorderWidth: CGFloat?
     public var errorOverlay: RGBAColor?
+    /// Spectrum color used while something is still running in a failed state.
+    public var errorSpectrum: RGBAColor?
     public var errorBorder: RGBAColor?
     public var errorBorderWidth: CGFloat?
 
     public init(
         runningColor: RGBAColor? = nil,
         waitingOverlay: RGBAColor? = nil,
+        waitingSpectrum: RGBAColor? = nil,
         waitingBorder: RGBAColor? = nil,
         waitingBorderWidth: CGFloat? = nil,
         errorOverlay: RGBAColor? = nil,
+        errorSpectrum: RGBAColor? = nil,
         errorBorder: RGBAColor? = nil,
         errorBorderWidth: CGFloat? = nil
     ) {
         self.runningColor = runningColor
         self.waitingOverlay = waitingOverlay
+        self.waitingSpectrum = waitingSpectrum
         self.waitingBorder = waitingBorder
         self.waitingBorderWidth = waitingBorderWidth
         self.errorOverlay = errorOverlay
+        self.errorSpectrum = errorSpectrum
         self.errorBorder = errorBorder
         self.errorBorderWidth = errorBorderWidth
     }
@@ -36,9 +44,9 @@ public struct AgentEffectTheme: Equatable, Sendable {
     /// True when the theme supplied nothing — the renderer then keeps its
     /// built-in state colors.
     public var isEmpty: Bool {
-        runningColor == nil && waitingOverlay == nil && waitingBorder == nil
-            && waitingBorderWidth == nil && errorOverlay == nil
-            && errorBorder == nil && errorBorderWidth == nil
+        runningColor == nil && waitingOverlay == nil && waitingSpectrum == nil
+            && waitingBorder == nil && waitingBorderWidth == nil && errorOverlay == nil
+            && errorSpectrum == nil && errorBorder == nil && errorBorderWidth == nil
     }
 }
 
@@ -91,11 +99,13 @@ public enum ThemeResolver {
             waitingOverlay: waiting?.overlayColor
                 .flatMap { ThemeColor(hex: $0) }
                 .map { RGBAColor($0, alpha: waiting?.overlayOpacity ?? defaultOverlayAlpha) },
+            waitingSpectrum: waiting?.spectrumColor.flatMap { ThemeColor(hex: $0).map { RGBAColor($0) } },
             waitingBorder: waiting?.borderColor.flatMap { ThemeColor(hex: $0).map { RGBAColor($0) } },
             waitingBorderWidth: waiting?.borderWidth.map { CGFloat($0) },
             errorOverlay: error?.overlayColor
                 .flatMap { ThemeColor(hex: $0) }
                 .map { RGBAColor($0, alpha: error?.overlayOpacity ?? defaultOverlayAlpha) },
+            errorSpectrum: error?.spectrumColor.flatMap { ThemeColor(hex: $0).map { RGBAColor($0) } },
             errorBorder: error?.borderColor.flatMap { ThemeColor(hex: $0).map { RGBAColor($0) } },
             errorBorderWidth: error?.borderWidth.map { CGFloat($0) }
         )

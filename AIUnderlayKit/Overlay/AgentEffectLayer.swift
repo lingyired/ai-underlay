@@ -91,6 +91,82 @@ public struct AgentEffectStyle: Equatable, Sendable {
     }
 }
 
+/// What the bar should do right now, derived from a provider's signals.
+///
+/// This is where the combination matrix from the product consensus (§5.2) is
+/// decided, as plain data so it is testable without rendering: a provider can
+/// be waiting *and* working, and then both are drawn — the moving spectrum in
+/// the alert color plus the warning edges.
+public struct AgentEffectPlan: Equatable, Sendable {
+    /// Something is running: the chosen running effect plays.
+    public var moves: Bool
+    /// Color of the moving effect.
+    public var motionColor: RGBAColor?
+    /// Full-width wash for a "needs you" or failed state.
+    public var alertOverlay: RGBAColor?
+    public var borderColor: RGBAColor?
+    public var borderWidth: CGFloat
+    /// Nothing else is happening and a session just finished: one short sweep.
+    public var acknowledgeCompletion: Bool
+
+    public init(
+        moves: Bool = false,
+        motionColor: RGBAColor? = nil,
+        alertOverlay: RGBAColor? = nil,
+        borderColor: RGBAColor? = nil,
+        borderWidth: CGFloat = 2,
+        acknowledgeCompletion: Bool = false
+    ) {
+        self.moves = moves
+        self.motionColor = motionColor
+        self.alertOverlay = alertOverlay
+        self.borderColor = borderColor
+        self.borderWidth = borderWidth
+        self.acknowledgeCompletion = acknowledgeCompletion
+    }
+
+    /// `nil` means "draw nothing at all".
+    ///
+    /// Error still outranks Waiting, and neither one stops an active session
+    /// from showing — a failure in one session must not hide that another one
+    /// is still working (§5.2).
+    public static func make(
+        signals: AgentSignals,
+        runningColor: RGBAColor? = nil,
+        theme: AgentEffectTheme? = nil
+    ) -> AgentEffectPlan? {
+        if !signals.hasError && !signals.hasWaiting && !signals.hasActive && signals.completedCount == 0 {
+            return nil
+        }
+
+        var plan = AgentEffectPlan(moves: signals.hasActive)
+        if signals.hasError {
+            let overlay = theme?.errorOverlay ?? AgentEffectStyle.defaultColor(for: .error)
+            plan.alertOverlay = overlay
+            plan.motionColor = theme?.errorSpectrum ?? overlay
+            plan.borderColor = theme?.errorBorder ?? AgentEffectStyle.failureBorder
+            plan.borderWidth = theme?.errorBorderWidth ?? 2
+        } else if signals.hasWaiting {
+            // Approval (orange) is the more urgent flavor, so a provider waiting
+            // on both keeps the color a single-session approval would have had.
+            let base = signals.waitingApprovalCount > 0
+                ? AgentEffectStyle.defaultColor(for: .waitingApproval)
+                : AgentEffectStyle.defaultColor(for: .waitingInput)
+            let overlay = theme?.waitingOverlay ?? base
+            plan.alertOverlay = overlay
+            plan.motionColor = theme?.waitingSpectrum ?? overlay
+            plan.borderColor = theme?.waitingBorder ?? AgentEffectStyle.attentionBorder
+            plan.borderWidth = theme?.waitingBorderWidth ?? 2
+        } else if signals.hasActive {
+            plan.motionColor = runningColor ?? theme?.runningColor ?? AgentEffectStyle.defaultColor(for: .running)
+        } else {
+            plan.acknowledgeCompletion = true
+            plan.motionColor = AgentEffectStyle.defaultColor(for: .completed)
+        }
+        return plan
+    }
+}
+
 /// Draws agent activity on the menu bar band. Never changes the quota fill's
 /// length or color — it is a separate visual channel layered on top.
 public enum AgentEffectLayer {
@@ -107,17 +183,41 @@ public enum AgentEffectLayer {
         outputTPS: Double? = nil,
         theme: AgentEffectTheme? = nil
     ) -> CALayer? {
-        guard let style = AgentEffectStyle.style(for: state, runningColor: runningColor, theme: theme) else { return nil }
+        make(signals: AgentSignals(state: state), geometry: geometry, reduceMotion: reduceMotion,
+             runningEffect: runningEffect, runningColor: runningColor, outputTPS: outputTPS, theme: theme)
+    }
+
+    /// Draws everything the signals call for. A provider that is both waiting
+    /// and working gets both: the moving effect *and* the alert edges.
+    public static func make(
+        signals: AgentSignals,
+        geometry: GaugeGeometry,
+        reduceMotion: Bool,
+        runningEffect: RunningEffect = .breathing,
+        runningColor: RGBAColor? = nil,
+        outputTPS: Double? = nil,
+        theme: AgentEffectTheme? = nil
+    ) -> CALayer? {
+        guard let plan = AgentEffectPlan.make(signals: signals, runningColor: runningColor, theme: theme) else {
+            return nil
+        }
 
         let container = CALayer()
         container.frame = geometry.trackRect
 
-        // The running state honors the user's chosen effect; other states keep
-        // their fixed treatment (waiting/error pulse, completed sweep).
-        if state == .running {
+        // A "needs you" or failed state always shows its wash and its edges,
+        // whether or not other sessions are still working.
+        if let overlay = plan.alertOverlay {
+            // The wash is the loud, full-width signal; the wash is animated by
+            // opacity only, so it stays cheap.
+            container.addSublayer(makeBreathing(geometry: geometry, color: overlay, reduceMotion: reduceMotion))
+        }
+
+        if plan.moves, let color = plan.motionColor {
+            let style = AgentEffectStyle(color: color, pulse: false, sweep: true)
             switch runningEffect {
             case .breathing:
-                container.addSublayer(makeBreathing(geometry: geometry, color: style.color, reduceMotion: reduceMotion))
+                container.addSublayer(makeBreathing(geometry: geometry, color: color, reduceMotion: reduceMotion))
             case .sweep:
                 container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion,
                                                   repeatForever: true))
@@ -127,25 +227,22 @@ public enum AgentEffectLayer {
                 container.addSublayer(makeSpectrum(geometry: geometry, style: style,
                                                    reduceMotion: reduceMotion, outputTPS: outputTPS))
             case .none:
-                return nil
+                break
             }
-            return container
         }
 
-        if style.sweep {
+        if plan.acknowledgeCompletion {
+            let style = AgentEffectStyle(color: plan.motionColor ?? AgentEffectStyle.defaultColor(for: .completed),
+                                         pulse: false, sweep: true)
             container.addSublayer(makeShimmer(geometry: geometry, style: style, reduceMotion: reduceMotion,
                                               repeatForever: false))
         }
-        if style.pulse {
-            // The "needs you" states show as a full-width breathing wash in the
-            // state color — as loud as the running breathe, and with no marker
-            // crowding the menu bar's left edge.
-            container.addSublayer(makeBreathing(geometry: geometry, color: style.color, reduceMotion: reduceMotion))
+
+        if let borderColor = plan.borderColor {
+            container.addSublayer(makeEdgeBorders(geometry: geometry, color: borderColor, width: plan.borderWidth))
         }
-        if let borderColor = style.borderColor {
-            container.addSublayer(makeEdgeBorders(geometry: geometry, color: borderColor, width: style.borderWidth))
-        }
-        return container
+
+        return container.sublayers?.isEmpty == false ? container : nil
     }
 
     /// A full-width soft light that gently brightens and dims over the fill —

@@ -69,8 +69,33 @@
 |---|---|---|
 | 主题 JSON 引擎（共识 spec §7.3） | **DONE** | 用户确认「字段名照抄 §7.3 示例」。见 §5。 |
 | TPS → 频率的真实数据 | **接缝已就绪** | 仓库当前没有采集 output tokens/s（CodexBar `sessions --json` 未提供）。`SpectrumRhythm` 已支持 `outputTPS`，现在按最慢节奏跑；接入数据源即可生效。 |
-| 「Active + Waiting → 橙色频谱」（共识 spec §5.2） | **未做** | 需要先落地四维度（Health/Attention/Activity/Performance）模型；当前每个 Provider 仍是单一 dominant state。 |
+| 「Active + Waiting → 橙色频谱」（共识 spec §5.2） | **DONE** | 见 §6。原先每个 Provider 只有一个 dominant state，导致「有人等 + 有人跑」时频谱消失；现已改为四维信号。 |
 | Recovering 的动画 | **未做** | §11 列为待 UX 验证。 |
+
+## 6. 多维信号：Running 与 Waiting 同时成立（2026-10-13 bug 修复）
+
+**问题**（用户实测反馈）：等待阶段同时有其他 Agent 在跑时，频谱柱不出现。
+
+**根因**：`AgentActivityAggregator.Aggregate` 把同一 Provider 的所有会话压成一个按优先级
+互斥的 `dominant` 状态（`AIUnderlayKit/Agent/AgentSessionReducer.swift`）。Waiting 优先级
+高于 Running，于是「1 个等待 + N 个运行」只剩 `waitingApproval`，移动动效根本没被触发。
+共识 spec §4.1 早就禁止这种压平：*"聚合层不应只产出一个互斥的 dominantState"*。
+
+**修法**：
+
+1. 新增 `AgentSignals`：`activeCount` / `waitingApprovalCount` / `waitingInputCount` /
+   `errorCount` / `completedCount` / `unknownCount`，四个维度独立计数；`primaryState`
+   只留给「只能显示一个」的地方（弹窗摘要、诊断）。
+2. 新增纯数据 `AgentEffectPlan`，实现共识 spec §5.2 的组合矩阵：
+   Error > Waiting > Active > Completed 决定**颜色与边框**，`hasActive` 决定**动不动**。
+   两者互不覆盖，所以「等待 + 运行」= 橙色频谱继续跳动 **且** 黄色上下边框。
+3. 渲染入口从 `make(state:)` 改为 `make(signals:)`（`make(state:)` 仍保留，内部转成信号）。
+4. `agentSignature()` 把四维计数都纳入重绘判据 —— 否则 Waiting 数变化时会漏重绘。
+5. 离线样例新增 `agentRunningWaiting`、`agentRunningError`，矩阵不用真 Provider 就能看。
+
+**回归保护**：新增测试覆盖组合矩阵、单状态与 plan 的一致性（该测试在实现过程中真的抓出了
+两个回归：waitingInput 的琥珀色被统一成橙色、completed 的青色没有随计划传递），
+以及「未知态既不动也不红」。
 
 ## 4. 下一步建议
 

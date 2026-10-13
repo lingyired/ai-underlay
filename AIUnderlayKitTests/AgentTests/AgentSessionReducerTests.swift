@@ -154,4 +154,56 @@ final class AgentSessionReducerTests: XCTestCase {
         ]
         XCTAssertEqual(AgentActivityAggregator.aggregate(sessions, now: now).dominant, .idle)
     }
+
+    // MARK: - Signals (the four dimensions together)
+
+    func test_signals_keepWaitingAndWorkingAtTheSameTime() {
+        // The bug this guards: collapsing to one `dominant` state made the
+        // running spectrum vanish as soon as any session waited for the user.
+        let now = Date()
+        let sessions = [
+            AgentSession(id: "work", providerId: "codex", state: .running, confidence: .exact, observedAt: now),
+            AgentSession(id: "work2", providerId: "codex", state: .running, confidence: .exact, observedAt: now),
+            AgentSession(id: "ask", providerId: "codex", state: .waitingApproval, confidence: .exact, observedAt: now),
+        ]
+        let signals = AgentSignals.counting(sessions, now: now)
+        XCTAssertEqual(signals.activeCount, 2)
+        XCTAssertEqual(signals.waitingCount, 1)
+        XCTAssertTrue(signals.hasActive)
+        XCTAssertTrue(signals.hasWaiting)
+        // The single-state summary still has to pick one, and Waiting wins there.
+        XCTAssertEqual(signals.primaryState, .waitingApproval)
+    }
+
+    func test_signals_countEveryDimensionSeparately() {
+        let now = Date()
+        let sessions = [
+            AgentSession(id: "a", providerId: "codex", state: .running, confidence: .exact, observedAt: now),
+            AgentSession(id: "b", providerId: "codex", state: .waitingInput, confidence: .exact, observedAt: now),
+            AgentSession(id: "c", providerId: "codex", state: .error, confidence: .exact, observedAt: now),
+            AgentSession(id: "d", providerId: "codex", state: .unknown, confidence: .unknown, observedAt: now),
+            AgentSession(id: "e", providerId: "codex", state: .idle, confidence: .exact, observedAt: now),
+        ]
+        let signals = AgentSignals.counting(sessions, now: now)
+        XCTAssertEqual(signals, AgentSignals(activeCount: 1, waitingInputCount: 1, errorCount: 1, unknownCount: 1))
+        XCTAssertEqual(signals.primaryState, .error)
+    }
+
+    func test_signals_staleRunningIsNotActive() {
+        let now = Date()
+        let old = now.addingTimeInterval(-(AgentActivityAggregator.runningStaleness + 1))
+        let signals = AgentSignals.counting(
+            [AgentSession(id: "a", providerId: "codex", state: .running, confidence: .exact, observedAt: old)],
+            now: now
+        )
+        XCTAssertTrue(signals.isEmpty, "silence is not proof of work, and not proof of failure either")
+    }
+
+    func test_signals_fromASingleState() {
+        XCTAssertEqual(AgentSignals(state: .running), AgentSignals(activeCount: 1))
+        XCTAssertEqual(AgentSignals(state: .waitingApproval), AgentSignals(waitingApprovalCount: 1))
+        XCTAssertEqual(AgentSignals(state: .error), AgentSignals(errorCount: 1))
+        XCTAssertEqual(AgentSignals(state: .completed), AgentSignals(completedCount: 1))
+        XCTAssertTrue(AgentSignals(state: .idle).isEmpty)
+    }
 }

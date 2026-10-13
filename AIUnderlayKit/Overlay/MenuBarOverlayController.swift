@@ -5,7 +5,9 @@ public struct GaugePresentation: Sendable {
     public var windows: [QuotaWindow]
     public var palette: ProviderPalette
     public var baseline: BaselineSpec?
-    public var agentState: AgentState?
+    /// What this provider's sessions are doing, as independent dimensions, so
+    /// "waiting" and "still working" can both be true at once.
+    public var agentSignals: AgentSignals?
     public var showAgentEffects: Bool
     public var reduceMotion: Bool
     public var runningEffect: RunningEffect
@@ -17,7 +19,7 @@ public struct GaugePresentation: Sendable {
         windows: [QuotaWindow],
         palette: ProviderPalette,
         baseline: BaselineSpec? = nil,
-        agentState: AgentState? = nil,
+        agentSignals: AgentSignals? = nil,
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
         runningEffect: RunningEffect = .breathing,
@@ -27,7 +29,7 @@ public struct GaugePresentation: Sendable {
         self.windows = windows
         self.palette = palette
         self.baseline = baseline
-        self.agentState = agentState
+        self.agentSignals = agentSignals
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion
         self.runningEffect = runningEffect
@@ -150,8 +152,8 @@ public final class MenuBarOverlayController {
             )
             root.addSublayer(layer)
 
-            if side.showAgentEffects, let state = side.agentState,
-               let effect = AgentEffectLayer.make(state: state, geometry: gauge.geometry,
+            if side.showAgentEffects, let signals = side.agentSignals,
+               let effect = AgentEffectLayer.make(signals: signals, geometry: gauge.geometry,
                                                   reduceMotion: side.reduceMotion,
                                                   runningEffect: side.runningEffect, runningColor: side.runningColor,
                                                   theme: side.effectTheme) {

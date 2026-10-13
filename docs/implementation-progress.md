@@ -91,10 +91,11 @@ Evidence: `docs/preview/p4-settings.png`. Total tests: 122 passing.
 | P5-4 预览与文档 | DONE | 新增 `agentError` 样例；`docs/superpowers/specs/2026-10-13-agent-dynamic-effects-design.md` |
 | P5-5 主题 JSON 引擎 | DONE | 版本化 JSON + schema + 示例；`ThemeStore` 载入/校验/热重载（目录 + 每文件 vnode 双层监听，300ms 防抖）；坏文件跳过并保留上一个正常主题；设置新增「主题」页 |
 | P5-6 主题接线 | DONE | 主题只覆盖它写明的字段；`Error > Waiting > Normal` 优先级仍在代码里；`spectrumColor` 在「运行中颜色 = 跟随主题」（新默认）时生效 |
+| P5-7 多维信号（修 Running+Waiting） | DONE | `AgentSignals` 取代单一 `dominant` 状态：活动/等待/故障/完成四维独立计数，等待+运行同时成立。渲染改为 `AgentEffectPlan`（§5.2 组合矩阵），橙色/红色频谱与警示边框可同时出现。新增离线样例 `agentRunningWaiting`、`agentRunningError` |
 
 Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`、
 `p7-agent-error-borders.png`、`p8-theme-hot-reload-1.png`、`p9-theme-hot-reload-2.png`.
-Total tests: 249 passing.
+`p10-agent-running-waiting.png`、`p11-agent-running-error.png`. Total tests: 265 passing.
 
 ## Hardware verification ledger
 

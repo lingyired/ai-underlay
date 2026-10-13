@@ -165,3 +165,93 @@ public enum AgentActivityAggregator {
         return now.timeIntervalSince(session.observedAt) > staleness ? .idle : session.state
     }
 }
+
+/// What one provider is doing right now, as four independent dimensions.
+///
+/// Deliberately *not* a single state: a provider with one session waiting
+/// for you and another one working must be expressible as both at once
+/// (product consensus §4.1). Collapsing them to a `dominant` state is what
+/// made a running spectrum disappear whenever anything was waiting.
+public struct AgentSignals: Equatable, Sendable {
+    public var activeCount: Int
+        /// Sessions waiting for a permission decision.
+        public var waitingApprovalCount: Int
+        /// Sessions waiting for typed input (or any other user answer).
+        public var waitingInputCount: Int
+    public var errorCount: Int
+    /// A finished session whose short acknowledgement sweep has not expired.
+    public var completedCount: Int
+    /// Unknown / reconnecting sessions: never promoted to a definite state,
+    /// and never on their own a reason to show a failure.
+    public var unknownCount: Int
+
+    public init(
+        activeCount: Int = 0,
+            waitingApprovalCount: Int = 0,
+            waitingInputCount: Int = 0,
+        errorCount: Int = 0,
+        completedCount: Int = 0,
+        unknownCount: Int = 0
+    ) {
+        self.activeCount = activeCount
+            self.waitingApprovalCount = waitingApprovalCount
+            self.waitingInputCount = waitingInputCount
+        self.errorCount = errorCount
+        self.completedCount = completedCount
+        self.unknownCount = unknownCount
+    }
+
+        /// Any session waiting on the user, either flavor.
+        public var waitingCount: Int { waitingApprovalCount + waitingInputCount }
+
+    public var hasActive: Bool { activeCount > 0 }
+    public var hasWaiting: Bool { waitingCount > 0 }
+    public var hasError: Bool { errorCount > 0 }
+    public var isEmpty: Bool {
+        activeCount == 0 && waitingCount == 0 && errorCount == 0
+            && completedCount == 0 && unknownCount == 0
+    }
+
+    /// The highest-priority state, for callers that can only show one
+    /// (menus, diagnostics). Error > Waiting > Active > Completed.
+    public var primaryState: AgentState {
+        if hasError { return .error }
+        if hasWaiting { return .waitingApproval }
+        if hasActive { return .running }
+        if completedCount > 0 { return .completed }
+        if unknownCount > 0 { return .unknown }
+        return .idle
+    }
+
+    /// Signals for a single observed state — used by the one-state preview
+    /// path and to keep `dominant`-style callers working.
+    public init(state: AgentState) {
+        self.init()
+        switch state {
+        case .running: activeCount = 1
+            case .waitingInput: waitingInputCount = 1
+            case .waitingApproval: waitingApprovalCount = 1
+        case .error: errorCount = 1
+        case .completed: completedCount = 1
+        case .unknown, .reconnecting: unknownCount = 1
+        case .idle: break
+        }
+    }
+
+    /// Counts a session list into the four dimensions.
+    public static func counting(_ sessions: [AgentSession], now: Date = Date()) -> AgentSignals {
+        var signals = AgentSignals()
+        for session in sessions {
+            switch AgentActivityAggregator.effectiveState(session, now: now) {
+            case .running: signals.activeCount += 1
+                case .waitingInput: signals.waitingInputCount += 1
+                case .waitingApproval: signals.waitingApprovalCount += 1
+            case .error: signals.errorCount += 1
+            case .completed: signals.completedCount += 1
+            case .unknown, .reconnecting: signals.unknownCount += 1
+            case .idle: break
+            }
+        }
+        return signals
+    }
+}

@@ -213,4 +213,101 @@ final class AgentEffectTests: XCTestCase {
         XCTAssertEqual(AgentEffectStyle.style(for: .running, runningColor: nil, theme: nil)?.color,
                        AgentEffectStyle.defaultColor(for: .running))
     }
+
+    // MARK: - Combination matrix (product consensus §5.2)
+
+    func test_plan_drawsNothingForNoSessionsOrUnknownOnly() {
+        XCTAssertNil(AgentEffectPlan.make(signals: AgentSignals()))
+        XCTAssertNil(AgentEffectPlan.make(signals: AgentSignals(unknownCount: 3)),
+                     "an unobservable session is never a reason to move or to show red")
+    }
+
+    func test_plan_completionIsOnlyAcknowledgedWhenNothingElseIsHappening() {
+        XCTAssertEqual(AgentEffectPlan.make(signals: AgentSignals(completedCount: 1))?.acknowledgeCompletion, true)
+        let running = AgentEffectPlan.make(signals: AgentSignals(activeCount: 1, completedCount: 1))
+        XCTAssertEqual(running?.acknowledgeCompletion, false, "a running session outranks a finished one")
+        XCTAssertEqual(running?.moves, true)
+    }
+
+    func test_plan_waitingWhileWorkingKeepsMoving() {
+        let plan = AgentEffectPlan.make(signals: AgentSignals(activeCount: 2, waitingApprovalCount: 1))
+        XCTAssertEqual(plan?.moves, true, "other sessions are still working")
+        XCTAssertNotNil(plan?.alertOverlay)
+        XCTAssertEqual(plan?.borderColor, AgentEffectStyle.attentionBorder)
+        XCTAssertEqual(plan?.motionColor, plan?.alertOverlay, "the moving effect takes the alert color")
+    }
+
+    func test_plan_errorOutranksWaitingAndMovesWhenWorking() {
+        let plan = AgentEffectPlan.make(signals: AgentSignals(activeCount: 1, waitingApprovalCount: 1, errorCount: 1))
+        XCTAssertEqual(plan?.moves, true)
+        XCTAssertEqual(plan?.borderColor, AgentEffectStyle.failureBorder)
+        XCTAssertEqual(plan?.alertOverlay, AgentEffectStyle.defaultColor(for: .error))
+    }
+
+    func test_plan_stopsMovingWhenNothingIsActive() {
+        let plan = AgentEffectPlan.make(signals: AgentSignals(waitingApprovalCount: 2))
+        XCTAssertEqual(plan?.moves, false)
+        XCTAssertNotNil(plan?.alertOverlay)
+        XCTAssertEqual(plan?.borderColor, AgentEffectStyle.attentionBorder)
+    }
+
+    /// Guards against the plan and the single-state style drifting apart: for a
+    /// one-state provider they must agree on color and border.
+    func test_planAgreesWithTheSingleStateStyle() {
+        for state in [AgentState.running, .waitingInput, .waitingApproval, .completed, .error] {
+            let plan = AgentEffectPlan.make(signals: AgentSignals(state: state))
+            let style = AgentEffectStyle.style(for: state)
+            XCTAssertEqual(plan?.motionColor ?? plan?.alertOverlay, style?.color, "\(state)")
+            XCTAssertEqual(plan?.borderColor, style?.borderColor, "\(state)")
+            XCTAssertEqual(plan?.moves, state == .running, "\(state)")
+        }
+    }
+
+    // MARK: - Combined rendering
+
+    func test_waitingWhileRunning_drawsTheSpectrumAndTheAlertEdgesTogether() {
+        let layer = AgentEffectLayer.make(signals: AgentSignals(activeCount: 2, waitingApprovalCount: 1),
+                                          geometry: geometry, reduceMotion: false,
+                                          runningEffect: .spectrum)
+        let sublayers = layer?.sublayers ?? []
+        XCTAssertEqual(sublayers.count, 3, "wash + moving spectrum + edges")
+
+        let wash = sublayers[0]
+        XCTAssertNotNil(wash.sublayers?.first?.animation(forKey: "breathe"))
+
+        let spectrum = sublayers[1]
+        let bar = spectrum.sublayers?.first
+        XCTAssertNotNil(bar?.animation(forKey: "spectrum"), "work in progress keeps moving")
+        let components = bar?.backgroundColor?.components ?? []
+        let expected = AgentEffectStyle.defaultColor(for: .waitingApproval)
+        XCTAssertEqual(components[0], expected.red, accuracy: 0.001,
+                       "the moving effect wears the alert color so both states read at once")
+
+        let edges = sublayers[2]
+        XCTAssertEqual(edges.sublayers?.count, 2)
+    }
+
+    func test_errorWhileRunning_drawsRedSpectrumAndRedEdges() {
+        let layer = AgentEffectLayer.make(signals: AgentSignals(activeCount: 1, errorCount: 1),
+                                          geometry: geometry, reduceMotion: false,
+                                          runningEffect: .spectrum)
+        let sublayers = layer?.sublayers ?? []
+        XCTAssertEqual(sublayers.count, 3)
+        let bar = sublayers[1].sublayers?.first
+        XCTAssertNotNil(bar?.animation(forKey: "spectrum"))
+        let components = bar?.backgroundColor?.components ?? []
+        let expected = AgentEffectStyle.defaultColor(for: .error)
+        XCTAssertEqual(components[0], expected.red, accuracy: 0.001)
+    }
+
+    func test_waitingAlone_doesNotDrawASpectrum() {
+        let layer = AgentEffectLayer.make(signals: AgentSignals(waitingApprovalCount: 1),
+                                          geometry: geometry, reduceMotion: false,
+                                          runningEffect: .spectrum)
+        let sublayers = layer?.sublayers ?? []
+        XCTAssertEqual(sublayers.count, 2, "static wash + edges, nothing moves")
+        for layer in sublayers {
+            XCTAssertNil(layer.sublayers?.first?.animation(forKey: "spectrum"))
+        }
+    }
 }

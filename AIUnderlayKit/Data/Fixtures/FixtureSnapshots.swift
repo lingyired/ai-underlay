@@ -5,7 +5,8 @@ import Foundation
 public enum FixtureSnapshots {
     public static let allKeys = [
         "full", "weekLow", "sessionLow", "allZero", "missing",
-        "stale", "reset", "agentRunning", "agentWaiting", "agentError", "notchless",
+        "stale", "reset", "agentRunning", "agentWaiting", "agentError",
+        "agentRunningWaiting", "agentRunningError", "notchless",
     ]
 
     /// Windows for a named fixture, longest-first.
@@ -48,7 +49,7 @@ public enum FixtureSnapshots {
         case "reset":
             return [window("w", "Weekly", .weekly, 604800, 0.99, expected: 0.2, resetIn: 604800),
                     window("s", "5h", .session, 18000, 0.95, expected: 0.2, resetIn: 18000)]
-        case "agentRunning", "agentWaiting", "agentError":
+        case "agentRunning", "agentWaiting", "agentError", "agentRunningWaiting", "agentRunningError":
             return [window("w", "Weekly", .weekly, 604800, 0.6, expected: 0.5, resetIn: 604800),
                     window("s", "5h", .session, 18000, 0.6, expected: 0.4, resetIn: 18000)]
         case "notchless":

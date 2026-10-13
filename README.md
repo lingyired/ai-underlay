@@ -62,7 +62,8 @@ Scripts/check-domain-purity.sh
 
 Set **Appearance → Fixture** to any of `full`, `weekLow`, `sessionLow`,
 `allZero`, `missing`, `stale`, `reset`, `agentRunning`, `agentWaiting`,
-`agentError`, `notchless`. These drive the *real* renderer, so what you see is exactly what
+`agentError`, `agentRunningWaiting`, `agentRunningError`, `notchless`. These
+drive the *real* renderer, so what you see is exactly what
 the menu bar will draw — no provider login required.
 
 ## Where the data comes from

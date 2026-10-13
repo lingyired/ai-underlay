@@ -17,4 +17,12 @@ final class FixtureSnapshotsTests: XCTestCase {
             XCTAssertFalse(FixtureSnapshots.windows(for: key).isEmpty)
         }
     }
+
+    /// The combinations from the §5.2 matrix need to be look-at-able offline.
+    func test_agentCombinationFixturesExist() {
+        for key in ["agentRunningWaiting", "agentRunningError"] {
+            XCTAssertTrue(FixtureSnapshots.allKeys.contains(key))
+            XCTAssertFalse(FixtureSnapshots.windows(for: key).isEmpty)
+        }
+    }
 }
