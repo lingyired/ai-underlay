@@ -12,6 +12,9 @@ public struct GaugePresentation: Sendable {
     public var reduceMotion: Bool
     public var runningEffect: RunningEffect
     public var runningColor: RGBAColor?
+    /// Optional measured response throughput. Nil keeps the low-speed fallback;
+    /// callers must never synthesize throughput when no source exists.
+    public var outputTPS: Double?
     /// Appearance overrides from the active theme, if any.
     public var effectTheme: AgentEffectTheme?
 
@@ -24,6 +27,7 @@ public struct GaugePresentation: Sendable {
         reduceMotion: Bool = false,
         runningEffect: RunningEffect = .breathing,
         runningColor: RGBAColor? = nil,
+        outputTPS: Double? = nil,
         effectTheme: AgentEffectTheme? = nil
     ) {
         self.windows = windows
@@ -34,6 +38,7 @@ public struct GaugePresentation: Sendable {
         self.reduceMotion = reduceMotion
         self.runningEffect = runningEffect
         self.runningColor = runningColor
+        self.outputTPS = outputTPS
         self.effectTheme = effectTheme
     }
 }
@@ -156,7 +161,7 @@ public final class MenuBarOverlayController {
                let effect = AgentEffectLayer.make(signals: signals, geometry: gauge.geometry,
                                                   reduceMotion: side.reduceMotion,
                                                   runningEffect: side.runningEffect, runningColor: side.runningColor,
-                                                  theme: side.effectTheme) {
+                                                  outputTPS: side.outputTPS, theme: side.effectTheme) {
                 root.addSublayer(effect)
             }
         }
