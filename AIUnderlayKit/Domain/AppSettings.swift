@@ -11,6 +11,8 @@ public enum RunningEffect: String, Codable, Sendable, CaseIterable {
     /// Equalizer-style bars rising from the menu bar's bottom edge; the rhythm
     /// follows the agent's output speed (see `SpectrumRhythm`).
     case spectrum
+    /// Layered spectral light field: thin luminous rays and soft ambient glow.
+    case spectrumGlow
     /// No animation.
     case none
 }
@@ -77,7 +79,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         anchor: AnchorMode = .outerEdge,
         singleDirection: SingleBarDirection = .leadingToTrailing,
         overlayEnabled: Bool = true,
-        runningEffect: RunningEffect = .breathing,
+        runningEffect: RunningEffect = .spectrumGlow,
         runningEffectColor: RunningEffectColor = .theme,
         proxyOverride: String = "",
         showBaseline: Bool = true,

@@ -223,7 +223,10 @@ public final class AppCoordinator: ObservableObject {
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
         if !hookSessions.isEmpty {
             let signals = AgentSignals.counting(hookSessions, now: now)
-            return signals.isEmpty ? nil : signals
+            // Historical hook sessions can all decay to idle. In that case
+            // they must not permanently suppress a live coarse polling source.
+            // Active hook evidence still takes precedence over inferred states.
+            if !signals.isEmpty { return signals }
         }
         let polled = agentSessions.filter { $0.provider == providerId }
         guard !polled.isEmpty else { return nil }
@@ -404,8 +407,9 @@ public final class AppCoordinator: ObservableObject {
 
     private func renderLive(_ s: AppSettings, theme: ThemeDocument?) {
         func presentation(for provider: String, fallback: ProviderPalette) -> GaugePresentation? {
-            guard let snapshot = liveSnapshots[provider] else { return nil }
-            let windows = snapshot.windowsLongestFirst
+            // Agent activity must remain visible even when quota data is
+            // unavailable (logged out, stale source, or before the first fetch).
+            let windows = liveSnapshots[provider]?.windowsLongestFirst ?? []
             let base = ProviderPalette.for(providerId: provider)
             let palette = ThemeResolver.palette(theme: theme, providerId: provider, base: base)
             let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)

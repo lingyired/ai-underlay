@@ -207,10 +207,19 @@ public enum AgentEffectLayer {
 
         // A "needs you" or failed state always shows its wash and its edges,
         // whether or not other sessions are still working.
+        let refinedLight = runningEffect == .spectrumGlow
         if let overlay = plan.alertOverlay {
-            // The wash is the loud, full-width signal; the wash is animated by
-            // opacity only, so it stays cheap.
-            container.addSublayer(makeBreathing(geometry: geometry, color: overlay, reduceMotion: reduceMotion))
+            // The premium mode keeps the quota visible through a translucent
+            // light field. Classic modes preserve their familiar wash.
+            if refinedLight {
+                // Active spectrum glow already carries the warning hue.
+                if !plan.moves {
+                    container.addSublayer(makeAmbientField(geometry: geometry, color: overlay,
+                                                           reduceMotion: reduceMotion))
+                }
+            } else {
+                container.addSublayer(makeBreathing(geometry: geometry, color: overlay, reduceMotion: reduceMotion))
+            }
         }
 
         if plan.moves, let color = plan.motionColor {
@@ -226,6 +235,9 @@ public enum AgentEffectLayer {
             case .spectrum:
                 container.addSublayer(makeSpectrum(geometry: geometry, style: style,
                                                    reduceMotion: reduceMotion, outputTPS: outputTPS))
+            case .spectrumGlow:
+                container.addSublayer(makeSpectrumGlow(geometry: geometry, color: color,
+                                                       reduceMotion: reduceMotion, outputTPS: outputTPS))
             case .none:
                 break
             }
@@ -239,7 +251,13 @@ public enum AgentEffectLayer {
         }
 
         if let borderColor = plan.borderColor {
-            container.addSublayer(makeEdgeBorders(geometry: geometry, color: borderColor, width: plan.borderWidth))
+            if refinedLight {
+                container.addSublayer(makeAttentionRibbon(geometry: geometry, color: borderColor,
+                                                          width: plan.borderWidth, reduceMotion: reduceMotion,
+                                                          isError: signals.hasError))
+            } else {
+                container.addSublayer(makeEdgeBorders(geometry: geometry, color: borderColor, width: plan.borderWidth))
+            }
         }
 
         return container.sublayers?.isEmpty == false ? container : nil
@@ -251,7 +269,8 @@ public enum AgentEffectLayer {
         // A solid, saturated layer that fades in and out — at the peak the whole
         // fill clearly shows the state color, so a glance reads it instantly.
         let glow = CALayer()
-        glow.backgroundColor = color.cgColor(alpha: 0.9)
+        // Preserve alpha authored in theme JSON (previously overwritten by 0.9).
+        glow.backgroundColor = color.cgColor
         glow.frame = geometry.fillBounds
 
         let clip = CALayer()
@@ -262,8 +281,11 @@ public enum AgentEffectLayer {
         if !reduceMotion {
             let anim = CABasicAnimation(keyPath: "opacity")
             anim.fromValue = 0.05
-            anim.toValue = 1.0
-            anim.duration = 1.3
+            // Classic modes keep their loud peak: with the authored alpha no
+            // longer forced to 0.9, the peak is what makes the wash readable at
+            // a glance. Spectrum Glow uses its own, calmer light field instead.
+            anim.toValue = 0.9
+            anim.duration = 1.8
             anim.autoreverses = true
             anim.repeatCount = .infinity
             anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -358,7 +380,7 @@ public enum AgentEffectLayer {
 
         for (index, offset) in offsets.enumerated() {
             let bar = CALayer()
-            bar.backgroundColor = style.color.cgColor(alpha: 0.9)
+            bar.backgroundColor = style.color.cgColor
             bar.cornerRadius = min(SpectrumRhythm.barWidth, barHeight) / 2
             // Anchored at the lower edge, so growing the bounds grows the bar up.
             bar.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -388,6 +410,209 @@ public enum AgentEffectLayer {
             container.addSublayer(bar)
         }
         return container
+    }
+
+
+    /// A low-cost ambient light field, not an opaque status-color wash.
+    /// The broad hue and its soft moving caustic are composited over quota
+    /// without erasing the nested fill boundaries or menu bar text.
+    private static func makeAmbientField(
+        geometry: GaugeGeometry,
+        color: RGBAColor,
+        reduceMotion: Bool
+    ) -> CALayer {
+        let fill = geometry.fillBounds
+        let clip = CALayer()
+        clip.frame = geometry.trackRect
+        clip.masksToBounds = true
+        guard fill.width > 0 && fill.height > 0 else { return clip }
+
+        let strength = min(max(color.alpha, 0), 0.65)
+        let bed = CAGradientLayer()
+        bed.frame = fill
+        bed.startPoint = CGPoint(x: 0.5, y: 1)
+        bed.endPoint = CGPoint(x: 0.5, y: 0)
+        bed.colors = [
+            color.cgColor(alpha: strength * 0.03),
+            color.cgColor(alpha: strength * 0.15),
+            color.cgColor(alpha: strength * 0.32)
+        ]
+        bed.locations = [0, 0.55, 1]
+        clip.addSublayer(bed)
+
+        let beamWidth = min(fill.width, max(80, fill.width * 0.42))
+        let beam = CAGradientLayer()
+        beam.frame = CGRect(x: fill.minX, y: fill.minY, width: beamWidth, height: fill.height)
+        beam.startPoint = CGPoint(x: 0, y: 0.5)
+        beam.endPoint = CGPoint(x: 1, y: 0.5)
+        beam.colors = [
+            color.cgColor(alpha: 0),
+            color.cgColor(alpha: strength * 0.10),
+            CGColor(red: 1, green: 1, blue: 1, alpha: strength * 0.08),
+            color.cgColor(alpha: 0)
+        ]
+        beam.locations = [0, 0.30, 0.65, 1]
+        clip.addSublayer(beam)
+
+        if !reduceMotion {
+            let motion = CABasicAnimation(keyPath: "position.x")
+            motion.fromValue = fill.minX - beamWidth / 2
+            motion.toValue = fill.maxX + beamWidth / 2
+            motion.duration = 11
+            motion.repeatCount = .infinity
+            motion.autoreverses = true
+            motion.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            beam.add(motion, forKey: "ambientDrift")
+        } else {
+            beam.position.x = fill.midX
+        }
+        return clip
+    }
+
+    /// A light curtain made of three interleaved groups of sub-pixel rays.
+    /// Each group owns one path and one CA animation: a long menu bar does not
+    /// create hundreds of independent animated layers as the classic spectrum
+    /// does. The shapes remain deterministic and their tempo alone follows TPS.
+    private static func makeSpectrumGlow(
+        geometry: GaugeGeometry,
+        color: RGBAColor,
+        reduceMotion: Bool,
+        outputTPS: Double?
+    ) -> CALayer {
+        let fill = geometry.fillBounds
+        let container = CALayer()
+        container.frame = geometry.trackRect
+        container.masksToBounds = true
+        guard fill.width > 0 && fill.height > 0 else { return container }
+
+        container.addSublayer(makeAmbientField(geometry: geometry, color: color, reduceMotion: reduceMotion))
+        let rayCount = min(210, max(1, Int(fill.width / 3.2)))
+        let gap = fill.width / CGFloat(rayCount)
+        let cycle = SpectrumRhythm.cycleDuration(outputTPS: outputTPS)
+        let now = CACurrentMediaTime()
+
+        for group in 0..<3 {
+            let path = CGMutablePath()
+            for index in stride(from: group, to: rayCount, by: 3) {
+                let x = (CGFloat(index) + 0.5) * gap
+                let wave = SpectrumRhythm.wave(index: index)
+                let peak = 0.26 + 0.65 * wave.amplitude
+                let variation = 0.45 + 0.55 * abs(sin(Double(index) * 0.47 + Double(group)))
+                let height = fill.height * CGFloat(peak * variation)
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: height))
+            }
+
+            // Broad translucent rays provide bloom without rasterizing each
+            // line separately or using a continuously evaluated shader.
+            let bloom = CAShapeLayer()
+            bloom.frame = CGRect(origin: .zero, size: fill.size)
+            bloom.path = path
+            bloom.strokeColor = color.cgColor(alpha: min(color.alpha, 0.20))
+            bloom.lineWidth = 4
+            bloom.lineCap = .round
+            bloom.shadowColor = color.cgColor
+            bloom.shadowOpacity = 0.4
+            bloom.shadowRadius = 3
+            bloom.shadowOffset = .zero
+            bloom.shouldRasterize = true
+            bloom.rasterizationScale = 2
+
+            let light = CAShapeLayer()
+            light.frame = CGRect(origin: .zero, size: fill.size)
+            light.path = path
+            light.strokeColor = CGColor(red: 1, green: 1, blue: 1, alpha: min(color.alpha, 0.73))
+            light.lineWidth = 0.9
+            light.lineCap = .round
+
+            let moving = CALayer()
+            moving.bounds = CGRect(origin: .zero, size: fill.size)
+            moving.anchorPoint = CGPoint(x: 0.5, y: 0)
+            moving.position = CGPoint(x: fill.midX, y: fill.minY)
+            moving.addSublayer(bloom)
+            moving.addSublayer(light)
+            container.addSublayer(moving)
+
+            if !reduceMotion {
+                let pulse = CAKeyframeAnimation(keyPath: "transform.scale.y")
+                pulse.values = [0.67, 1.0, 0.78, 0.67]
+                pulse.keyTimes = [0, 0.32, 0.76, 1]
+                pulse.duration = cycle
+                pulse.repeatCount = .infinity
+                pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                pulse.beginTime = now - cycle * Double(group) / 3
+                moving.add(pulse, forKey: "spectralBreath")
+            } else {
+                moving.transform = CATransform3DMakeScale(1, 0.82, 1)
+            }
+        }
+        return container
+    }
+
+    /// The same high-visibility attention language for all severity levels:
+    /// a narrow top line, soft bottom light ribbon, and a periodic glint.
+    /// Completion-unread can reuse this as soon as durable receipts are wired.
+    private static func makeAttentionRibbon(
+        geometry: GaugeGeometry,
+        color: RGBAColor,
+        width: CGFloat,
+        reduceMotion: Bool,
+        isError: Bool
+    ) -> CALayer {
+        let fill = geometry.fillBounds
+        let clip = CALayer()
+        clip.frame = geometry.trackRect
+        clip.masksToBounds = true
+        guard fill.width > 0 && fill.height > 0 else { return clip }
+
+        let upper = min(max(width, 1), fill.height / 4)
+        let lower = min(max(4, width * 2.5), fill.height / 3)
+
+        let top = CALayer()
+        top.frame = CGRect(x: fill.minX, y: fill.maxY - upper, width: fill.width, height: upper)
+        top.backgroundColor = color.cgColor
+        clip.addSublayer(top)
+
+        let lowerHalo = CAGradientLayer()
+        lowerHalo.frame = CGRect(x: fill.minX, y: fill.minY, width: fill.width, height: min(15, fill.height / 2))
+        lowerHalo.startPoint = CGPoint(x: 0.5, y: 0)
+        lowerHalo.endPoint = CGPoint(x: 0.5, y: 1)
+        lowerHalo.colors = [color.cgColor(alpha: 0.32), color.cgColor(alpha: 0)]
+        clip.addSublayer(lowerHalo)
+
+        let band = CALayer()
+        band.frame = CGRect(x: fill.minX, y: fill.minY, width: fill.width, height: lower)
+        // A translucent light corridor, not an opaque bar: the quota fill has to
+        // stay readable through it. The theme's own alpha remains the ceiling.
+        band.backgroundColor = color.cgColor(alpha: min(max(color.alpha, 0), 0.55))
+        band.masksToBounds = true
+        clip.addSublayer(band)
+
+        if !reduceMotion {
+            let beamWidth = min(85, max(20, fill.width * 0.17))
+            let glint = CAGradientLayer()
+            glint.frame = CGRect(x: -beamWidth, y: 0, width: beamWidth, height: lower)
+            glint.colors = [
+                CGColor(red: 1, green: 1, blue: 1, alpha: 0),
+                CGColor(red: 1, green: 1, blue: 1, alpha: 0.94),
+                CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+            ]
+            glint.locations = [0, 0.5, 1]
+            glint.startPoint = CGPoint(x: 0, y: 0.5)
+            glint.endPoint = CGPoint(x: 1, y: 0.5)
+            band.addSublayer(glint)
+
+            let glide = CAKeyframeAnimation(keyPath: "position.x")
+            let start = -beamWidth / 2
+            let finish = fill.width + beamWidth / 2
+            glide.values = [start, start, finish, finish].map { NSNumber(value: Double($0)) }
+            glide.keyTimes = [0, 0.12, 0.68, 1]
+            glide.duration = isError ? 4 : 5
+            glide.repeatCount = .infinity
+            glide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            glint.add(glide, forKey: "attentionGlint")
+        }
+        return clip
     }
 
     /// Top and bottom edge highlights. Thin, high-contrast lines that stay

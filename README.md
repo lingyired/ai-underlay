@@ -14,8 +14,12 @@ that sits above the desktop icons and below the menu bar.
 - Left side: Codex · Right side: Claude Code (configurable, per display).
 - Nested quota: each shorter window occupies the *remaining* length of the
   longer one (week → 5h), with a pace baseline marker.
-- Agent state (running / waiting for approval / waiting for input) shown as a
-  small endpoint indicator — never by altering the quota numbers.
+- Agent state (running / waiting for approval / waiting for input) is shown
+  with independent light-field and alert visuals — never by altering quota numbers.
+- New installations default to the optional **Spectrum Glow** light curtain;
+  classic breathing, sweep, dot and equalizer effects remain selectable.
+  The spectral rays use three Core Animation groups rather than hundreds
+  of continuously animated layers.
 - Data comes from the community **CodexBar** CLI; agent state comes from the
   agents' own lifecycle hooks.
 
