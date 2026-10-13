@@ -57,7 +57,7 @@ public enum ThemeResolver {
     /// Full-size alpha used when a color is given without an opacity token.
     public static let defaultTrackAlpha: Double = 0.38
     public static let defaultBaselineAlpha: Double = 0.9
-    public static let defaultOverlayAlpha: Double = 0.9
+    public static let defaultOverlayAlpha: Double = 0.28
     public static let defaultSpectrumAlpha: Double = 0.9
 
     public static func palette(
