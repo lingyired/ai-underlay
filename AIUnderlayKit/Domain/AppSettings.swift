@@ -79,7 +79,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         anchor: AnchorMode = .outerEdge,
         singleDirection: SingleBarDirection = .leadingToTrailing,
         overlayEnabled: Bool = true,
-        runningEffect: RunningEffect = .breathing,
+        runningEffect: RunningEffect = .spectrumGlow,
         runningEffectColor: RunningEffectColor = .theme,
         proxyOverride: String = "",
         showBaseline: Bool = true,
