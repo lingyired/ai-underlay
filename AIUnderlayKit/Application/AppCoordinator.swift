@@ -139,7 +139,8 @@ public final class AppCoordinator: ObservableObject {
                 guard let self else { return }
                 let session = self.reducer.reduce(event)
                 Log.write("agent event: provider=\(event.providerId) kind=\(event.kind.rawValue) "
-                    + "session=\(event.sessionId) -> \(session.state.rawValue) (\(session.confidence.rawValue))")
+                    + "session=\(event.sessionId) -> \(session.state.rawValue) (\(session.confidence.rawValue))"
+                    + (session.pendingQuestion ? " pending-question" : ""))
                 self.agentStateStore.save(self.reducer.snapshot())
                 self.render()
             }
@@ -241,11 +242,17 @@ public final class AppCoordinator: ObservableObject {
     }
 
     /// Session count summary for a provider, for the popup detail.
-    public func agentSessionSummary(for providerId: String) -> (running: Int, idle: Int)? {
+    ///
+    /// The polled source is coarse — it only knows busy/idle — so a session
+    /// that is waiting on the user is reported as running there. The hook
+    /// evidence supplies that dimension; it is the only side that can see it.
+    public func agentSessionSummary(for providerId: String) -> (running: Int, idle: Int, waiting: Int)? {
         let polled = agentSessions.filter { $0.provider == providerId }
-        guard !polled.isEmpty else { return nil }
+        let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
+        let waiting = AgentSignals.counting(hookSessions).waitingCount
+        guard !polled.isEmpty || waiting > 0 else { return nil }
         let running = polled.filter { $0.agentState == .running }.count
-        return (running, polled.count - running)
+        return (running, polled.count - running, waiting)
     }
 
     public func stop() {

@@ -82,10 +82,13 @@ public struct DashboardSection: Identifiable, Equatable, Sendable {
     /// Live agent sessions for this provider (running / total), if any.
     public let agentRunning: Int?
     public let agentTotal: Int?
+    /// Sessions blocked on a user answer. Codex reports those as busy, so this
+    /// can be non-zero while `agentRunning` is too.
+    public let agentWaiting: Int?
 
     public init(
         id: String, providerId: String, displayName: String, availability: DataAvailability,
-        rows: [DashboardRow], agentRunning: Int? = nil, agentTotal: Int? = nil
+        rows: [DashboardRow], agentRunning: Int? = nil, agentTotal: Int? = nil, agentWaiting: Int? = nil
     ) {
         self.id = id
         self.providerId = providerId
@@ -94,6 +97,7 @@ public struct DashboardSection: Identifiable, Equatable, Sendable {
         self.rows = rows
         self.agentRunning = agentRunning
         self.agentTotal = agentTotal
+        self.agentWaiting = agentWaiting
     }
 }
 
@@ -156,5 +160,16 @@ public enum DashboardModel {
         case .unknown: return "未知"
         case .valid: return "暂无数据"
         }
+    }
+
+    /// The one-line session summary for a section header, or nil when the
+    /// provider has no sessions to report. A "needs you" count comes first
+    /// because it is the only one that asks the user to do something.
+    public static func agentSummaryText(running: Int, idle: Int, waiting: Int) -> String? {
+        var parts: [String] = []
+        if waiting > 0 { parts.append("\(waiting) 个待你回复") }
+        if running > 0 { parts.append("\(running) 个会话运行中") }
+        if parts.isEmpty, idle > 0 { parts.append("\(idle) 个会话空闲") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

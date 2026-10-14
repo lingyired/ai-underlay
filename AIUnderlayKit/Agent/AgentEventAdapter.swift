@@ -102,7 +102,7 @@ public struct CodexAdapter: AgentEventAdapter {
         case "prettooluse", "pretooluse", "tooluse", "tool_start":
             // An interactive question tool means Codex is blocked on the user,
             // not working — show "waiting for input", not "running".
-            return isInteractiveTool(toolName) ? .notification : .toolUseStarted
+            return isInteractiveTool(toolName) ? .userQuestionAsked : .toolUseStarted
         case "posttooluse", "tool_end": return .toolUseFinished
         case "permissionrequest", "approval", "approval_request": return .permissionRequested
         case "stop", "complete", "completed": return .stopped
@@ -111,11 +111,13 @@ public struct CodexAdapter: AgentEventAdapter {
     }
 
     /// Codex tools that pause the turn for a user answer. `request_user_input`
-    /// is the one observed in real sessions; the others are matched defensively
-    /// by name so a renamed variant does not silently become "running".
+    /// and its non-blocking `request_user_input_async` variant are the ones
+    /// observed in real sessions; the others are matched defensively by name so
+    /// a renamed variant does not silently become "running".
     public static func isInteractiveTool(_ toolName: String?) -> Bool {
         guard let toolName = toolName?.lowercased() else { return false }
         return toolName == "request_user_input"
+            || toolName == "request_user_input_async"
             || toolName.contains("ask_user")
             || toolName.contains("user_input")
     }

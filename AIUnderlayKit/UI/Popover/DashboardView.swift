@@ -83,7 +83,9 @@ public struct DashboardView: View {
             return DashboardSection(
                 id: section.id, providerId: section.providerId, displayName: section.displayName,
                 availability: section.availability, rows: section.rows,
-                agentRunning: summary?.running, agentTotal: summary.map { $0.running + $0.idle }
+                agentRunning: summary?.running,
+                agentTotal: summary.map { $0.running + $0.idle + $0.waiting },
+                agentWaiting: summary?.waiting
             )
         }
         lastUpdated = snapshots.values.map(\.fetchedAt).max()
@@ -121,10 +123,15 @@ struct ProviderSectionView: View {
                         .fill(paletteColor)
                         .frame(width: 8, height: 8)
                     Text(section.displayName).font(.subheadline).bold()
-                    if let running = section.agentRunning, let total = section.agentTotal, total > 0 {
-                        Text(running > 0 ? "\(running) 个会话运行中" : "\(total) 个会话空闲")
+                    if let running = section.agentRunning, let total = section.agentTotal,
+                       let summary = DashboardModel.agentSummaryText(
+                           running: running, idle: total - running - (section.agentWaiting ?? 0),
+                           waiting: section.agentWaiting ?? 0) {
+                        Text(summary)
                             .font(.caption2)
-                            .foregroundStyle(running > 0 ? .green : .secondary)
+                            .foregroundStyle((section.agentWaiting ?? 0) > 0
+                                             ? Color.orange
+                                             : running > 0 ? Color.green : Color.secondary)
                     }
                     Spacer()
                     if section.rows.isEmpty {

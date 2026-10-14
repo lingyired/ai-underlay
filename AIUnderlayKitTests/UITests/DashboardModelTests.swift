@@ -90,4 +90,15 @@ final class DashboardModelTests: XCTestCase {
         )
         XCTAssertNil(sections[0].rows[0].remainingFraction)
     }
+
+    func test_agentSummaryText_putsTheAnswerRequestFirst() {
+        // Codex reports a session that is waiting on the user as busy, so both
+        // numbers are true at once and both have to be shown.
+        XCTAssertEqual(DashboardModel.agentSummaryText(running: 1, idle: 0, waiting: 1),
+                       "1 个待你回复 · 1 个会话运行中")
+        XCTAssertEqual(DashboardModel.agentSummaryText(running: 0, idle: 0, waiting: 1), "1 个待你回复")
+        XCTAssertEqual(DashboardModel.agentSummaryText(running: 2, idle: 1, waiting: 0), "2 个会话运行中")
+        XCTAssertEqual(DashboardModel.agentSummaryText(running: 0, idle: 3, waiting: 0), "3 个会话空闲")
+        XCTAssertNil(DashboardModel.agentSummaryText(running: 0, idle: 0, waiting: 0))
+    }
 }

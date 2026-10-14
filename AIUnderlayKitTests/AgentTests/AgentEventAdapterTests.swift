@@ -86,7 +86,17 @@ final class AgentEventAdapterTests: XCTestCase {
         let event = adapter.adapt(RawAgentEvent(providerId: "codex", payload: [
             "hook_event_name": "PreToolUse", "session_id": "t1", "tool_name": "request_user_input",
         ]))
-        XCTAssertEqual(event?.kind, .notification)
+        XCTAssertEqual(event?.kind, .userQuestionAsked)
+    }
+
+    func test_codexAdapter_asyncQuestionToolIsWaitingInput() {
+        // Newer Codex asks in the background: the tool returns immediately and
+        // the turn keeps going, but the user still owes an answer.
+        let adapter = CodexAdapter()
+        let event = adapter.adapt(RawAgentEvent(providerId: "codex", payload: [
+            "hook_event_name": "PreToolUse", "session_id": "t1", "tool_name": "request_user_input_async",
+        ]))
+        XCTAssertEqual(event?.kind, .userQuestionAsked)
     }
 
     func test_codexAdapter_ordinaryToolIsRunning() {
@@ -99,6 +109,7 @@ final class AgentEventAdapterTests: XCTestCase {
 
     func test_codexAdapter_interactiveToolDetection() {
         XCTAssertTrue(CodexAdapter.isInteractiveTool("request_user_input"))
+        XCTAssertTrue(CodexAdapter.isInteractiveTool("request_user_input_async"))
         XCTAssertFalse(CodexAdapter.isInteractiveTool("exec_command"))
         XCTAssertFalse(CodexAdapter.isInteractiveTool(nil))
     }

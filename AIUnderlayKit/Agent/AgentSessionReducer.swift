@@ -72,7 +72,25 @@ public final class AgentSessionReducer {
 
     private func make(_ event: AgentEvent, state: AgentState, confidence: AgentConfidence) -> AgentSession {
         AgentSession(id: event.sessionId, providerId: event.providerId,
-                     state: state, confidence: confidence, observedAt: event.at)
+                     state: state, confidence: confidence, observedAt: event.at,
+                     pendingQuestion: Self.pendingQuestion(
+                        after: event.kind,
+                        previous: sessions[event.sessionId]?.pendingQuestion ?? false))
+    }
+
+    /// Whether a question is still outstanding once this event has been applied.
+    ///
+    /// Codex's question tool is non-blocking: the tool call completes the moment
+    /// the question is shown, and the agent keeps working while it waits. So the
+    /// answer cannot be inferred from the tool's own result — only the user's
+    /// next message (`UserPromptSubmit`) or the session ending proves the
+    /// question is off the table.
+    static func pendingQuestion(after kind: AgentEventKind, previous: Bool) -> Bool {
+        switch kind {
+        case .userQuestionAsked: return true
+        case .userPromptSubmitted, .sessionStart, .sessionEnd: return false
+        default: return previous
+        }
     }
 
     static func state(for kind: AgentEventKind) -> (state: AgentState, confidence: AgentConfidence) {
@@ -83,6 +101,7 @@ public final class AgentSessionReducer {
         case .toolUseStarted, .toolUseFinished: return (.running, .exact)
         case .permissionRequested: return (.waitingApproval, .exact)
         case .notification: return (.waitingInput, .exact)
+        case .userQuestionAsked: return (.waitingInput, .exact)
         case .stopped: return (.completed, .exact)
         case .subagentStarted, .subagentFinished: return (.running, .inferred)
         case .unknown: return (.unknown, .unknown)
@@ -242,14 +261,22 @@ public struct AgentSignals: Equatable, Sendable {
     public static func counting(_ sessions: [AgentSession], now: Date = Date()) -> AgentSignals {
         var signals = AgentSignals()
         for session in sessions {
-            switch AgentActivityAggregator.effectiveState(session, now: now) {
+            let state = AgentActivityAggregator.effectiveState(session, now: now)
+            switch state {
             case .running: signals.activeCount += 1
-                case .waitingInput: signals.waitingInputCount += 1
-                case .waitingApproval: signals.waitingApprovalCount += 1
+            case .waitingInput: signals.waitingInputCount += 1
+            case .waitingApproval: signals.waitingApprovalCount += 1
             case .error: signals.errorCount += 1
             case .completed: signals.completedCount += 1
             case .unknown, .reconnecting: signals.unknownCount += 1
             case .idle: break
+            }
+            // An unanswered question is a dimension of its own: Codex keeps
+            // working (so the session is still `.running`) while it waits for
+            // the user. Counting it here, instead of overwriting the state,
+            // keeps both the moving effect and the amber "needs you" edges.
+            if session.pendingQuestion, state != .waitingInput, state != .waitingApproval {
+                signals.waitingInputCount += 1
             }
         }
         return signals

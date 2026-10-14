@@ -41,6 +41,59 @@ final class AgentSessionReducerTests: XCTestCase {
         XCTAssertEqual(reducer.reduce(event(.notification, at: 1)).state, .waitingInput)
     }
 
+    // MARK: - Background questions (Codex's non-blocking question tool)
+
+    func test_questionAskedWaitsAndSurvivesTheToolReturning() {
+        let reducer = AgentSessionReducer()
+        XCTAssertEqual(reducer.reduce(event(.userQuestionAsked, at: 1)).state, .waitingInput)
+        XCTAssertTrue(reducer.session(id: "s1")?.pendingQuestion ?? false)
+
+        // Codex's async question tool returns the moment the question is shown,
+        // so the session looks busy again an instant later. The wait must
+        // survive that — this is the bug that hid the amber light entirely.
+        let running = reducer.reduce(event(.toolUseStarted, at: 2))
+        XCTAssertEqual(running.state, .running)
+        XCTAssertTrue(running.pendingQuestion, "a tool event must not answer the question for the user")
+
+        let finished = reducer.reduce(event(.toolUseFinished, at: 3))
+        XCTAssertTrue(finished.pendingQuestion)
+    }
+
+    func test_userPromptSubmitAnswersTheQuestion() {
+        let reducer = AgentSessionReducer()
+        _ = reducer.reduce(event(.userQuestionAsked, at: 1))
+        _ = reducer.reduce(event(.toolUseStarted, at: 2))
+        let answered = reducer.reduce(event(.userPromptSubmitted, at: 3))
+        XCTAssertFalse(answered.pendingQuestion, "the user's next message is the answer")
+        XCTAssertEqual(answered.state, .running)
+    }
+
+    func test_sessionEndClearsThePendingQuestion() {
+        let reducer = AgentSessionReducer()
+        _ = reducer.reduce(event(.userQuestionAsked, at: 1))
+        let ended = reducer.reduce(event(.sessionEnd, at: 2))
+        XCTAssertFalse(ended.pendingQuestion)
+        XCTAssertEqual(ended.state, .idle)
+    }
+
+    func test_stoppedSessionStillOwesAnAnswer() {
+        // The turn can end while the question is unanswered; the app still shows
+        // "待你回复", so the light has to stay until the user answers.
+        let reducer = AgentSessionReducer()
+        _ = reducer.reduce(event(.userQuestionAsked, at: 1))
+        let stopped = reducer.reduce(event(.stopped, at: 2))
+        XCTAssertEqual(stopped.state, .completed)
+        XCTAssertTrue(stopped.pendingQuestion)
+    }
+
+    func test_duplicateQuestionAndOtherSessionsDoNotLeakPending() {
+        let reducer = AgentSessionReducer()
+        _ = reducer.reduce(event(.userQuestionAsked, session: "a", at: 1))
+        _ = reducer.reduce(event(.toolUseStarted, session: "b", at: 2))
+        XCTAssertTrue(reducer.session(id: "a")?.pendingQuestion ?? false)
+        XCTAssertFalse(reducer.session(id: "b")?.pendingQuestion ?? true)
+    }
+
     // MARK: - Aggregation
 
     func test_aggregate_twoRunningOneWaitingApproval() {
@@ -197,6 +250,40 @@ final class AgentSessionReducerTests: XCTestCase {
             now: now
         )
         XCTAssertTrue(signals.isEmpty, "silence is not proof of work, and not proof of failure either")
+    }
+
+    func test_signals_pendingQuestionShowsEvenWhileTheSessionWorks() {
+        // Codex keeps working after asking in the background (`待你回复` next to
+        // `思考中`), so the same session has to read as both active and waiting.
+        let now = Date()
+        let asking = AgentSession(id: "ask", providerId: "codex", state: .running, confidence: .exact,
+                                  observedAt: now, pendingQuestion: true)
+        let signals = AgentSignals.counting([asking], now: now)
+        XCTAssertEqual(signals.activeCount, 1)
+        XCTAssertEqual(signals.waitingInputCount, 1)
+        XCTAssertTrue(signals.hasActive)
+        XCTAssertTrue(signals.hasWaiting)
+    }
+
+    func test_signals_pendingQuestionIsNotDoubleCounted() {
+        // Right after the question, before any tool fires, the state is already
+        // `waitingInput`; the flag must not add a second wait.
+        let now = Date()
+        let asking = AgentSession(id: "ask", providerId: "codex", state: .waitingInput, confidence: .exact,
+                                  observedAt: now, pendingQuestion: true)
+        XCTAssertEqual(AgentSignals.counting([asking], now: now), AgentSignals(waitingInputCount: 1))
+    }
+
+    func test_signals_pendingQuestionOutlivesAStaleRunningSession() {
+        // The agent may go quiet while the question is on screen; the wait is
+        // not stale, only the activity is.
+        let now = Date()
+        let old = now.addingTimeInterval(-(AgentActivityAggregator.runningStaleness + 60))
+        let asking = AgentSession(id: "ask", providerId: "codex", state: .running, confidence: .exact,
+                                  observedAt: old, pendingQuestion: true)
+        let signals = AgentSignals.counting([asking], now: now)
+        XCTAssertEqual(signals.activeCount, 0)
+        XCTAssertEqual(signals.waitingInputCount, 1)
     }
 
     func test_signals_fromASingleState() {

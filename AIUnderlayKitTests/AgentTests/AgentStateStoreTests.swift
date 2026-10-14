@@ -20,6 +20,19 @@ final class AgentStateStoreTests: XCTestCase {
         XCTAssertNil(AgentStateStore(fileURL: tempURL()).load())
     }
 
+    func test_load_oldSnapshotWithoutPendingQuestionKey() throws {
+        // Snapshots written before `pendingQuestion` existed must still decode —
+        // otherwise an upgrade would silently throw away a pending wait.
+        let url = tempURL()
+        let json = """
+        {"sessions":[{"id":"s1","providerId":"codex","state":"waitingInput","confidence":"exact","observedAt":0}],"lastEventAt":{}}
+        """
+        try Data(json.utf8).write(to: url)
+        let loaded = AgentStateStore(fileURL: url).load()
+        XCTAssertEqual(loaded?.sessions.count, 1)
+        XCTAssertFalse(loaded?.sessions.first?.pendingQuestion ?? true)
+    }
+
     func test_restore_survivesRestartForWaitingSession() {
         // The core scenario: a session is waiting, the app restarts, and the
         // waiting light must come back (a wait never re-fires an event).
