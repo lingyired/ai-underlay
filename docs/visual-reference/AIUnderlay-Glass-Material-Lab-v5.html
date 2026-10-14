@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AIUnderlay — Glass Material Lab · V5</title>
+<style>
+:root{color-scheme:dark;--text:#f2f5ff;--muted:#97a4b9;--hair:rgba(201,222,255,.115);--aura-blue:#58bafb;--aura-copper:#f6a178;--alert-wait:#ffe097;--alert-error:#ff7595;--alert-done:#54edbf;--glassblur:18px;--glow-opacity:.70;--grain-opacity:.045;--ray-density:38;--tempo:1;--quota-vivid:1}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;background:#070b12;color:var(--text)}body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 65% 45% at 18% 5%,#26497822,transparent 74%),radial-gradient(ellipse 45% 44% at 92% 21%,#603d6521,transparent 76%);z-index:-1}
+.wrapper{max-width:1190px;margin:0 auto;padding:34px 32px 78px}header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:23px;border-bottom:1px solid var(--hair)}.brand{display:flex;gap:13px;align-items:center}.brandmark{height:35px;width:35px;border:1px solid #92c8ff4d;border-radius:11px;background:radial-gradient(circle at 28% 22%,#b4ecf9,#3972a4 37%,#304079 66%,#211c32);box-shadow:0 0 21px #346de030,inset 0 1px #ffffff77}.brand b{letter-spacing:.13em;font-size:12px}.brand small{display:block;margin-top:4px;letter-spacing:.15em;font-size:9px;color:#77869c}.tinytag{font-size:10px;color:#aac3df;letter-spacing:.13em;border:1px solid #98b7d438;background:#c9e4ff0b;padding:8px 12px;border-radius:100px}.intro{margin-top:37px;display:flex;justify-content:space-between;align-items:end;gap:18px}.eyebrow{text-transform:uppercase;letter-spacing:.22em;color:#91b1cc;font-size:10px;font-weight:650}.intro h1{margin:12px 0 10px;font-size:clamp(28px,4.5vw,45px);font-weight:620;letter-spacing:-.055em;line-height:1.15}.intro h1 em{font-style:normal;background:linear-gradient(95deg,#a2bdf7,#c6ebff 45%,#f0c5c1 82%);background-clip:text;color:transparent}.intro p{color:var(--muted);font-size:13px;line-height:1.9;max-width:720px;margin:0}.topactions{display:flex;gap:8px;flex-wrap:wrap;justify-content:end}.btn{cursor:pointer;border:1px solid #95a9ca35;border-radius:9px;padding:10px 13px;color:#e3ebfa;background:#ffffff0d;font:inherit;font-size:12px;transition:background .15s,border-color .15s;white-space:nowrap}.btn:hover{background:#ffffff19;border-color:#a7c4e07c}.btn.primary{background:#d6eafe;color:#172c46;border-color:#e2f4ff;font-weight:650}.btn.primary:hover{background:#f4fbff}.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #8db7ee;outline-offset:2px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:28px 0 13px}.section-head strong{font-size:13px;letter-spacing:.01em}.note{font-size:11px;color:#8192a9}.seg{display:inline-flex;padding:3px;background:#1b2634;border:1px solid #839dbc25;border-radius:10px;gap:3px}.seg button{background:transparent;border:0;border-radius:7px;color:#98a8bd;font-size:11px;padding:6px 11px;cursor:pointer;white-space:nowrap}.seg button.active{color:white;background:#44586e;box-shadow:0 1px 5px #0005}
+.compare-grid{display:grid;gap:17px}.showcase{background:linear-gradient(150deg,#151f2c,#101721 70%);border:1px solid #a9c4de29;box-shadow:0 16px 48px #0003;border-radius:15px;overflow:hidden}.showcase-head{padding:15px 18px 13px;display:flex;align-items:center;justify-content:space-between;gap:12px}.showcase-heading{display:flex;gap:12px;align-items:center}.num{font-size:10px;font-weight:700;letter-spacing:.08em;color:#8197ae;border:1px solid #a0b9d83d;border-radius:7px;padding:7px 8px}.showcase-head strong{font-size:15px;font-weight:600}.showcase-head small{display:block;margin-top:4px;color:#90a0b2;font-size:11px}.material-chip{display:inline-block;color:#a2b6cb;font-size:10px;letter-spacing:.07em;background:#ffffff0a;border:1px solid #ffffff18;border-radius:99px;padding:6px 9px}
+.scene{height:187px;position:relative;overflow:hidden;isolation:isolate;background:#18293b}.scene .wallpaper{position:absolute;inset:0;background:radial-gradient(ellipse 36% 140% at 28% 23%,#407ba0a6 0%,transparent 80%),radial-gradient(ellipse 55% 120% at 85% 48%,#74446c88 0%,transparent 79%),radial-gradient(ellipse 80% 92% at 52% 92%,#303d80aa 0%,transparent 77%),linear-gradient(115deg,#111f37 0%,#152b3a 50%,#241c34 100%);transform:scale(1.08)}.scene .wallpaper:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent,#11172583);pointer-events:none}.scene.acrylic .wallpaper{background:radial-gradient(ellipse 54% 100% at 18% 29%,#32566c8a,transparent 75%),radial-gradient(ellipse 42% 88% at 80% 68%,#7558528c,transparent 76%),linear-gradient(112deg,#1b3042,#263140 55%,#2b2230)}
+.desktop-window{position:absolute;top:66px;left:10%;width:51%;max-width:480px;height:160px;border-radius:12px 12px 0 0;box-shadow:0 15px 44px #0007;background:linear-gradient(160deg,#253446f9,#171d2bfb);border:1px solid #ffffff1d;overflow:hidden}.desktop-window.rightw{left:auto;right:9%;width:31%;max-width:280px;top:99px;opacity:.52}.window-header{height:28px;border-bottom:1px solid #ffffff19;display:flex;gap:7px;align-items:center;padding:0 12px;background:#e1eaff08}.dot{width:7px;height:7px;border-radius:50%;background:#ff736e}.dot:nth-child(2){background:#eac468}.dot:nth-child(3){background:#5ecc92}.fake-list{display:grid;gap:9px;padding:15px 18px}.fake-list i{display:block;height:5px;border-radius:5px;background:#aec8f522}.fake-list i:nth-child(1){width:65%}.fake-list i:nth-child(2){width:48%}.fake-list i:nth-child(3){width:76%}.fake-list i:nth-child(4){width:56%}.fake-list i:nth-child(5){width:81%}
+.menubar{height:34px;position:absolute;left:0;right:0;top:0;overflow:hidden;isolation:isolate;z-index:10;background:rgba(9,17,30,.12);backdrop-filter:blur(var(--glassblur)) saturate(1.45);-webkit-backdrop-filter:blur(var(--glassblur)) saturate(1.45);box-shadow:0 1px 0 #fff1,inset 0 -1px #0b1321a8}.menubar:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#ffffff19,#c2daff07 25%,#050d192a 100%);z-index:1;pointer-events:none}.scene.acrylic .menubar{background:rgba(18,25,35,.46);backdrop-filter:blur(calc(var(--glassblur) * 1.25)) saturate(1.04);-webkit-backdrop-filter:blur(calc(var(--glassblur) * 1.25)) saturate(1.04)}.scene.acrylic .menubar:before{background:linear-gradient(180deg,#ecf3ff21,#dee5ed05 35%,#050c1390);box-shadow:inset 0 1px #ffffff28}
+.zones{position:absolute;inset:0;z-index:2;display:flex}.zone{width:50%;height:100%;position:relative;isolation:isolate;overflow:hidden}.zone .quota{position:absolute;inset:0;z-index:1;opacity:var(--quota-vivid);transition:opacity .2s}.zone .quota > div{position:absolute;top:0;bottom:0;display:block}.zone.left .quota>div{right:0}.zone.right .quota>div{left:0}.quota-outer{width:78%;opacity:.6}.quota-inner{width:42%;opacity:.83}.aurora .zone.left .quota-outer{background:linear-gradient(90deg,#102c4d,#1b4673,#224d70)}.aurora .zone.left .quota-inner{background:linear-gradient(90deg,#285c95,#367ab2,#254666)}.aurora .zone.right .quota-outer{background:linear-gradient(90deg,#52332d,#7a463f,#3b2c31)}.aurora .zone.right .quota-inner{background:linear-gradient(90deg,#91533f,#b67b61,#533633)}.acrylic .zone.left .quota-outer{background:linear-gradient(90deg,#1d374b,#2c4b60,#203344)}.acrylic .zone.left .quota-inner{background:linear-gradient(90deg,#33566a,#476e86,#2b485f)}.acrylic .zone.right .quota-outer{background:linear-gradient(90deg,#423436,#594444,#3a303a)}.acrylic .zone.right .quota-inner{background:linear-gradient(90deg,#725047,#926c59,#533d3b)}
+.zone .ambient{position:absolute;inset:-16px;z-index:2;opacity:var(--glow-opacity);pointer-events:none;mix-blend-mode:screen;filter:blur(10px)}.aurora .zone.left .ambient{background:radial-gradient(ellipse 28% 110% at 34% 87%,#67b9ff86,transparent 100%),radial-gradient(ellipse 39% 100% at 73% 32%,#4c93e978,transparent 100%)}.aurora .zone.right .ambient{background:radial-gradient(ellipse 28% 105% at 34% 84%,#ffd1a17a,transparent 100%),radial-gradient(ellipse 34% 100% at 77% 47%,#ec87734f,transparent 100%)}.acrylic .zone.left .ambient{background:radial-gradient(ellipse 31% 95% at 45% 80%,#8bc9f956,transparent 100%)}.acrylic .zone.right .ambient{background:radial-gradient(ellipse 33% 95% at 57% 80%,#ffc39a49,transparent 100%)}
+.zone .grain{position:absolute;inset:0;z-index:3;opacity:var(--grain-opacity);pointer-events:none;background-image:url('data:image/svg+xml,%3Csvg viewBox=%220 0 140 140%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%22.95%22 numOctaves=%223%22 seed=%227%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22 opacity=%22.8%22/%3E%3C/svg%3E');mix-blend-mode:soft-light}.scene.acrylic .zone .grain{mix-blend-mode:screen;opacity:calc(var(--grain-opacity) * 1.55)}.zone .rays{position:absolute;inset:0;z-index:4;pointer-events:none;mix-blend-mode:screen;width:100%;height:100%}.zone .hint{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;transition:opacity .3s}.zone[data-attention="error"]{--alert:#ff7596;--tint:255,88,126}.zone[data-attention="waiting"]{--alert:#ffe1a0;--tint:255,194,91}.zone[data-attention="unread"]{--alert:#64f1bd;--tint:47,231,173}.zone[data-attention]:not([data-attention="none"]) .hint{opacity:1;background:linear-gradient(to top,rgba(var(--tint),.24),transparent 95%)}
+.zone .edge-top{height:2px;position:absolute;left:0;right:0;top:0;background:var(--alert);box-shadow:0 0 9px var(--alert);z-index:6;opacity:0}.zone .edge-bottom{height:5px;position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,transparent,var(--alert));box-shadow:0 -4px 12px rgba(var(--tint),.38);z-index:6;overflow:hidden;opacity:0}.zone[data-attention]:not([data-attention="none"]) .edge-top,.zone[data-attention]:not([data-attention="none"]) .edge-bottom{opacity:.95}.zone .glint{position:absolute;top:0;bottom:0;left:-32%;width:26%;background:linear-gradient(90deg,transparent,#fffc,transparent);filter:blur(1px);animation:attnSweep 6s ease-in-out infinite}.zone[data-attention="error"] .glint{animation-duration:4s}.zone[data-attention="waiting"] .glint{animation-duration:5s}.zone[data-attention="unread"] .glint{animation-duration:7s}@keyframes attnSweep{0%,14%{transform:translateX(0);opacity:0}23%{opacity:.95}66%{transform:translateX(600%);opacity:.95}76%,100%{transform:translateX(600%);opacity:0}}
+.zone .sheen{position:absolute;inset:0;z-index:7;pointer-events:none;background:linear-gradient(to bottom,#ffffff24 0px,transparent 1px,transparent 76%,#08162a1f 100%)}.scene.acrylic .zone .sheen{background:linear-gradient(to bottom,#ffffff29 0px,#fff2 2px,transparent 50%,#00000039 100%)}
+.menu-ui{position:absolute;inset:0;z-index:8;pointer-events:none;display:flex;align-items:center;justify-content:space-between;padding:0 13px;gap:10px;color:#faffff;text-shadow:0 1px 2px #051322aa;font-size:11px;font-weight:550;letter-spacing:.004em}.menu-ui .menu-left,.menu-ui .menu-right{display:flex;align-items:center;gap:15px;white-space:nowrap;min-width:0}.menu-ui .apple{font-size:15px;font-weight:600}.menu-ui .menu-right{gap:12px}.menu-ui .sysmuted{font-weight:400;color:#d9e8f2}.scene.has-notch .notch{display:block}.scene .notch{display:none;position:absolute;left:50%;top:0;width:19%;height:100%;transform:translateX(-50%);border-radius:0 0 11px 11px;background:#05070a;box-shadow:0 0 0 1px #01030857;z-index:11}.scene.has-notch .menu-ui .menu-left{max-width:39%;overflow:hidden}.scene.has-notch .menu-ui .menu-right{max-width:39%;overflow:hidden}.scene.has-notch .menu-ui .menu-left span:nth-child(n+5){display:none}
+.showcase-foot{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:11px 17px;color:#8c9db0;font-size:11px}.foot-left{display:flex;align-items:center;gap:9px}.live-indicator{width:6px;height:6px;border-radius:50%;background:#86dcbc;box-shadow:0 0 9px #77d8bf70}.showcase-foot .mini{color:#bad0e1}
+.control-layout{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-top:15px}.controls{border-radius:15px;border:1px solid #a9c4de26;background:#111923;padding:18px 19px 20px}.control-h{font-size:13px;font-weight:650;margin-bottom:15px;display:flex;justify-content:space-between}.control-h span{font-size:10px;color:#849bb5;font-weight:450}.control-row{display:grid;grid-template-columns:125px 1fr;align-items:center;gap:12px;margin-bottom:13px}.control-row:last-child{margin-bottom:0}.control-row label{font-size:12px;color:#c2d0de}.control-row select{width:100%;padding:10px 11px;border:1px solid #96adc12e;border-radius:8px;background:#1d2b3a;color:#e8f0f8;font-size:12px;cursor:pointer}.slide-row{display:grid;grid-template-columns:115px 1fr 47px;align-items:center;gap:12px;margin-bottom:15px}.slide-row label{font-size:12px;color:#bfd0e0}.slide-row output{text-align:right;font-size:11px;color:#91bbdc;font-variant-numeric:tabular-nums}.slide-row input[type=range]{width:100%;accent-color:#96bded;cursor:pointer;height:16px}.switch-row{display:flex;align-items:center;flex-wrap:wrap;gap:15px;font-size:12px;color:#bed0dd;margin-top:13px;padding-top:13px;border-top:1px solid #ffffff12}.switch-row label{display:flex;align-items:center;gap:7px;cursor:pointer}.switch-row input{accent-color:#7cbeee}.colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}.swatch{display:flex;align-items:center;gap:7px;font-size:11px;color:#aabbd0}.swatch input{width:24px;height:24px;padding:0;border:1px solid #fff4;background:none;border-radius:8px;cursor:pointer}.material-summary{border:1px solid #96b0c12b;border-radius:13px;background:linear-gradient(140deg,#172334,#111720);padding:17px 20px;margin-top:17px;display:flex;gap:22px;align-items:start}.material-summary b{font-size:12px;white-space:nowrap}.material-summary p{font-size:12px;color:#8b9cae;line-height:1.9;margin:0}.bottom{border-top:1px solid #ffffff13;padding-top:17px;margin-top:22px;display:flex;gap:18px;justify-content:space-between;align-items:center;font-size:11px;color:#6f8298;line-height:1.7}.bottom span{max-width:850px}.hidden{display:none!important}
+@media(max-width:850px){.wrapper{padding:23px 14px 44px}.control-layout{grid-template-columns:1fr}.intro{align-items:start;flex-direction:column}.topactions{justify-content:start}.menu-ui .menu-left{gap:9px}.menu-ui .menu-right{gap:8px}.menu-ui .menu-left span:nth-child(n+5){display:none}.scene{height:155px}.material-summary{display:block}.material-summary p{margin-top:9px}}@media(max-width:510px){.menu-ui{font-size:9px;padding:0 8px}.menu-ui .menu-right span:nth-child(-n+2){display:none}.menu-ui .menu-left{gap:7px}.menu-ui .menu-right{gap:5px}.showcase-head{align-items:start}.material-chip{display:none}.control-row{grid-template-columns:85px 1fr}.slide-row{grid-template-columns:88px 1fr 38px}.intro h1{font-size:30px}}
+@media(prefers-reduced-motion:reduce){.glint{animation:none!important;display:none}.wallpaper,.ambient{animation:none!important}}
+
+/* V2: visibly separated nested quota layers, with translucent glass left intact. */
+.zone{--provider-rgb:102,190,255;--outer-pct:82%;--inner-pct:45.1%}
+.zone.right{--provider-rgb:255,176,138;--outer-pct:67%;--inner-pct:24.1%}
+.zone .quota{opacity:var(--quota-vivid);z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.78),rgba(0,0,0,.94) 62%,rgba(0,0,0,.98));isolation:isolate;box-shadow:inset 0 1px rgba(255,255,255,.05),inset 0 -1px rgba(0,0,0,.75)}
+.zone .quota .quota-outer{width:var(--outer-pct);opacity:1;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(var(--provider-rgb),.30) 18%,rgba(var(--provider-rgb),.46) 50%,rgba(var(--provider-rgb),.20) 100%),linear-gradient(90deg,#020202,#0d1116);box-shadow:inset 0 1px rgba(255,255,255,.20),inset 0 -1px rgba(0,0,0,.34)}
+.zone .quota .quota-inner{width:var(--inner-pct);opacity:1;background:linear-gradient(180deg,rgba(255,255,255,.38) 0%,rgba(var(--provider-rgb),.88) 18%,rgba(var(--provider-rgb),.68) 55%,rgba(var(--provider-rgb),.30) 100%);box-shadow:inset 0 1px #ffffff70,inset 0 -1px #040c1770,0 0 12px rgba(var(--provider-rgb),.14)}
+.zone .quota .quota-outer::after,.zone .quota .quota-inner::after{content:"";position:absolute;top:0;bottom:0;width:2px;background:rgba(var(--provider-rgb),.63);box-shadow:0 0 5px rgba(var(--provider-rgb),.4)}
+.zone.left .quota .quota-outer::after,.zone.left .quota .quota-inner::after{left:0}
+.zone.right .quota .quota-outer::after,.zone.right .quota .quota-inner::after{right:0}
+.zone .quota .quota-inner::after{width:2px;background:#ffffffb8;box-shadow:0 0 6px #ffffff87,0 0 12px rgba(var(--provider-rgb),.65)}
+.aurora .zone .quota .quota-outer,.acrylic .zone .quota .quota-outer,.aurora .zone .quota .quota-inner,.acrylic .zone .quota .quota-inner{background-blend-mode:normal}
+/* Prevent a wide static glass glow from flattening the quota tier boundaries. */
+.zone .ambient{opacity:calc(var(--glow-opacity) * .67);filter:blur(15px);mix-blend-mode:screen;transition:opacity .25s}
+.zone.is-running .ambient{animation:glassAmbientDrift 4.8s ease-in-out infinite alternate}
+@keyframes glassAmbientDrift{0%{transform:translateX(-2.3%);opacity:calc(var(--glow-opacity) * .54)}100%{transform:translateX(2.3%);opacity:calc(var(--glow-opacity) * .78)}}
+.zone .rays{mix-blend-mode:screen;opacity:.95}
+.zone .sheen{z-index:7}
+.quota-sim{margin-top:17px;border:1px solid #a9c4de26;border-radius:15px;padding:18px 20px;background:linear-gradient(150deg,#151f2a,#101821)}
+.quota-sim .shead{font-size:13px;font-weight:650;display:flex;justify-content:space-between;gap:12px;margin-bottom:17px}
+.quota-sim .shead span{color:#8198ae;font-weight:450;font-size:10px}
+.quota-sim .slidergrid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.quota-sim .sprovider{font-size:11px;color:#c1d6eb;margin-bottom:11px;font-weight:650}
+.quota-sim .qslider{display:grid;grid-template-columns:90px 1fr 42px;gap:10px;align-items:center;margin:12px 0;font-size:11px;color:#9fb3c8}
+.quota-sim input{accent-color:#87c9f6;width:100%;cursor:pointer}
+.quota-sim output{color:#e0f2ff;text-align:right;font-variant-numeric:tabular-nums}
+.quota-sim .qlabel{font-size:11px;color:#8da5b9;margin-top:12px;line-height:1.6}
+@media(max-width:650px){.quota-sim .slidergrid{grid-template-columns:1fr}.quota-sim .shead{display:block}.quota-sim .shead span{display:block;margin-top:5px}}
+
+/* V4: independent agent identity colors on the glass material only.
+   Quota (provider) and signal lighting (attention) retain their own colors. */
+.theme-panel{margin-top:14px;padding-top:14px;border-top:1px solid #ffffff17}
+.color-heading{display:flex;gap:10px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;font-size:11px;color:#d8e5f4;margin-bottom:10px;font-weight:640}
+.color-heading span{font-size:10px;color:#7f9bb4;font-weight:440}
+.zone{--agent-theme-rgb:112,101,239;--agent-theme-strength:.62}
+.zone.right{--agent-theme-rgb:230,153,106}
+/* Glass tint is attenuated enough for menu text legibility and clipped to
+   the quota's actual remaining region, so exhausted quota stays dark. */
+.aurora .zone .ambient{background:radial-gradient(ellipse 54% 190% at 45% 78%,rgba(var(--agent-theme-rgb),.58),transparent 87%),radial-gradient(ellipse 35% 145% at 78% 24%,rgba(var(--agent-theme-rgb),.20),transparent 100%)}
+.acrylic .zone .ambient{background:radial-gradient(ellipse 60% 160% at 48% 83%,rgba(var(--agent-theme-rgb),.41),transparent 90%)}
+.zone .ambient{opacity:calc(var(--glow-opacity) * var(--agent-theme-strength) * .85)}
+.zone.is-running .ambient{animation:glassThemeDrift 5.5s ease-in-out infinite alternate}
+@keyframes glassThemeDrift{0%{transform:translateX(-3%);opacity:calc(var(--glow-opacity) * var(--agent-theme-strength) * .67)}100%{transform:translateX(3%);opacity:calc(var(--glow-opacity) * var(--agent-theme-strength) * .95)}}
+.zone.left .ambient{clip-path:inset(0 0 0 calc(100% - var(--outer-pct)))}
+.zone.right .ambient{clip-path:inset(0 calc(100% - var(--outer-pct)) 0 0)}
+@media(prefers-reduced-motion:reduce){.zone.is-running .ambient{animation:none}}
+
+/* V5 – Agent glass themes: specificity fix plus visible color response.
+   The original V4 selector .aurora .zone .ambient lost to
+   .aurora .zone.left .ambient / .aurora .zone.right .ambient.
+   This layer is deliberately masked to the actual outer quota fill
+   so depleted quota remains black. */
+.zone .glass-tint{
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:
+    radial-gradient(ellipse 86% 210% at 50% 42%,
+      rgba(var(--agent-theme-rgb),.95) 0%,
+      rgba(var(--agent-theme-rgb),.72) 38%,
+      rgba(var(--agent-theme-rgb),.18) 83%,
+      transparent 100%),
+    linear-gradient(180deg,rgba(255,255,255,.08),transparent 27%,rgba(var(--agent-theme-rgb),.22));
+  mix-blend-mode:screen;
+  opacity:calc(var(--agent-theme-strength) * .35);
+  transition:opacity .14s ease,background .14s ease;
+}
+.zone.left .glass-tint{clip-path:inset(0 0 0 calc(100% - var(--outer-pct)))}
+.zone.right .glass-tint{clip-path:inset(0 calc(100% - var(--outer-pct)) 0 0)}
+/* Crucially: match specificity of previous static provider tint selectors. */
+.scene.aurora .zone.left .ambient,
+.scene.aurora .zone.right .ambient{
+  background:
+    radial-gradient(ellipse 72% 200% at 42% 78%,
+      rgba(var(--agent-theme-rgb),.84),rgba(var(--agent-theme-rgb),.23) 57%,transparent 97%),
+    radial-gradient(ellipse 50% 165% at 78% 12%,
+      rgba(var(--agent-theme-rgb),.41),transparent 91%);
+}
+.scene.acrylic .zone.left .ambient,
+.scene.acrylic .zone.right .ambient{
+  background:
+    radial-gradient(ellipse 76% 195% at 43% 77%,
+      rgba(var(--agent-theme-rgb),.66),rgba(var(--agent-theme-rgb),.15) 66%,transparent 98%),
+    radial-gradient(ellipse 43% 160% at 73% 12%,
+      rgba(var(--agent-theme-rgb),.18),transparent 95%);
+}
+.scene .zone .ambient{
+  opacity:calc(var(--glow-opacity) * var(--agent-theme-strength) * 1.04);
+  filter:blur(9px);
+}
+.scene .zone.is-running .ambient{animation:glassThemeDriftV5 5.5s ease-in-out infinite alternate}
+@keyframes glassThemeDriftV5{
+  0%{transform:translateX(-3%);opacity:calc(var(--glow-opacity) * var(--agent-theme-strength) * .84)}
+  100%{transform:translateX(3%);opacity:calc(var(--glow-opacity) * var(--agent-theme-strength) * 1.10)}
+}
+@media(prefers-reduced-motion:reduce){.scene .zone.is-running .ambient{animation:none}}
+
+</style></head>
+<body><main class="wrapper">
+<header><div class="brand"><div class="brandmark"></div><div><b>AIUNDERLAY</b><small>MATERIAL EXPLORATION / 01</small></div></div><div class="tinytag">NATIVE MENUBAR · VISUAL EXPERIMENT</div></header>
+<div class="intro"><div><div class="eyebrow">material study / from color to light</div><h1>让光，<em>透过玻璃。</em></h1><p>两种更具材质感的菜单栏视觉：<strong style="color:#e2ecfa">Aurora Glass</strong> 把光谱藏进极光玻璃；<strong style="color:#e2ecfa">Acrylic Glow</strong> 用深色磨砂、颗粒与局部辉光营造系统级质感。两者都保持原本的额度结构与 Agent 状态语义。V5 修复主题色未生效的问题。Agent 主题色现在真正作用于玻璃的着色与局部反光，同时保留额度层和状态光源的独立配色。</p></div><div class="topactions"><button class="btn" id="resetButton">恢复默认</button><button class="btn primary" id="exportButton">导出实验参数 ↗</button></div></div>
+<div class="section-head"><strong>01 / 实时材质对比</strong><div class="seg" id="viewControls"><button data-view="compare" class="active">双方案对比</button><button data-view="aurora">只看 Aurora</button><button data-view="acrylic">只看 Acrylic</button></div></div>
+<div class="compare-grid" id="compareGrid">
+<section class="showcase" id="auroraShowcase"><div class="showcase-head"><div class="showcase-heading"><div class="num">A</div><div><strong>Aurora Glass <span style="color:#9ab5ca;font-weight:400">/ 极光玻璃</span></strong><small>薄透玻璃 · 动态光场 · 分层额度</small></div></div><span class="material-chip">LUMINOUS · PRISMATIC</span></div><div class="scene aurora" id="auroraScene"><div class="wallpaper"></div><div class="desktop-window"><div class="window-header"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><div class="fake-list"><i></i><i></i><i></i><i></i></div></div><div class="desktop-window rightw"><div class="window-header"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><div class="fake-list"><i></i><i></i><i></i></div></div><div class="menubar"><div class="zones"><div class="zone left" data-provider="codex" data-attention="none"><div class="quota"><div class="quota-outer"></div><div class="quota-inner"></div></div><div class="glass-tint"></div><div class="ambient"></div><div class="grain"></div><canvas class="rays"></canvas><div class="hint"></div><div class="edge-top"></div><div class="edge-bottom"><div class="glint"></div></div><div class="sheen"></div></div><div class="zone right" data-provider="claude" data-attention="none"><div class="quota"><div class="quota-outer"></div><div class="quota-inner"></div></div><div class="glass-tint"></div><div class="ambient"></div><div class="grain"></div><canvas class="rays"></canvas><div class="hint"></div><div class="edge-top"></div><div class="edge-bottom"><div class="glint"></div></div><div class="sheen"></div></div></div><div class="menu-ui"><div class="menu-left"><span class="apple">●</span><span>Finder</span><span>文件</span><span>编辑</span><span>显示</span><span>窗口</span><span>帮助</span></div><div class="menu-right"><span>⌁</span><span>◈</span><span>◉</span><span>▰</span><span class="sysmuted">88%</span><span>10月14日 周三 17:33</span></div></div><div class="notch"></div></div></div><div class="showcase-foot"><div class="foot-left"><i class="live-indicator"></i><span>模拟真实菜单栏高度：34px</span></div><span class="mini">光被折射，而不是直接铺色</span></div></section>
+<section class="showcase" id="acrylicShowcase"><div class="showcase-head"><div class="showcase-heading"><div class="num">B</div><div><strong>Acrylic Glow <span style="color:#9ab5ca;font-weight:400">/ 磨砂辉光</span></strong><small>石墨磨砂 · 微颗粒 · 局部冷暖反射</small></div></div><span class="material-chip">FROSTED · INDUSTRIAL</span></div><div class="scene acrylic" id="acrylicScene"><div class="wallpaper"></div><div class="desktop-window"><div class="window-header"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><div class="fake-list"><i></i><i></i><i></i><i></i></div></div><div class="desktop-window rightw"><div class="window-header"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><div class="fake-list"><i></i><i></i><i></i><i></i></div></div><div class="menubar"><div class="zones"><div class="zone left" data-provider="codex" data-attention="none"><div class="quota"><div class="quota-outer"></div><div class="quota-inner"></div></div><div class="glass-tint"></div><div class="ambient"></div><div class="grain"></div><canvas class="rays"></canvas><div class="hint"></div><div class="edge-top"></div><div class="edge-bottom"><div class="glint"></div></div><div class="sheen"></div></div><div class="zone right" data-provider="claude" data-attention="none"><div class="quota"><div class="quota-outer"></div><div class="quota-inner"></div></div><div class="glass-tint"></div><div class="ambient"></div><div class="grain"></div><canvas class="rays"></canvas><div class="hint"></div><div class="edge-top"></div><div class="edge-bottom"><div class="glint"></div></div><div class="sheen"></div></div></div><div class="menu-ui"><div class="menu-left"><span class="apple">●</span><span>Finder</span><span>文件</span><span>编辑</span><span>显示</span><span>窗口</span><span>帮助</span></div><div class="menu-right"><span>⌁</span><span>◈</span><span>◉</span><span>▰</span><span class="sysmuted">88%</span><span>10月14日 周三 17:33</span></div></div><div class="notch"></div></div></div><div class="showcase-foot"><div class="foot-left"><i class="live-indicator"></i><span>模拟真实菜单栏高度：34px</span></div><span class="mini">材质优先，光作为细节</span></div></section>
+</div>
+<div class="section-head"><strong>02 / 状态与视觉参数</strong><span class="note">所有操作同步更新上方两种材质 · 无需刷新</span></div>
+<div class="control-layout">
+<div class="controls"><div class="control-h">Agent 信号模拟 <span>PRIORITY: ERROR › WAITING › UNREAD</span></div><div class="control-row"><label for="codexState">Codex 会话</label><select id="codexState"><option value="running">有任务执行 · Running</option><option value="running-waiting">执行中 + 等待用户</option><option value="running-error">执行中 + 故障</option><option value="running-unread">执行中 + 未读完成</option><option value="waiting">只有 Waiting</option><option value="error">只有 Error</option><option value="unread">只有未读完成</option><option value="idle">全部空闲</option></select></div><div class="control-row"><label for="claudeState">Claude Code 会话</label><select id="claudeState"><option value="running-waiting">执行中 + 等待用户</option><option value="running">有任务执行 · Running</option><option value="running-error">执行中 + 故障</option><option value="running-unread">执行中 + 未读完成</option><option value="waiting">只有 Waiting</option><option value="error">只有 Error</option><option value="unread">只有未读完成</option><option value="idle">全部空闲</option></select></div><div class="control-row"><label for="speed">输出节奏</label><input style="width:100%;accent-color:#9fbeef" id="speed" type="range" min="1" max="100" value="36"><!-- simulation only --></div><div class="switch-row"><label><input id="notchToggle" type="checkbox">刘海遮罩</label><label><input id="animToggle" type="checkbox" checked>运行动画</label><label><input id="quotaToggle" type="checkbox" checked>显示额度层</label></div><p style="font-size:11px;color:#71879c;line-height:1.8;margin:16px 0 0">Running 时应能看到明显的移动波峰与更高密度的细光线；如果同时存在 Error / Waiting / Unread，则光源颜色按优先级采用对应信号色，Agent 主题色改变玻璃材质的染色与反射，不改变 Provider 额度颜色和状态警示颜色。未填充额度区域改为近黑，以强化剩余额度的对比。</p></div>
+<div class="controls"><div class="control-h">材质调音台 <span>APPEARANCE PARAMETERS · SIGNAL-DRIVEN LIGHT</span></div><div class="slide-row"><label>玻璃模糊</label><input id="blur" type="range" min="0" max="32" value="18"><output id="blurVal">18px</output></div><div class="slide-row"><label>内部泛光</label><input id="glow" type="range" min="0" max="100" value="70"><output id="glowVal">70%</output></div><div class="slide-row"><label>颗粒质感</label><input id="grain" type="range" min="0" max="24" value="8"><output id="grainVal">8%</output></div><div class="slide-row"><label>光线密度</label><input id="density" type="range" min="20" max="100" value="62"><output id="densityVal">30%</output></div><div class="slide-row"><label>额度底色</label><input id="quota" type="range" min="15" max="100" value="70"><output id="quotaVal">70%</output></div><div class="theme-panel"><div class="color-heading">Agent 主题色 <span>即时改变可见玻璃着色 · 不覆盖额度与状态光源</span></div><div class="colors"><label class="swatch"><input id="codexThemeColor" type="color" value="#7065ef">Codex 主题</label><label class="swatch"><input id="claudeThemeColor" type="color" value="#e6996a">Claude 主题</label></div><div class="slide-row" style="margin-top:15px;margin-bottom:0"><label for="themeStrength">主题色强度</label><input id="themeStrength" type="range" min="0" max="100" value="62"><output id="themeStrengthVal">62%</output></div></div>
+<div class="theme-panel"><div class="color-heading">额度颜色 <span>Provider 独立 · 不受 Agent 状态影响</span></div><div class="colors"><label class="swatch"><input id="codexColor" type="color" value="#69bfff">Codex 额度</label><label class="swatch"><input id="claudeColor" type="color" value="#ffb08a">Claude 额度</label></div></div>
+<div class="theme-panel"><div class="color-heading">信号光源 <span>ERROR › WAITING › UNREAD › RUNNING</span></div><div class="colors"><label class="swatch"><input id="runningColor" type="color" value="#d9eeff">Running</label><label class="swatch"><input id="errorColor" type="color" value="#ff7596">Error</label><label class="swatch"><input id="waitingColor" type="color" value="#ffe1a0">Waiting</label><label class="swatch"><input id="unreadColor" type="color" value="#64f1bd">Unread</label></div></div></div>
+</div>
+
+<div class="quota-sim" id="quotaSimulation">
+ <div class="shead">额度层对比 · Nested Quota <span>真实嵌套：短周期的长度 = 长周期剩余长度 × 短周期剩余比例</span></div>
+ <div class="slidergrid">
+  <div><div class="sprovider">Codex · 冰蓝</div>
+   <div class="qslider"><label for="codexWeek">7 天剩余</label><input id="codexWeek" type="range" min="0" max="100" value="82"><output id="codexWeekVal">82%</output></div>
+   <div class="qslider"><label for="codexShort">5 小时剩余</label><input id="codexShort" type="range" min="0" max="100" value="55"><output id="codexShortVal">55%</output></div>
+   <div class="qlabel" id="codexQuotaInfo">周额度 82% · 5h 55%（嵌套长度 45%）</div>
+  </div>
+  <div><div class="sprovider">Claude Code · 柔铜</div>
+   <div class="qslider"><label for="claudeWeek">7 天剩余</label><input id="claudeWeek" type="range" min="0" max="100" value="67"><output id="claudeWeekVal">67%</output></div>
+   <div class="qslider"><label for="claudeShort">5 小时剩余</label><input id="claudeShort" type="range" min="0" max="100" value="36"><output id="claudeShortVal">36%</output></div>
+   <div class="qlabel" id="claudeQuotaInfo">周额度 67% · 5h 36%（嵌套长度 24%）</div>
+  </div>
+ </div>
+</div>
+<div class="material-summary"><b>设计观察</b><p><strong style="color:#e0ecf8">A · Aurora Glass</strong> 更偏精致的彩色玻璃光幕，色彩在内部连续变化，适合希望有品牌识别度又保留通透感的风格。<strong style="color:#e0ecf8">B · Acrylic Glow</strong> 更偏系统级深色磨砂，颜色更克制，依赖微小颗粒与边缘高光营造触感。你可以把两者调到相同参数，直观看出渲染材质而非单纯颜色的差异。</p></div>
+<footer class="bottom"><span>此 Demo 使用浏览器 backdrop-filter、CSS 和低帧率 Canvas 光线模拟设计方向；并非原生 NSVisualEffectView 的实测效果，也不包含真实 AI 会话数据。导出的实验参数尚不能直接导入当前 AIUnderlay Theme Engine，后续需扩展 JSON Schema。</span><span style="white-space:nowrap">AIUNDERLAY / GLASS STUDY 05</span></footer>
+</main>
+<script>
+(()=>{
+const root=document.documentElement;
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const defaults={blur:18,glow:68,grain:8,density:62,quota:92,themeStrength:62,speed:48,codexWeek:82,codexShort:55,claudeWeek:67,claudeShort:36,codex:'#69bfff',claude:'#ffb08a',codexTheme:'#7065ef',claudeTheme:'#e6996a',running:'#d9eeff',error:'#ff7596',waiting:'#ffe1a0',unread:'#64f1bd',codexState:'running',claudeState:'running-waiting',notch:false,animate:true,quotaVisible:true,view:'compare'};
+let state={...defaults};
+const escapeHex=h=>h.replace('#','');
+const rgba=(hex,a)=>{const h=escapeHex(hex);return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`};
+function decodeStatus(v){const active=v==='running'||v.startsWith('running-');const attention=v.includes('error')?'error':v.includes('waiting')?'waiting':v.includes('unread')?'unread':'none';return {active,attention}}
+function signalLightHex(status){return status.attention==='error'?state.error:status.attention==='waiting'?state.waiting:status.attention==='unread'?state.unread:state.running}
+const props=[['blur','--glassblur',v=>v+'px'],['glow','--glow-opacity',v=>(v/100).toFixed(2)],['grain','--grain-opacity',v=>(v/100).toFixed(2)],['quota','--quota-vivid',v=>(v/100).toFixed(2)]];
+function syncDOM(){
+  props.forEach(([k,p,fn])=>root.style.setProperty(p,fn(state[k])));
+  ['blur','glow','grain','density','quota','themeStrength','speed'].forEach(k=>{$('#'+k).value=state[k];const out=$('#'+k+'Val');if(out)out.textContent=state[k]+(k==='blur'?'px':'%')});
+  ['codex','claude','codexTheme','claudeTheme','running','error','waiting','unread'].forEach(k=>$('#'+k+'Color').value=state[k]);
+  $('#codexState').value=state.codexState;$('#claudeState').value=state.claudeState;
+  $('#notchToggle').checked=state.notch;$('#animToggle').checked=state.animate;$('#quotaToggle').checked=state.quotaVisible;
+  $$('.scene').forEach(scene=>scene.classList.toggle('has-notch',state.notch));
+  $$('.zone').forEach(zone=>{
+    const p=zone.dataset.provider;
+    const z=decodeStatus(state[p+'State']);zone.dataset.attention=z.attention;
+    const a=z.attention==='error'?state.error:z.attention==='waiting'?state.waiting:state.unread;
+    const light=signalLightHex(z);
+    zone.style.setProperty('--alert',a);
+    const m=light.match(/\w\w/g);zone.style.setProperty('--tint',m.map(c=>parseInt(c,16)).join(','));
+    const cm=state[p].match(/\w\w/g);zone.style.setProperty('--provider-rgb',cm.map(c=>parseInt(c,16)).join(','));
+    const themeRgb=state[p+'Theme'].match(/\w\w/g).map(c=>parseInt(c,16)).join(',');
+    zone.style.setProperty('--agent-theme-rgb',themeRgb);
+    zone.style.setProperty('--agent-theme-strength',(state.themeStrength/100).toFixed(2));
+    zone.style.setProperty('--outer-pct',state[p+'Week']+'%');
+    zone.style.setProperty('--inner-pct',(state[p+'Week']*state[p+'Short']/100)+'%');
+    zone.classList.toggle('is-running',z.active&&state.animate&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    zone.querySelector('.quota').style.display=state.quotaVisible?'':'none';
+  });
+  ['codex','claude'].forEach(p=>{
+    ['Week','Short'].forEach(n=>{
+       const key=p+n;$('#'+key).value=state[key];$('#'+key+'Val').textContent=state[key]+'%';
+    });
+    $('#'+p+'QuotaInfo').textContent='周额度 '+state[p+'Week']+'% · 5h '+state[p+'Short']+'%（嵌套长度 '+Math.round(state[p+'Week']*state[p+'Short']/100)+'%）';
+  });
+  $$('.showcase').forEach(el=>el.classList.toggle('hidden',state.view!=='compare'&&!el.id.toLowerCase().startsWith(state.view)));
+  $$('#viewControls button').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));
+}
+function repaint(now){
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const moving=state.animate&&!reduce;
+  const speed01=Math.min(1,Math.max(0,state.speed/100));
+  const hz=.18+.44*Math.sqrt(speed01);
+  const t=moving?now*.001:0;
+  const phase=t*2*Math.PI*hz;
+  for(const canvas of $$('.rays')){
+    const zone=canvas.parentNode, scene=canvas.closest('.scene'), bounds=zone.getBoundingClientRect();
+    const w=Math.round(bounds.width),h=Math.round(bounds.height);
+    if(w<=0||h<=0)continue;
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){
+      canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+    }
+    const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+    const provider=zone.dataset.provider;
+    const status=decodeStatus(state[provider+'State']);
+    if(!status.active)continue;
+    const tint=signalLightHex(status);
+    const vivid=scene.classList.contains('aurora');
+    const densityBoost=.55 + (state.density/100)*1.25;
+    const n=Math.max(24,Math.round(w/(vivid?8.5:10.5)*densityBoost));
+    const cursor=(.10+(phase/(2*Math.PI)*.78+(provider==='claude'?.20:0))%1)*w;
+    const second=(.75-(phase/(2*Math.PI)*.31)%1)*w;
+    const radius=Math.min(w*.28,205);
+    // The entire frosted panel catches a traveling light field, not just the bar outlines.
+    // This visibly moves even in a 34px-high band.
+    ctx.save();ctx.globalCompositeOperation='screen';
+    for(const [cx,weight,r] of [[cursor,.72,radius],[second,.29,radius*.66]]){
+      const g=ctx.createRadialGradient(cx,h*.77,0,cx,h*.77,r);
+      g.addColorStop(0,rgba(tint,(vivid?.28:.22)*weight));
+      g.addColorStop(.34,rgba(tint,(vivid?.14:.10)*weight));
+      g.addColorStop(1,rgba(tint,0));
+      ctx.fillStyle=g;ctx.fillRect(Math.max(0,cx-r),0,Math.min(w,cx+r)-Math.max(0,cx-r),h);
+    }
+    ctx.restore();
+    // Curved wave groups; a narrow bright crest passes across the provider area.
+    // The amplitude change, not a high framerate, makes Running recognizable.
+    for(let i=0;i<n;i++){
+      const u=(i+.5)/n,x=u*w;
+      const dist=Math.abs(x-cursor),wrap=Math.min(dist,w-dist);
+      const focused=Math.exp(-Math.pow(wrap/(radius*.56),2));
+      const w1=.5+.5*Math.sin(phase*1.25-u*Math.PI*4.1+i*.072);
+      const w2=.5+.5*Math.sin(phase*.82+u*Math.PI*2.4+i*.27);
+      const crest=.61*w1+.39*w2;
+      const height=h*(.22+.52*crest+.28*focused);
+      const alpha=Math.min(.96,(vivid?.22:.17)+.28*crest+.42*focused);
+      const y=h-height;
+      // Chromatic halo around a precise thin ray.
+      const gr=ctx.createLinearGradient(x,y,x,h);
+      gr.addColorStop(0,rgba(tint,0));
+      gr.addColorStop(.18,rgba(tint,alpha*.28));
+      gr.addColorStop(.64,rgba(tint,alpha*.78));
+      gr.addColorStop(1,rgba(tint,alpha*.92));
+      ctx.fillStyle=gr;ctx.fillRect(x-2.1,y,4.2,height);
+      const core=ctx.createLinearGradient(x,y,x,h);
+      core.addColorStop(0,'rgba(255,255,255,0)');
+      core.addColorStop(.5,rgba(tint,alpha*.42));
+      core.addColorStop(1,rgba('#f5faff',Math.min(.90,alpha*.76)));
+      ctx.fillStyle=core;ctx.fillRect(x-.58,y,1.16,height);
+    }
+    // Very soft white-blue specular crest, only near the active moving light.
+    const halo=ctx.createLinearGradient(cursor-radius*.5,0,cursor+radius*.5,0);
+    halo.addColorStop(0,'rgba(255,255,255,0)');
+    halo.addColorStop(.5,'rgba(255,255,255,.105)');
+    halo.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=halo;ctx.fillRect(Math.max(0,cursor-radius*.5),h*.72,Math.min(w,cursor+radius*.5)-Math.max(0,cursor-radius*.5),h*.28);
+  }
+}
+let last=-10000;
+function tick(time){if(time-last>90){last=time;repaint(time)}requestAnimationFrame(tick)}requestAnimationFrame(tick);
+['blur','glow','grain','density','quota','themeStrength','speed'].forEach(k=>$('#'+k).addEventListener('input',e=>{state[k]=+e.target.value;syncDOM()}));
+['codex','claude'].forEach(p=>['Week','Short'].forEach(n=>$('#'+p+n).addEventListener('input',e=>{state[p+n]=+e.target.value;syncDOM()})));
+['codex','claude','codexTheme','claudeTheme','running','error','waiting','unread'].forEach(k=>$('#'+k+'Color').addEventListener('input',e=>{state[k]=e.target.value;syncDOM()}));
+['codex','claude'].forEach(k=>$('#'+k+'State').addEventListener('change',e=>{state[k+'State']=e.target.value;syncDOM()}));
+$('#notchToggle').addEventListener('change',e=>{state.notch=e.target.checked;syncDOM()});
+$('#animToggle').addEventListener('change',e=>{state.animate=e.target.checked;$$('.glint').forEach(g=>g.style.animationPlayState=state.animate?'running':'paused');syncDOM()});
+$('#quotaToggle').addEventListener('change',e=>{state.quotaVisible=e.target.checked;syncDOM()});
+$$('#viewControls button').forEach(b=>b.addEventListener('click',()=>{state.view=b.dataset.view;syncDOM()}));
+$('#resetButton').addEventListener('click',()=>{state={...defaults};$$('.glint').forEach(g=>g.style.animationPlayState='running');syncDOM()});
+$('#exportButton').addEventListener('click',()=>{
+ const payload={_notice:'Visual experiment only. Not compatible with AIUnderlay Theme Engine schemaVersion 1.',materialLabVersion:5,auroraMaterial:'AuroraGlass',acrylicMaterial:'AcrylicGlow',parameters:{blurRadiusPx:state.blur,ambientGlowPercent:state.glow,grainPercent:state.grain,rayDensityPercent:state.density,quotaLayerOpacityPercent:state.quota,agentThemeStrengthPercent:state.themeStrength,simulatedSpeedPercent:state.speed,quotaFractions:{codex:{weekly:state.codexWeek/100,fiveHour:state.codexShort/100},claude:{weekly:state.claudeWeek/100,fiveHour:state.claudeShort/100}}},colors:{quota:{codex:state.codex,claude:state.claude},agentTheme:{codex:state.codexTheme,claude:state.claudeTheme},signalLight:{running:state.running,error:state.error,waiting:state.waiting,unread:state.unread}},preview:{codexState:state.codexState,claudeState:state.claudeState,notch:state.notch}};
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='AIUnderlay-glass-experiment.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+});
+syncDOM();
+})();
+</script></body></html>

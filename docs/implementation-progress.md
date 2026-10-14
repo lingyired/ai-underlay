@@ -97,6 +97,28 @@ Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`�
 `p7-agent-error-borders.png`、`p8-theme-hot-reload-1.png`、`p9-theme-hot-reload-2.png`.
 `p10-agent-running-waiting.png`、`p11-agent-running-error.png`. Total tests: 265 passing.
 
+## P6 — Glass Spectrum 统一重构（2026-10-14）
+
+依据 `AIUnderlay-Glass-Spectrum-Refactor-Codex-Plan-2026-10-14.md`（用户选定 V5 参数）。
+分支 `codex/glass-spectrum-unified-renderer`，基线 `363d675`。
+
+| Task | Status | Notes |
+|---|---|---|
+| P6-1 单一渲染引擎 | DONE | 删除 `RunningEffect`/`RunningEffectColor` 与其分支、`AgentEffectLayer`、旧 `GaugeLayerRenderer`；新增 `GlassQuotaRenderer` / `GlassSpectrumRenderer` / `AttentionLightRenderer` / `GlassLayerHost` |
+| P6-2 稳定图层树 | DONE | 命名槽位 + `reconcile`；重复 100 次渲染图层数与 `animationStarts` 不变；每 Lane ≤6 个动画层 |
+| P6-3 黑底嵌套额度 | DONE | 已知额度画 V5 黑色底（0.78→0.98），未知/过期画中性槽（不等于 0%）；染色只裁到外层填充长度 |
+| P6-4 信号语义 | DONE | `Error > Waiting > Unread` 固定优先级 + Running 独立布尔；运行中光场取最高优先级颜色；无测速时用最慢节奏 |
+| P6-5 主题 v2 + 迁移 | DONE | `schemaVersion: 2`（`material`/`signals`/`attention`/`quotaBaseColor`/`agentThemeColor`/`exhaustedTrack*`）；v1 文件继续可读；旧设置 `runningEffect=none → reduceMotion`、`runningEffectColor → signals.running` |
+| P6-6 离线视觉证据 | DONE | `GlassPreviewTests` 渲染 13 张 PNG 到 `docs/preview/glass-spectrum/`，并像素校验黑底与染色裁切 |
+| P6-7 Unread 输入契约 | PARTIAL | `AgentSignals.unreadCount` 作为输入契约 + fixtures（`agentUnread`/`agentRunningUnread`/`agentAllSignals`）；真实完成账本仍在未合并的 `codex/unread-completion-attention-ribbon` 分支，生产保持 0 |
+| P6-8 NSVisualEffectView 尖刺 | TODO | 默认路径为"渲染玻璃"（不采样桌面）；30 分钟真机模糊/CPU 尖刺未执行 |
+
+Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x）。Total tests: 344 passing
+(1 skipped = the opt-in PNG dump), `Scripts/check-domain-purity.sh` OK。
+
+Known limits: 真实 TPS 未接入（光场始终最慢节奏）；Unread 仅 fixtures；
+真机 30/32/34pt 与多显示器仍需人工确认。
+
 ## Hardware verification ledger
 
 Items that can only be confirmed on a real Mac session (to be filled during

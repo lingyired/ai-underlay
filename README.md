@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
-[![Tests: 163 passing](https://img.shields.io/badge/Tests-163%20passing-brightgreen.svg)](Scripts/test.sh)
+[![Tests: 344 passing](https://img.shields.io/badge/Tests-344%20passing-brightgreen.svg)](Scripts/test.sh)
 [![No telemetry](https://img.shields.io/badge/Telemetry-none-lightgrey.svg)](docs/privacy-and-permissions.md)
 
 Draws an AI quota and agent-activity bar **into the macOS menu bar background**.
@@ -14,12 +14,16 @@ that sits above the desktop icons and below the menu bar.
 - Left side: Codex · Right side: Claude Code (configurable, per display).
 - Nested quota: each shorter window occupies the *remaining* length of the
   longer one (week → 5h), with a pace baseline marker.
-- Agent state (running / waiting for approval / waiting for input) is shown
-  with independent light-field and alert visuals — never by altering quota numbers.
-- New installations default to the optional **Spectrum Glow** light curtain;
-  classic breathing, sweep, dot and equalizer effects remain selectable.
-  The spectral rays use three Core Animation groups rather than hundreds
-  of continuously animated layers.
+- Agent state (running / waiting for approval / waiting for input / unread) is
+  shown with independent light-field and alert visuals — never by altering
+  quota numbers.
+- One visual engine: **Glass Spectrum** (aurora glass + frosted quota detail).
+  A dense fine-ray light curtain travels while an agent works, and the same
+  ribbon/lamp language shows Error > Waiting > Unread. Three Core Animation
+  ray groups + two light fields per lane; no per-frame CPU work.
+- Three separate colour roles: **quota colours**, the per-provider **glass
+  tint**, and global **signal lights** — a theme can change any of them without
+  changing the others.
 - Data comes from the community **CodexBar** CLI; agent state comes from the
   agents' own lifecycle hooks.
 
@@ -66,9 +70,11 @@ Scripts/check-domain-purity.sh
 
 Set **Appearance → Fixture** to any of `full`, `weekLow`, `sessionLow`,
 `allZero`, `missing`, `stale`, `reset`, `agentRunning`, `agentWaiting`,
-`agentError`, `agentRunningWaiting`, `agentRunningError`, `notchless`. These
-drive the *real* renderer, so what you see is exactly what
-the menu bar will draw — no provider login required.
+`agentError`, `agentRunningWaiting`, `agentRunningError`, `agentUnread`,
+`agentRunningUnread`, `agentAllSignals`, `glassV5`, `notchless`. These drive the
+*real* renderer, so what you see is exactly what the menu bar will draw — no
+provider login required. `docs/preview/glass-spectrum/` holds rendered PNGs of
+the same matrix for review.
 
 ## Where the data comes from
 
@@ -105,6 +111,14 @@ external process and references CodeStatus only for design.
 
 - Only the primary display was verified on the development machine; multi-display
   and notch hardware are unit-tested but not yet verified on real hardware.
+- The glass is **rendered**, not sampled from the desktop: no `NSVisualEffectView`
+  backdrop blur (see `docs/architecture.md`). On-device 30-minute blur/CPU spike
+  is still open.
+- **Unread** is wired as an input contract (`AgentSignals.unreadCount`) and shown
+  in fixtures; the durable completion ledger lives on the unmerged
+  `codex/unread-completion-attention-ribbon` branch, so live data keeps it at 0.
+- Real output TPS is not measured yet, so the light field always runs at the
+  slowest steady tempo.
 - Fullscreen auto-hide is **not** implemented: reliably detecting fullscreen
   Spaces needs private SkyLight APIs, which we deliberately avoid to keep the
   App Store option open.

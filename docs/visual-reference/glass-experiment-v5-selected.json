@@ -1,0 +1,46 @@
+{
+  "_notice": "Visual experiment only. Not compatible with AIUnderlay Theme Engine schemaVersion 1.",
+  "materialLabVersion": 5,
+  "auroraMaterial": "AuroraGlass",
+  "acrylicMaterial": "AcrylicGlow",
+  "parameters": {
+    "blurRadiusPx": 17,
+    "ambientGlowPercent": 0,
+    "grainPercent": 0,
+    "rayDensityPercent": 100,
+    "quotaLayerOpacityPercent": 100,
+    "agentThemeStrengthPercent": 100,
+    "simulatedSpeedPercent": 48,
+    "quotaFractions": {
+      "codex": {
+        "weekly": 0.82,
+        "fiveHour": 0.55
+      },
+      "claude": {
+        "weekly": 0.67,
+        "fiveHour": 0.36
+      }
+    }
+  },
+  "colors": {
+    "quota": {
+      "codex": "#69bfff",
+      "claude": "#ffb08a"
+    },
+    "agentTheme": {
+      "codex": "#62ac96",
+      "claude": "#ffffff"
+    },
+    "signalLight": {
+      "running": "#d9eeff",
+      "error": "#ff7596",
+      "waiting": "#ffe1a0",
+      "unread": "#64f1bd"
+    }
+  },
+  "preview": {
+    "codexState": "running",
+    "claudeState": "running-waiting",
+    "notch": false
+  }
+}

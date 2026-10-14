@@ -1,92 +1,80 @@
-# Morning Acceptance Guide
+# Acceptance Guide — Glass Spectrum（2026-10-14）
 
-Everything below is implemented and the automated suite is green (122 tests).
-This is the checklist for your review pass.
+单引擎重构完成后的复核清单。自动化证据见
+`docs/implementation-progress.md` P6 与 `docs/preview/glass-spectrum/`。
 
-## 0. Build & test (2 minutes)
+## 0. 构建与测试（约 3 分钟）
 
 ```bash
-cd /Users/lingsmbp/Documents/aiwork/ai-underlay
+cd /Users/lingsmbp/.codex/worktrees/glass-spectrum/ai-underlay
 xcodegen generate
-Scripts/test.sh                    # expect: 122 tests, 0 failures
+Scripts/test.sh                    # expect: 344 tests, 0 failures, 1 skipped
 Scripts/check-domain-purity.sh     # expect: OK
 ```
 
-## 1. ⚠️ Two decisions that are genuinely yours
-
-I implemented past both stop-gates (you were asleep). Please look at these
-first — they are the only two things I could not decide for you.
-
-### 1a. P0 gate — does the overlay sit correctly?
-
-Open the app and confirm the bar sits **behind** the menu bar without covering
-icons or stealing clicks.
+可选的离线视觉证据重生成（写入 `docs/preview/glass-spectrum/`）：
 
 ```bash
-open "$(find ~/Library/Developer/Xcode/DerivedData/AIUnderlay-*/Build/Products/Debug -name AIUnderlay.app -maxdepth 1 | head -1)"
+TEST_RUNNER_GLASS_PREVIEW_DUMP=1 Scripts/test.sh \
+  -only-testing:AIUnderlayKitTests/GlassPreviewTests/test_dumpPreviewPNGsWhenRequested
 ```
 
-Reference: `docs/preview/p0-band-menubar.png` (the P0 proof).
+## 1. 需要你确认的观感（真机）
 
-### 1b. P1 gate — is the information density right?
+启动开发构建后，用 **Settings → Appearance → Fixture** 逐个切换：
 
-The bar can show: nested fills (up to 3 layers), a baseline marker, and an
-agent endpoint dot. **You asked to "render it first, then tune."** Cycle the
-fixtures and tell me what to change.
+1. `glassV5` —— 用户选定的 V5 参数：codex 82%/55%、claude 67%/36%，黑色用完底色。
+2. `agentRunning` / `agentRunningWaiting` / `agentRunningError` —— 光场是否
+   够"玻璃"、running 时是否戴上最高优先级颜色。
+3. `agentWaiting` / `agentError` / `agentUnread` —— 顶线 2pt、底部缎带 5pt
+   是否可见但可读（额度不被遮住）。
+4. `allZero` / `missing` / `stale` —— 用完＝纯黑，未知＝中性槽（**不能**看成 0%）。
+5. `notchless`、双显示器（如有）—— 左右两侧几何是否镜像正确。
 
-- Menu bar icon → **Settings… → Appearance → Fixture**.
-- Try: `full`, `weekLow`, `sessionLow`, `allZero`, `missing`, `stale`, `reset`,
-  `agentRunning`, `agentWaiting`, `notchless`.
-- Toggle **Show baseline marker** / **Show agent effects** to see the density
-  with and without each channel.
+真机待测：30/32/34pt 菜单栏高度、多显示器、Reduce Motion 开关、
+长时功耗（见 §4）。
 
-Tell me: too busy? baseline too subtle? endpoint dot too small? colors?
+## 2. 三色角色不要互相污染
 
-## 2. Real data
+在 **Settings → Theme** 里分别改：
 
-1. **Providers tab** → *Test Connection*. Expect `codex` = "signed in" with
-   Weekly/5h windows (real data), `claude` = "not signed in" (no Claude cookies
-   on this machine) with an empty track.
-2. Set **Appearance → Fixture → Live data** and watch the left (codex) side
-   fill from your real quota. First fetch takes ~7s (the CLI hits the OpenAI
-   web dashboard).
+| 改动 | 预期 | 不应发生 |
+|---|---|---|
+| Agent 玻璃染色（codex/claude） | 只有玻璃表面变色 | 额度颜色、信号光不变 |
+| 额度颜色 | 只有填充变色 | 染色与信号光不变 |
+| 四个信号光颜色 | 只有状态光变色 | 额度与染色不变 |
 
-## 3. Agent detection (optional, modifies your config)
+切到 `agentRunningWaiting`：光场应使用 waiting 的黄，而额度仍是蓝色。
 
-The **Agent tab** previews the exact hook entries it would add to
-`~/.claude/settings.json`, backs the file up first, and only removes its own
-entries on uninstall. Nothing is installed until you click Install.
+## 3. 主题 v1 兼容
 
-Verified: the socket binds and a synthetic event draws the endpoint dot. Not
-verified: a real Claude Code session round-trip (needs you to install hooks and
-run a session).
+把旧主题 JSON（`docs/theme/examples/vivid.json`，schemaVersion 1）放进
+`~/Library/Application Support/com.lingsmbp.aiunderlay/Themes/`：应正常加载并
+保持旧观感；`runningEffect=none` 的旧 settings.json 应变成 Reduce Motion。
+（自动测试：`ThemeDocumentTests`、`SettingsStoreTests`、`ThemeResolverTests`。）
 
-## 4. What is NOT verified (needs hardware/you)
+## 4. 尚未验证（需要真机 / 你）
 
-See `docs/release-checklist.md` for the full list. The important ones:
+- **NSVisualEffectView 真模糊**：当前实现是"渲染玻璃"（不采样桌面背景）。
+  plan 的 P0 尖刺（30 分钟观察模糊正确性与 CPU）**未执行**；在跑完之前，
+  `blurRadiusTarget` 只是柔化目标值，不是真实 backdrop blur。
+- **Unread 实数据**：`AgentSignals.unreadCount` 是输入契约，生产恒为 0；
+  真实完成账本在未合并分支 `codex/unread-completion-attention-ribbon`。
+- **真实 TPS**：未接入，光场按最慢节奏运行（不伪造 48%）。
+- 多显示器 / 刘海 / macOS 14–15：仅单元测试覆盖，未在硬件验证。
 
-- **External display** menu-bar height (only one display was attached; the
-  multi-display path is unit-tested but not hardware-tested).
-- **Notch** hardware (this machine has no notch; midline fallback verified).
-- **macOS 14/15** (only macOS 27 available here).
-- **Real Claude Code hooks**, **Codex hook events** on your installed versions.
-- **Managed CLI install** — wired and tested, but `CodexBarInstaller.Release`
-  still needs a pinned URL + SHA-256 before the button does anything.
+## 5. 证据
 
-## 5. Evidence captured
-
-| File | Shows |
+| 文件 | 内容 |
 |---|---|
-| `docs/preview/p0-band-menubar.png` | band behind menu bar, icons on top |
-| `docs/preview/p1-full.png` | dual, both halves full |
-| `docs/preview/p1-weekLow.png` | dual, partial fills |
-| `docs/preview/p1-single-full.png` | single full-width bar |
-| `docs/preview/p2-live-codex.png` | real codex quota, claude empty track |
-| `docs/preview/p3-agent-waiting.png` | agent endpoint dot |
-| `docs/preview/p4-settings.png` | settings window, 5 tabs |
+| `docs/preview/glass-spectrum/codex-82-55-running.png` | V5 codex，运行中 |
+| `docs/preview/glass-spectrum/claude-67-36-running.png` | V5 claude，运行中 |
+| `docs/preview/glass-spectrum/all-zero-exhausted.png` | 0% = 纯黑底 |
+| `docs/preview/glass-spectrum/unknown-missing.png` | 未知 = 中性槽 |
+| `docs/preview/glass-spectrum/running-waiting.png` 等 | 组合矩阵 |
+| `docs/preview/glass-spectrum/reduce-motion-running-error.png` | Reduce Motion 静态帧 |
 
-## 6. How to run it like a user
+## 6. 怎么运行
 
-The app is `LSUIElement` (no Dock icon). After launch, look for the **gauge
-icon in the menu bar** → click → *Settings…*. To quit: same menu → *Quit*, or
-`pkill -x AIUnderlay`.
+App 是 `LSUIElement`（无 Dock 图标）。启动后点菜单栏的 gauge 图标 →
+**Settings…**。退出：同一菜单 → *Quit*，或 `pkill -x AIUnderlay`。
