@@ -191,11 +191,13 @@ public struct ThemeTab: View {
                 }
             }
         )
-        return HStack {
-            Slider(value: binding, in: range)
-            Text(String(format: range.upperBound > 2 ? "%.0f" : "%.2f", binding.wrappedValue))
-                .font(.caption.monospacedDigit())
-                .frame(width: 42, alignment: .trailing)
+        return LabeledContent(label) {
+            HStack(spacing: 8) {
+                Slider(value: binding, in: range)
+                Text(String(format: range.upperBound > 2 ? "%.0f" : "%.2f", binding.wrappedValue))
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 42, alignment: .trailing)
+            }
         }
         .help(label)
         .accessibilityLabel(label)
