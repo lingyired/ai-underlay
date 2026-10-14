@@ -281,4 +281,57 @@ public struct AgentSignals: Equatable, Sendable {
         }
         return signals
     }
+
+    /// Signals from hook evidence, with the live session list used as a
+    /// reality check on "running" only.
+    ///
+    /// Hooks are the fine-grained source, but they are not proof that the user
+    /// can see anything: Codex also fires them for agents that no UI lists
+    /// (subagents and background runs have no transcript and never appear as a
+    /// thread), and a turn that ends without a `Stop` hook stays "running" until
+    /// the staleness window expires. Both lit the bar green while the user had
+    /// nothing on screen.
+    ///
+    /// So a `running` claim is dropped when either:
+    /// * the session is unknown to the live session list, or
+    /// * the list has written *after* our last hook event for that session and
+    ///   still reports it idle, which means the turn really ended.
+    ///
+    /// States that ask the user for something — waiting, approval, error — are
+    /// never gated: they are explicit and rare, and hiding one is worse than an
+    /// extra light. Sessions the hooks have never seen are still counted, so a
+    /// broken or missing hook install does not go dark.
+    public static func reconciled(
+        hook hookSessions: [AgentSession],
+        polled polledSessions: [AgentSession],
+        now: Date = Date()
+    ) -> AgentSignals? {
+        guard !hookSessions.isEmpty else {
+            let polled = counting(polledSessions, now: now)
+            return polled.isEmpty ? nil : polled
+        }
+
+        var signals = counting(hookSessions, now: now)
+        let hookIds = Set(hookSessions.map(\.id))
+        if !polledSessions.isEmpty {
+            let polledById = Dictionary(polledSessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            for session in hookSessions
+            where AgentActivityAggregator.effectiveState(session, now: now) == .running {
+                guard let entry = polledById[session.id] else {
+                    signals.activeCount = max(0, signals.activeCount - 1)
+                    continue
+                }
+                if entry.state == .idle, entry.observedAt >= session.observedAt {
+                    signals.activeCount = max(0, signals.activeCount - 1)
+                }
+            }
+        }
+        if !signals.isEmpty { return signals }
+
+        // Every hook session decayed to idle. A session only the live list
+        // knows about still counts, so activity keeps showing when hooks are
+        // stale or were never installed.
+        let unseen = counting(polledSessions.filter { !hookIds.contains($0.id) }, now: now)
+        return unseen.isEmpty ? nil : unseen
+    }
 }

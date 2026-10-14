@@ -286,6 +286,103 @@ final class AgentSessionReducerTests: XCTestCase {
         XCTAssertEqual(signals.waitingInputCount, 1)
     }
 
+    // MARK: - Reconciling hook evidence with the live session list
+
+    private func session(_ id: String, _ state: AgentState, at date: Date,
+                         confidence: AgentConfidence = .exact) -> AgentSession {
+        AgentSession(id: id, providerId: "codex", state: state, confidence: confidence, observedAt: date)
+    }
+
+    func test_reconciled_dropsAnAgentNoSessionListKnowsAbout() {
+        // Codex fires hooks for background agents (subagents, internal runs)
+        // that have no transcript and never appear as a thread. The user saw a
+        // green bar with nothing on screen because of exactly this.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("ghost", .running, at: now)],
+            polled: [session("visible", .idle, at: now, confidence: .inferred)],
+            now: now
+        )
+        // Nothing left to draw: no green, and nil reads the same as all-zero.
+        XCTAssertFalse(signals?.hasActive ?? false)
+    }
+
+    func test_reconciled_keepsARunningSessionTheListConfirms() {
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("live", .running, at: now)],
+            polled: [session("live", .running, at: now, confidence: .inferred)],
+            now: now
+        )
+        XCTAssertEqual(signals?.activeCount, 1)
+    }
+
+    func test_reconciled_idleFromALaterWriteEndsTheGreen() {
+        // The turn ended but no `Stop` hook arrived; the live list already saw
+        // the finished transcript, so the bar must not stay green for the whole
+        // staleness window.
+        let now = Date()
+        let lastHookEvent = now.addingTimeInterval(-5)
+        let signals = AgentSignals.reconciled(
+            hook: [session("live", .running, at: lastHookEvent)],
+            polled: [session("live", .idle, at: now, confidence: .inferred)],
+            now: now
+        )
+        XCTAssertFalse(signals?.hasActive ?? false)
+    }
+
+    func test_reconciled_olderIdleDoesNotEndAFreshRunningSession() {
+        // The live list lags behind the hooks; its stale "idle" must not erase
+        // a session the hooks just reported working.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("live", .running, at: now)],
+            polled: [session("live", .idle, at: now.addingTimeInterval(-30), confidence: .inferred)],
+            now: now
+        )
+        XCTAssertEqual(signals?.activeCount, 1)
+    }
+
+    func test_reconciled_neverGatesAWait() {
+        // Waiting states are explicit asks; hiding a pending approval because a
+        // coarse list disagrees would be worse than an extra light.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("ghost", .waitingApproval, at: now)],
+            polled: [],
+            now: now
+        )
+        XCTAssertEqual(signals?.waitingApprovalCount, 1)
+    }
+
+    func test_reconciled_countsSessionsOnlyTheListKnows() {
+        // Hooks installed but quiet for every session they know: a session the
+        // hooks never saw still counts, so a stale hook install does not go dark.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("old", .idle, at: now.addingTimeInterval(-3600))],
+            polled: [session("other", .running, at: now, confidence: .inferred)],
+            now: now
+        )
+        XCTAssertEqual(signals?.activeCount, 1)
+    }
+
+    func test_reconciled_withoutAFreshListTrustsTheHooks() {
+        // No engine / no `codexbar` output: hooks are all we have, and a live
+        // session must not be dropped just because nothing corroborates it.
+        let now = Date()
+        let signals = AgentSignals.reconciled(hook: [session("live", .running, at: now)], polled: [], now: now)
+        XCTAssertEqual(signals?.activeCount, 1)
+    }
+
+    func test_reconciled_nothingAnywhereIsNil() {
+        let now = Date()
+        XCTAssertNil(AgentSignals.reconciled(hook: [], polled: [], now: now))
+        XCTAssertNil(AgentSignals.reconciled(
+            hook: [session("old", .idle, at: now.addingTimeInterval(-3600))],
+            polled: [], now: now))
+    }
+
     func test_signals_fromASingleState() {
         XCTAssertEqual(AgentSignals(state: .running), AgentSignals(activeCount: 1))
         XCTAssertEqual(AgentSignals(state: .waitingApproval), AgentSignals(waitingApprovalCount: 1))

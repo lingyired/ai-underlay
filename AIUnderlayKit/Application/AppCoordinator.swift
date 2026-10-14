@@ -196,6 +196,15 @@ public final class AppCoordinator: ObservableObject {
         }
     }
 
+    /// Short ids of the hook sessions the light currently counts as running.
+    private func runningHookSessionIds() -> String {
+        let now = Date()
+        let ids = reducer.allSessions()
+            .filter { AgentActivityAggregator.effectiveState($0, now: now) == .running }
+            .map { String($0.id.prefix(8)) }
+        return ids.isEmpty ? "-" : ids.joined(separator: ",")
+    }
+
     private func agentSignature() -> String {
         let settings = settings.settings
         guard settings.showAgentEffects else { return "effects-off" }
@@ -222,17 +231,14 @@ public final class AppCoordinator: ObservableObject {
     public func agentSignals(for providerId: String) -> AgentSignals? {
         let now = Date()
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
-        if !hookSessions.isEmpty {
-            let signals = AgentSignals.counting(hookSessions, now: now)
-            // Historical hook sessions can all decay to idle. In that case
-            // they must not permanently suppress a live coarse polling source.
-            // Active hook evidence still takes precedence over inferred states.
-            if !signals.isEmpty { return signals }
-        }
         let polled = agentSessions.filter { $0.provider == providerId }
-        guard !polled.isEmpty else { return nil }
-        let signals = AgentSignals.counting(polled.map(\.asAgentSession), now: now)
-        return signals.isEmpty ? nil : signals
+        // The reconciliation rule lives in the domain so it is testable without
+        // an engine: see `AgentSignals.reconciled(hook:polled:now:)`.
+        return AgentSignals.reconciled(
+            hook: hookSessions,
+            polled: polled.map(\.asAgentSession),
+            now: now
+        )
     }
 
     /// The single state a caller that can only show one should use, e.g. the
@@ -377,7 +383,13 @@ public final class AppCoordinator: ObservableObject {
 
     public func render() {
         let s = settings.settings
-        lastAgentSignature = agentSignature()
+        let signature = agentSignature()
+        if signature != lastAgentSignature {
+            // One line per light change: "which session kept it green" is the
+            // question every false-light report has come down to.
+            Log.write("agent light: \(signature) running-hooks=\(runningHookSessionIds())")
+        }
+        lastAgentSignature = signature
         let theme = themes.activeTheme
 
         if s.previewFixture == nil {
