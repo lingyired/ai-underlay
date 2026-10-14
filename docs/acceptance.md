@@ -8,7 +8,7 @@
 ```bash
 cd /Users/lingsmbp/.codex/worktrees/glass-spectrum/ai-underlay
 xcodegen generate
-Scripts/test.sh                    # expect: 344 tests, 0 failures, 1 skipped
+Scripts/test.sh                    # expect: 345 tests, 0 failures, 1 skipped
 Scripts/check-domain-purity.sh     # expect: OK
 ```
 
