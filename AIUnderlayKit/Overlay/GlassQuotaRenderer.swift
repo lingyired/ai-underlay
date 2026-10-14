@@ -27,6 +27,18 @@ public enum GlassQuotaRenderer {
         return container
     }
 
+    /// Stops the optional ambient drift so a disabled overlay holds no
+    /// animation. The quota fills themselves are static, so this is the only
+    /// animation this renderer owns.
+    public static func stopAnimations(_ lane: CALayer) {
+        guard let glass = LayerSlot.root(named: "quotaGlass", in: lane) else { return }
+        func walk(_ layer: CALayer) {
+            layer.removeAnimation(forKey: "ambientDrift")
+            layer.sublayers?.forEach(walk)
+        }
+        walk(glass)
+    }
+
     /// Idempotent in-place update of a stable tree.
     public static func update(into lane: CALayer, spec: LaneRenderSpec) {
         let geometry = spec.geometry

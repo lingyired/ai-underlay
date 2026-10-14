@@ -135,6 +135,24 @@ final class GlassLayerHostTests: XCTestCase {
         XCTAssertEqual(host.diagnostics.animatedLayerCount, 0)
     }
 
+    /// The tint's optional ambient drift (only on when ambientGlow > 0) is
+    /// owned by the quota renderer, so teardown has to stop it too.
+    func test_teardownAlsoStopsTheTintAmbientDrift() {
+        var glass = ResolvedGlassTheme.default(providerId: "codex")
+        glass.material.ambientGlow = 0.6
+        let host = GlassLayerHost()
+        host.update(spec(glass: glass, signal: ProviderVisualSignal(isRunning: true)))
+        let ambient = host.root.sublayers?.first { $0.name == "quotaGlass" }?
+            .sublayers?.first { $0.name == "tint" }?
+            .sublayers?.first { $0.name == "tintClip" }?
+            .sublayers?.first { $0.name == "tintAmbient" }
+        XCTAssertNotNil(ambient?.animation(forKey: "ambientDrift"))
+
+        host.teardown()
+        XCTAssertNil(ambient?.animation(forKey: "ambientDrift"))
+        XCTAssertEqual(host.diagnostics.animatedLayerCount, 0)
+    }
+
     func test_laneZOrderIsStable() {
         let host = GlassLayerHost()
         host.update(spec(signal: ProviderVisualSignal(isRunning: true, attention: .error)))

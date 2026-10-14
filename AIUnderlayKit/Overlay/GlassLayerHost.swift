@@ -64,6 +64,7 @@ public final class GlassLayerHost {
     /// Leaves the tree in place but stops everything and detaches it, so a
     /// disabled overlay or a removed display holds no animation resources.
     public func teardown() {
+        GlassQuotaRenderer.stopAnimations(root)
         GlassSpectrumRenderer.stopAnimations(root)
         AttentionLightRenderer.stopAnimations(root)
         root.removeFromSuperlayer()
