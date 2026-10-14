@@ -37,4 +37,39 @@ final class SessionCatalogTests: XCTestCase {
     func test_parse_empty() throws {
         XCTAssertTrue(try CodexBarSessionCatalog.parse(Data("[]".utf8)).isEmpty)
     }
+
+    /// CodexBar spawns its own headless `claude` to read quota and reports it as
+    /// a live session. It must never be counted as agent activity, or the
+    /// provider looks busy while the user has nothing running.
+    func test_parse_dropsCodexBarOwnClaudeProbe() throws {
+        let json = """
+        [{"provider":"claude","state":"active","source":"cli","id":"pid:28131",
+          "projectName":"ClaudeProbe",
+          "cwd":"/Users/someone/Library/Application Support/CodexBar/ClaudeProbe",
+          "startedAt":"2026-10-14T04:57:44Z"}]
+        """
+        XCTAssertTrue(try CodexBarSessionCatalog.parse(Data(json.utf8)).isEmpty)
+    }
+
+    /// A probe without its project name is still recognised by its directory.
+    func test_parse_dropsAnySessionInsideCodexBarSupport() throws {
+        let json = """
+        [{"provider":"claude","state":"active","source":"cli","id":"pid:999",
+          "cwd":"/Users/someone/Library/Application Support/CodexBar/ClaudeProbe"}]
+        """
+        XCTAssertTrue(try CodexBarSessionCatalog.parse(Data(json.utf8)).isEmpty)
+    }
+
+    /// The user's own Claude Code session in a normal project must survive.
+    func test_parse_keepsARealClaudeSession() throws {
+        let json = """
+        [{"provider":"claude","sessionName":"修复 Issue 72","projectName":"status-trio",
+          "source":"cli","state":"active","id":"pid:4242",
+          "cwd":"/Users/someone/Documents/aiwork/status-trio"}]
+        """
+        let sessions = try CodexBarSessionCatalog.parse(Data(json.utf8))
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions[0].provider, "claude")
+        XCTAssertEqual(sessions[0].agentState, .running)
+    }
 }
