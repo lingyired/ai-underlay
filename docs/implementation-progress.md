@@ -113,7 +113,7 @@ Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`�
 | P6-7 Unread 输入契约 | PARTIAL | `AgentSignals.unreadCount` 作为输入契约 + fixtures（`agentUnread`/`agentRunningUnread`/`agentAllSignals`）；真实完成账本仍在未合并的 `codex/unread-completion-attention-ribbon` 分支，生产保持 0 |
 | P6-8 NSVisualEffectView 尖刺 | TODO | 默认路径为"渲染玻璃"（不采样桌面）；30 分钟真机模糊/CPU 尖刺未执行 |
 
-Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x）。Total tests: 345 passing
+Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x）。Total tests: 357 passing
 (1 skipped = the opt-in PNG dump), `Scripts/check-domain-purity.sh` OK。
 
 Known limits: 真实 TPS 未接入（光场始终最慢节奏）；Unread 仅 fixtures；
