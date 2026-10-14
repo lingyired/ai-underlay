@@ -192,6 +192,11 @@ public enum AgentActivityAggregator {
 /// (product consensus §4.1). Collapsing them to a `dominant` state is what
 /// made a running spectrum disappear whenever anything was waiting.
 public struct AgentSignals: Equatable, Sendable {
+    /// How recent the live list's `running` claim must be before it may hold a
+    /// hook session open past the hook staleness window. Matches the local
+    /// session reading's own window for a turn that has not ended.
+    public static let liveListRunningWindow: TimeInterval = 900
+
     public var activeCount: Int
         /// Sessions waiting for a permission decision.
         public var waitingApprovalCount: Int
@@ -321,6 +326,12 @@ public struct AgentSignals: Equatable, Sendable {
     /// * the list has written *after* our last hook event for that session and
     ///   still reports it idle, which means the turn really ended.
     ///
+    /// The list can also *hold* a claim open. A long tool call — a build, a
+    /// notarization, a render — writes neither a hook nor a transcript record
+    /// for minutes, so the hook staleness window can expire while the agent is
+    /// still working. When the list reports the same session running and its
+    /// own evidence is fresh, the turn is still open and the light stays on.
+    ///
     /// States that ask the user for something — waiting, approval, error — are
     /// never gated: they are explicit and rare, and hiding one is worse than an
     /// extra light. Sessions the hooks have never seen are still counted, so a
@@ -335,11 +346,30 @@ public struct AgentSignals: Equatable, Sendable {
             return polled.isEmpty ? nil : polled
         }
 
-        var signals = counting(hookSessions, now: now)
+        let polledById = Dictionary(
+            polledSessions.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        // Renew a hook session the list still confirms, so a quiet stretch
+        // inside one long tool call does not turn the light off mid-work.
+        var sessions = hookSessions
+        for index in sessions.indices {
+            let session = sessions[index]
+            guard session.state == .running,
+                  AgentActivityAggregator.effectiveState(session, now: now) != .running,
+                  let entry = polledById[session.id],
+                  entry.state == .running,
+                  now.timeIntervalSince(entry.observedAt) <= liveListRunningWindow else { continue }
+            sessions[index] = AgentSession(
+                id: session.id, providerId: session.providerId, state: session.state,
+                confidence: session.confidence, observedAt: now,
+                pendingQuestion: session.pendingQuestion)
+        }
+
+        var signals = counting(sessions, now: now)
         let hookIds = Set(hookSessions.map(\.id))
         if !polledSessions.isEmpty {
-            let polledById = Dictionary(polledSessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            for session in hookSessions
+            for session in sessions
             where AgentActivityAggregator.effectiveState(session, now: now) == .running {
                 guard let entry = polledById[session.id] else {
                     signals.activeCount = max(0, signals.activeCount - 1)

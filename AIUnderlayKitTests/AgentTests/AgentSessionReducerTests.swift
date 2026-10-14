@@ -343,6 +343,31 @@ final class AgentSessionReducerTests: XCTestCase {
         XCTAssertEqual(signals?.activeCount, 1)
     }
 
+    func test_reconciled_quietLongToolCallStaysRunningWhileTheListConfirmsIt() {
+        // A build or a notarization writes no hook and no transcript record for
+        // minutes; the hook goes stale while the agent is still working. The
+        // list's reading of the same session is the evidence that keeps it on.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("live", .running, at: now.addingTimeInterval(-600))],
+            polled: [session("live", .running, at: now.addingTimeInterval(-240), confidence: .inferred)],
+            now: now
+        )
+        XCTAssertEqual(signals?.activeCount, 1)
+    }
+
+    func test_reconciled_aStaleRunningClaimFromTheListDoesNotHoldTheLight() {
+        // The list's own evidence is old: the session has not been written to
+        // for over the window, so an open-looking turn proves nothing now.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("live", .running, at: now.addingTimeInterval(-3600))],
+            polled: [session("live", .running, at: now.addingTimeInterval(-1800), confidence: .inferred)],
+            now: now
+        )
+        XCTAssertFalse(signals?.hasActive ?? false)
+    }
+
     func test_reconciled_neverGatesAWait() {
         // Waiting states are explicit asks; hiding a pending approval because a
         // coarse list disagrees would be worse than an extra light.

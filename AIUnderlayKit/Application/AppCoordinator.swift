@@ -34,9 +34,11 @@ public final class AppCoordinator: ObservableObject {
     private var agentReceiver: AgentEventReceiver?
     private let reducer = AgentSessionReducer()
     private let agentStateStore = AgentStateStore()
+    private let codexLocalSessions = CodexLocalSessionReader()
     private var sessionTimer: Timer?
     private var lastAgentSignature: String?
-    /// Live agent sessions from CodexBar, keyed by provider (dominant state).
+    private var lastSessionSignature: String?
+    /// Live agent sessions: the local rollout reading merged with CodexBar's.
     public private(set) var agentSessions: [AgentSessionInfo] = []
 
     /// Providers shown in the overlay and dashboard.
@@ -172,8 +174,10 @@ public final class AppCoordinator: ObservableObject {
         return liveSnapshots
     }
 
-    /// Polls `codexbar sessions` for live agent sessions. This works without any
-/// hook installation and covers Codex and Claude Code.
+    /// Polls for live agent sessions: Codex straight from its local rollout
+    /// files (complete, unlike `codexbar sessions`, which misses long-lived
+    /// sessions living in old date directories), everything else from
+    /// `codexbar sessions`. Works without any hook installation.
     public func startSessionPolling() {
         sessionTimer?.invalidate()
         Task { @MainActor in await self.pollSessions() }
@@ -183,10 +187,28 @@ public final class AppCoordinator: ObservableObject {
     }
 
     private func pollSessions() async {
+        var polled: [AgentSessionInfo] = []
         if let engine = engineManager.activeEngine as? AgentSessionEngine,
            let sessions = try? await engine.listAgentSessions() {
-            agentSessions = sessions
+            polled = sessions
+        }
+        let local = await codexLocalSessions.sessions()
+        let merged = CodexSessionMerge.merged(local: local, polled: polled)
+        if merged != agentSessions {
+            agentSessions = merged
             dataRevision += 1
+        }
+        // Log only the shape (ids and states), not the timestamps that move on
+        // every write, so a busy session does not flood the log.
+        let sessionSignature = merged
+            .map { "\($0.id.prefix(8)):\($0.state)" }
+            .joined(separator: ",")
+        if sessionSignature != lastSessionSignature {
+            lastSessionSignature = sessionSignature
+            let running = merged.filter { $0.agentState == .running }
+                .map { String($0.id.prefix(8)) }.joined(separator: ",")
+            Log.write("agent sessions: local=\(local.count) codexbar=\(polled.count) "
+                + "merged=\(merged.count) running=\(running.isEmpty ? "-" : running)")
         }
         // The staleness rule needs a periodic tick, but rendering every tick
         // rebuilds the band layer tree and restarts running/pulse animations.
