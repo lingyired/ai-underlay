@@ -1,8 +1,9 @@
 import XCTest
 @testable import AIUnderlayKit
 
-/// The spectrum's rhythm and bar shapes are pure math, so they are pinned here
-/// rather than eyeballed in the menu bar.
+/// The Glass Spectrum tempo is pure math, so it is pinned here rather than
+/// eyeballed in the menu bar. Speed changes rhythm only — never colour, never
+/// brightness — and no measurement still means motion.
 final class SpectrumRhythmTests: XCTestCase {
 
     func test_frequency_unknownSpeedUsesTheFloor() {
@@ -40,66 +41,23 @@ final class SpectrumRhythmTests: XCTestCase {
 
     func test_tempo_isNotSluggish() {
         // Speed is usually unmeasured, so the floor *is* the tempo on screen.
-        // It read as sluggish at ~5.6s per cycle; keep it under three.
         XCTAssertLessThanOrEqual(SpectrumRhythm.cycleDuration(outputTPS: nil), 3.0)
         XCTAssertGreaterThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.0)
         // Still a rhythm, not a strobe.
         XCTAssertLessThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.5)
     }
 
-    func test_keyframes_areDenseEnoughForTheFasterTempo() {
-        // Facets show when a fast cycle has too few samples, especially for the
-        // bars whose wave runs at double speed.
-        XCTAssertGreaterThanOrEqual(SpectrumRhythm.keyframeValues(index: 0).count, 12)
-    }
-
-    func test_barOffsets_spacingIsEvenAndInsideTheFill() {
-        let width: CGFloat = 200
-        let offsets = SpectrumRhythm.barOffsets(width: width, growsTowardRight: true)
-        XCTAssertGreaterThan(offsets.count, 10)
-        let period = SpectrumRhythm.barWidth + SpectrumRhythm.barGap
-        for (previous, next) in zip(offsets, offsets.dropFirst()) {
-            XCTAssertEqual(next - previous, period, accuracy: 0.0001)
-        }
-        XCTAssertGreaterThanOrEqual(offsets.first!, SpectrumRhythm.barWidth / 2)
-        XCTAssertLessThanOrEqual(offsets.last!, width - SpectrumRhythm.barWidth / 2)
-    }
-
-    func test_barOffsets_mirrorWhenTheBarGrowsTowardTheLeft() {
-        let width: CGFloat = 200
-        let right = SpectrumRhythm.barOffsets(width: width, growsTowardRight: true)
-        let left = SpectrumRhythm.barOffsets(width: width, growsTowardRight: false)
-        XCTAssertEqual(left.count, right.count)
-        for (mirrored, forward) in zip(left, right) {
-            XCTAssertEqual(mirrored, width - forward, accuracy: 0.0001)
-        }
-    }
-
-    func test_barOffsets_tooNarrowForABarDrawNothing() {
-        XCTAssertTrue(SpectrumRhythm.barOffsets(width: 0.5, growsTowardRight: true).isEmpty)
-    }
-
-    func test_keyframeValues_areBoundedCountedAndDeterministic() {
-        let values = SpectrumRhythm.keyframeValues(index: 3, steps: 8)
-        XCTAssertEqual(values.count, 8)
-        for value in values {
-            XCTAssertGreaterThanOrEqual(value, SpectrumRhythm.minimumHeightFactor)
-            XCTAssertLessThanOrEqual(value, 1)
-        }
-        XCTAssertEqual(values, SpectrumRhythm.keyframeValues(index: 3, steps: 8))
-    }
-
-    func test_keyframeValues_differBetweenNeighbouringBars() {
-        XCTAssertNotEqual(SpectrumRhythm.keyframeValues(index: 0),
-                          SpectrumRhythm.keyframeValues(index: 1))
-    }
-
-    func test_wave_speedsAreWholeCyclesSoTheLoopIsSeamless() {
+    func test_wave_isDeterministicAndBounded() {
         for index in 0..<32 {
             let wave = SpectrumRhythm.wave(index: index)
             XCTAssertTrue(wave.speed >= 1 && wave.speed <= 2)
             XCTAssertGreaterThan(wave.amplitude, 0)
             XCTAssertLessThanOrEqual(wave.amplitude, 1)
+            XCTAssertEqual(wave, SpectrumRhythm.wave(index: index))
         }
+    }
+
+    func test_wave_differsBetweenNeighbouringRays() {
+        XCTAssertNotEqual(SpectrumRhythm.wave(index: 0), SpectrumRhythm.wave(index: 1))
     }
 }
