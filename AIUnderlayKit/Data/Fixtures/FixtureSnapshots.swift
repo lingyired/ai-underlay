@@ -6,11 +6,20 @@ public enum FixtureSnapshots {
     public static let allKeys = [
         "full", "weekLow", "sessionLow", "allZero", "missing",
         "stale", "reset", "agentRunning", "agentWaiting", "agentError",
-        "agentRunningWaiting", "agentRunningError", "notchless",
+        "agentRunningWaiting", "agentRunningError", "agentUnread",
+        "agentRunningUnread", "agentAllSignals", "glassV5", "notchless",
     ]
 
     /// Windows for a named fixture, longest-first.
+    ///
+    /// Some fixtures carry different values per provider (the V5 selected
+    /// quotas); everything else is provider-independent, so the provider
+    /// parameter defaults to the codex values.
     public static func windows(for key: String) -> [QuotaWindow] {
+        windows(for: key, providerId: "codex")
+    }
+
+    public static func windows(for key: String, providerId: String) -> [QuotaWindow] {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         func window(
             _ id: String, _ label: String, _ kind: QuotaWindowKind, _ seconds: TimeInterval,
@@ -27,6 +36,13 @@ public enum FixtureSnapshots {
         }
 
         switch key {
+        case "glassV5":
+            // The user's exported V5 numbers, verbatim: the nested inner length
+            // is the real product (82%×55% = 45.1%, 67%×36% = 24.12%).
+            let weekly = providerId == "claude" ? 0.67 : 0.82
+            let fiveHour = providerId == "claude" ? 0.36 : 0.55
+            return [window("w", "Weekly", .weekly, 604800, weekly, expected: 0.6, resetIn: 604800),
+                    window("s", "5h", .session, 18000, fiveHour, expected: 0.4, resetIn: 18000)]
         case "full":
             return [window("w", "Weekly", .weekly, 604800, 1.0, expected: 0.6, resetIn: 604800),
                     window("s", "5h", .session, 18000, 1.0, expected: 0.4, resetIn: 18000)]
@@ -49,7 +65,8 @@ public enum FixtureSnapshots {
         case "reset":
             return [window("w", "Weekly", .weekly, 604800, 0.99, expected: 0.2, resetIn: 604800),
                     window("s", "5h", .session, 18000, 0.95, expected: 0.2, resetIn: 18000)]
-        case "agentRunning", "agentWaiting", "agentError", "agentRunningWaiting", "agentRunningError":
+        case "agentRunning", "agentWaiting", "agentError", "agentRunningWaiting", "agentRunningError",
+             "agentUnread", "agentRunningUnread", "agentAllSignals":
             return [window("w", "Weekly", .weekly, 604800, 0.6, expected: 0.5, resetIn: 604800),
                     window("s", "5h", .session, 18000, 0.6, expected: 0.4, resetIn: 18000)]
         case "notchless":

@@ -1,21 +1,24 @@
 import CoreGraphics
 
-/// An sRGB color with alpha, Codable so palettes persist with settings.
-public struct RGBAColor: Codable, Sendable, Equatable {
-    public var red: Double
-    public var green: Double
-    public var blue: Double
-    public var alpha: Double
-
-    public init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
-        self.red = red
-        self.green = green
-        self.blue = blue
-        self.alpha = alpha
+/// The deterministic brightness ladder for nested quota tiers.
+///
+/// A theme may name one base colour; the tiers then derive from it with fixed
+/// factors so the outer (longest) window is visibly darker than the inner
+/// ones. This is a pure function, pinned by tests — it never changes a length.
+public enum QuotaTierPalette {
+    /// Brightness factors, outermost → innermost, for a given tier count.
+    /// One tier renders at full brightness; with more tiers the outermost
+    /// drops to 0.52 and the innermost stays 1.0.
+    public static func factors(count: Int) -> [Double] {
+        guard count > 1 else { return Array(repeating: 1, count: max(count, 0)) }
+        return (0..<count).map { index in
+            0.52 + 0.48 * (Double(index) / Double(count - 1))
+        }
     }
 
-    public var cgColor: CGColor {
-        CGColor(red: red, green: green, blue: blue, alpha: alpha)
+    /// Tier colours for a base colour, outermost → innermost.
+    public static func derive(base: RGBAColor, count: Int) -> [RGBAColor] {
+        factors(count: count).map { base.scaled(by: $0) }
     }
 }
 
@@ -29,7 +32,8 @@ public struct ProviderPalette: Codable, Sendable, Equatable {
     public var middle: RGBAColor
     /// Shortest window.
     public var inner: RGBAColor
-    /// Backing groove. A dark translucent black reads on any wallpaper.
+    /// Neutral bed for a lane with no known data. A dark translucent black
+    /// reads on any wallpaper; it is never used to fake a 0% quota.
     public var track: RGBAColor
     /// Baseline marker.
     public var baseline: RGBAColor
@@ -60,20 +64,35 @@ public struct ProviderPalette: Codable, Sendable, Equatable {
         }
     }
 
-    /// Codex: cool blue/violet family.
-    public static let codex = ProviderPalette(
+    /// The exact colours a lane with `count` known windows should draw,
+    /// outermost → innermost. With two windows this is the V5 look: a dim
+    /// outer fill and a fully bright inner fill.
+    public func tierColors(forWindowCount count: Int) -> [RGBAColor] {
+        guard count > 0 else { return [] }
+        switch count {
+        case 1: return [inner]
+        case 2: return [outer, inner]
+        default: return (0..<count).map { color(forTier: $0) }
+        }
+    }
+
+    /// Builds a palette from the V5 base colours: the quotas' tier ladder is
+    /// derived deterministically, never hand-tuned per provider.
+    public static func derived(providerId: String, base: RGBAColor) -> ProviderPalette {
+        let tiers = QuotaTierPalette.derive(base: base, count: 3)
+        return ProviderPalette(providerId: providerId, outer: tiers[0], middle: tiers[1], inner: tiers[2])
+    }
+
+    /// Codex: the V5 ice-blue base (`#69BFFF`).
+    public static let codex = ProviderPalette.derived(
         providerId: "codex",
-        outer: RGBAColor(red: 0.30, green: 0.40, blue: 0.85),
-        middle: RGBAColor(red: 0.42, green: 0.52, blue: 0.95),
-        inner: RGBAColor(red: 0.58, green: 0.68, blue: 1.00)
+        base: RGBAColor(red: 0x69 / 255, green: 0xBF / 255, blue: 0xFF / 255)
     )
 
-    /// Claude Code: warm terracotta/orange family.
-    public static let claude = ProviderPalette(
+    /// Claude Code: the V5 soft-copper base (`#FFB08A`).
+    public static let claude = ProviderPalette.derived(
         providerId: "claude",
-        outer: RGBAColor(red: 0.80, green: 0.42, blue: 0.25),
-        middle: RGBAColor(red: 0.90, green: 0.55, blue: 0.34),
-        inner: RGBAColor(red: 0.97, green: 0.68, blue: 0.48)
+        base: RGBAColor(red: 0xFF / 255, green: 0xB0 / 255, blue: 0x8A / 255)
     )
 
     /// Neutral fallback for unknown providers.

@@ -25,4 +25,24 @@ final class FixtureSnapshotsTests: XCTestCase {
             XCTAssertFalse(FixtureSnapshots.windows(for: key).isEmpty)
         }
     }
+
+    /// The unread fixtures exist so the green light can be looked at offline
+    /// even though production keeps `unreadCount` at 0 until the completion
+    /// ledger lands in main.
+    func test_unreadFixturesExistForTheOfflineMatrix() {
+        for key in ["agentUnread", "agentRunningUnread", "agentAllSignals"] {
+            XCTAssertTrue(FixtureSnapshots.allKeys.contains(key))
+            XCTAssertFalse(FixtureSnapshots.windows(for: key).isEmpty)
+        }
+    }
+
+    /// The V5 preview must carry the user's exported numbers per provider:
+    /// codex 82/55 and claude 67/36, so the preview shows the real nesting.
+    func test_glassV5FixtureCarriesTheSelectedNumbersPerProvider() {
+        XCTAssertTrue(FixtureSnapshots.allKeys.contains("glassV5"))
+        let codex = FixtureSnapshots.windows(for: "glassV5", providerId: "codex")
+        XCTAssertEqual(codex.map { $0.remainingFraction ?? -1 }, [0.82, 0.55])
+        let claude = FixtureSnapshots.windows(for: "glassV5", providerId: "claude")
+        XCTAssertEqual(claude.map { $0.remainingFraction ?? -1 }, [0.67, 0.36])
+    }
 }
