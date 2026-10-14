@@ -2,10 +2,11 @@ import XCTest
 @testable import AIUnderlayKit
 
 /// The resolver is the boundary between "what a theme says" and "how it draws".
-/// It must fill in only what the theme names, and it must never touch which
-/// state wins — that is `AgentEffectStyle`'s job.
+/// It must fill in only what the theme names, keep the three colour roles
+/// separate, and never touch which state wins.
 final class ThemeResolverTests: XCTestCase {
-    private let theme = ThemeDocument(
+    private let v1Theme = ThemeDocument(
+        schemaVersion: 1,
         id: "t",
         name: "T",
         global: .init(trackColor: "#102030", trackOpacity: 0.5, baselineColor: "#ABCDEF", baselineOpacity: 0.25),
@@ -19,68 +20,180 @@ final class ThemeResolverTests: XCTestCase {
         ]
     )
 
-    func test_paletteTakesOnlyTheFieldsTheThemeNames() {
-        let base = ProviderPalette.codex
-        let resolved = ThemeResolver.palette(theme: theme, providerId: "codex", base: base)
+    private let v2Theme = ThemeDocument(
+        schemaVersion: 2,
+        id: "v2",
+        name: "V2",
+        global: .init(baselineColor: "#FFFFFF", exhaustedTrackColor: "#000000", exhaustedTrackOpacity: 0.9),
+        providers: [
+            "codex": .init(quotaBaseColor: "#00FF00", agentThemeColor: "#FF00FF"),
+        ],
+        signals: .init(
+            running: .init(lightColor: "#123456"),
+            error: .init(lightColor: "#654321")
+        ),
+        material: .init(ambientGlow: 0.5, rayDensity: 0.4),
+        attention: .init(bottomRibbonHeight: 8, sweepSecondsError: 12)
+    )
+
+    // MARK: - Palette
+
+    func test_v1PaletteTakesOnlyTheFieldsTheThemeNames() {
+        let resolved = ThemeResolver.palette(theme: v1Theme, providerId: "codex", base: .codex)
         XCTAssertEqual(resolved.outer, RGBAColor(red: 0x11 / 255.0, green: 0x11 / 255.0, blue: 0x11 / 255.0))
         XCTAssertEqual(resolved.middle, RGBAColor(red: 0x22 / 255.0, green: 0x22 / 255.0, blue: 0x22 / 255.0))
         XCTAssertEqual(resolved.inner, RGBAColor(red: 0x33 / 255.0, green: 0x33 / 255.0, blue: 0x33 / 255.0))
         XCTAssertEqual(resolved.track.alpha, 0.5, accuracy: 0.0001)
         XCTAssertEqual(resolved.baseline.alpha, 0.25, accuracy: 0.0001)
 
-        // A provider the theme does not name keeps its own quota colors...
-        let claude = ThemeResolver.palette(theme: theme, providerId: "claude", base: .claude)
+        // A provider the theme does not name keeps its own quota colours...
+        let claude = ThemeResolver.palette(theme: v1Theme, providerId: "claude", base: .claude)
         XCTAssertEqual(claude.outer, ProviderPalette.claude.outer)
-        XCTAssertEqual(claude.middle, ProviderPalette.claude.middle)
-        // ...while `global` tokens apply to the whole strip, so they do land.
+        // ...while global tokens apply to the whole strip.
         XCTAssertEqual(claude.track.alpha, 0.5, accuracy: 0.0001)
     }
 
-    func test_paletteWithoutThemeIsTheBasePalette() {
+    func test_v2QuotaBaseColor_derivesAVisibleTierLadder() {
+        let resolved = ThemeResolver.palette(theme: v2Theme, providerId: "codex", base: .codex)
+        let base = RGBAColor(hex: "#00FF00")!
+        XCTAssertEqual(resolved.inner, base)
+        XCTAssertLessThan(resolved.outer.luminance, resolved.inner.luminance)
+        XCTAssertGreaterThan(resolved.outer.luminance, 0, "the derived tier is not black")
+    }
+
+    func test_userQuotaColorOutranksTheTheme() {
+        let appearance = GlassAppearance(quotaBaseColors: ["codex": "#FF0000"])
+        let resolved = ThemeResolver.palette(theme: v2Theme, providerId: "codex", base: .codex, appearance: appearance)
+        XCTAssertEqual(resolved.inner, RGBAColor(hex: "#FF0000"))
+    }
+
+    func test_noThemeIsTheV5BasePalette() {
         XCTAssertEqual(ThemeResolver.palette(theme: nil, providerId: "codex", base: .codex), .codex)
+        XCTAssertEqual(ProviderPalette.codex.inner, RGBAColor(hex: "#69BFFF")!)
+        XCTAssertEqual(ProviderPalette.claude.inner, RGBAColor(hex: "#FFB08A")!)
     }
 
-    func test_paletteWithASingleLayerFillsEveryTier() {
-        let single = ThemeDocument(id: "s", name: "S", providers: ["codex": .init(quotaLayers: ["#000000"])])
-        let resolved = ThemeResolver.palette(theme: single, providerId: "codex", base: .codex)
-        XCTAssertEqual(resolved.outer, resolved.middle)
-        XCTAssertEqual(resolved.middle, resolved.inner)
+    // MARK: - Agent glass tint
+
+    func test_agentThemeDefaultsAreTheUsersV5Selection() {
+        let codex = ThemeResolver.glassTheme(theme: nil, providerId: "codex", base: .codex)
+        let claude = ThemeResolver.glassTheme(theme: nil, providerId: "claude", base: .claude)
+        XCTAssertEqual(codex.agentThemeColor, RGBAColor(hex: "#62AC96"))
+        XCTAssertEqual(claude.agentThemeColor, RGBAColor(hex: "#FFFFFF"))
     }
 
-    func test_effectsCarryWaitingAndErrorAppearance() {
-        let effects = ThemeResolver.effects(theme: theme, providerId: "codex")
-        XCTAssertEqual(effects?.runningColor?.alpha ?? 0, 0.5, accuracy: 0.0001)
-        XCTAssertEqual(effects?.waitingBorderWidth, 3)
-        XCTAssertEqual(effects?.errorBorderWidth, nil)
-        XCTAssertNotNil(effects?.waitingOverlay)
-        XCTAssertNotNil(effects?.errorOverlay)
+    func test_agentTheme_precedenceUserThenThemeThenDefault() {
+        let fromTheme = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex)
+        XCTAssertEqual(fromTheme.agentThemeColor, RGBAColor(hex: "#FF00FF"))
+
+        let appearance = GlassAppearance(agentThemeColors: ["codex": "#123123"])
+        let fromUser = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex,
+                                                appearance: appearance)
+        XCTAssertEqual(fromUser.agentThemeColor, RGBAColor(hex: "#123123"))
     }
 
-    func test_effectsAreNilWhenTheThemeNamesNothing() {
-        let empty = ThemeDocument(id: "e", name: "E")
-        XCTAssertNil(ThemeResolver.effects(theme: empty, providerId: "codex"))
-        XCTAssertNil(ThemeResolver.effects(theme: nil, providerId: "codex"))
+    func test_agentThemeIsPerProvider() {
+        let codex = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex)
+        let claude = ThemeResolver.glassTheme(theme: v2Theme, providerId: "claude", base: .claude)
+        XCTAssertEqual(claude.agentThemeColor, GlassDefaults.claudeAgentTheme)
+        XCTAssertNotEqual(codex.agentThemeColor, claude.agentThemeColor)
     }
 
-    /// A theme that only describes Waiting can never repaint a failure: the
-    /// priority lives in code, not in the file.
-    func test_themeCannotRepaintAHigherPriorityState() {
-        let waitingOnly = ThemeDocument(
-            id: "w", name: "W",
-            states: ["waiting": .init(overlayColor: "#00FF00", borderColor: "#00FF00")]
+    func test_invalidUserHexIsIgnored_notRenderedAsBlack() {
+        let appearance = GlassAppearance(agentThemeColors: ["codex": "not-a-colour"])
+        let resolved = ThemeResolver.glassTheme(theme: nil, providerId: "codex", base: .codex, appearance: appearance)
+        XCTAssertEqual(resolved.agentThemeColor, GlassDefaults.codexAgentTheme)
+    }
+
+    // MARK: - Signals
+
+    func test_signalsDefaultsAreTheV5Lights() {
+        let glass = ThemeResolver.glassTheme(theme: nil, providerId: "codex", base: .codex)
+        XCTAssertEqual(glass.signalLights.running, RGBAColor(hex: "#D9EEFF"))
+        XCTAssertEqual(glass.signalLights.error, RGBAColor(hex: "#FF7596"))
+        XCTAssertEqual(glass.signalLights.waiting, RGBAColor(hex: "#FFE1A0"))
+        XCTAssertEqual(glass.signalLights.unread, RGBAColor(hex: "#64F1BD"))
+    }
+
+    func test_v2SignalsAreGlobalAndPerKind() {
+        let codex = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex)
+        let claude = ThemeResolver.glassTheme(theme: v2Theme, providerId: "claude", base: .claude)
+        XCTAssertEqual(codex.signalLights.running, RGBAColor(hex: "#123456"))
+        XCTAssertEqual(codex.signalLights.error, RGBAColor(hex: "#654321"))
+        XCTAssertEqual(claude.signalLights.running, codex.signalLights.running,
+                       "signal lights are global semantics, not per provider")
+        // A kind the theme did not name keeps the V5 default.
+        XCTAssertEqual(codex.signalLights.waiting, GlassDefaults.signalLights.waiting)
+    }
+
+    func test_userSignalColorOutranksEverything() {
+        let appearance = GlassAppearance(signalColors: ["error": "#00FFFF"])
+        let resolved = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex,
+                                                appearance: appearance)
+        XCTAssertEqual(resolved.signalLights.error, RGBAColor(hex: "#00FFFF"))
+    }
+
+    /// Legacy v1 mapping: `states.waiting` / `states.error` collapse to one
+    /// light each, taking the old ribbon colour first.
+    func test_v1StatesMapToSignalLights() {
+        let resolved = ThemeResolver.glassTheme(theme: v1Theme, providerId: "codex", base: .codex)
+        XCTAssertEqual(resolved.signalLights.waiting, RGBAColor(hex: "#FFE15C"))
+        XCTAssertEqual(resolved.signalLights.error, RGBAColor(hex: "#FF526A"))
+    }
+
+    func test_v1SpectrumColor_mapsToTheRunningLightOnlyWhenUnambiguous() {
+        let single = ThemeResolver.glassTheme(theme: v1Theme, providerId: "codex", base: .codex)
+        XCTAssertEqual(single.signalLights.running, RGBAColor(hex: "#D5F6FF"))
+
+        let ambiguous = ThemeDocument(
+            schemaVersion: 1, id: "a", name: "A",
+            providers: [
+                "codex": .init(spectrumColor: "#111111"),
+                "claude": .init(spectrumColor: "#222222"),
+            ]
         )
-        let theme = ThemeResolver.effects(theme: waitingOnly, providerId: "codex")
-        let error = AgentEffectStyle.style(for: .error, runningColor: nil, theme: theme)
-        XCTAssertEqual(error?.color, AgentEffectStyle.defaultColor(for: .error))
-        XCTAssertEqual(error?.borderColor, AgentEffectStyle.failureBorder)
-        let waiting = AgentEffectStyle.style(for: .waitingInput, runningColor: nil, theme: theme)
-        XCTAssertEqual(waiting?.borderColor, RGBAColor(red: 0, green: 1, blue: 0))
+        let resolved = ThemeResolver.glassTheme(theme: ambiguous, providerId: "codex", base: .codex)
+        XCTAssertEqual(resolved.signalLights.running, GlassDefaults.signalLights.running,
+                       "two different provider colours must not be merged into one state semantic")
     }
 
-    func test_explicitUserColorBeatsTheTheme() {
-        let explicit = RGBAColor(red: 0.9, green: 0.1, blue: 0.2)
-        let style = AgentEffectStyle.style(for: .running, runningColor: explicit,
-                                           theme: ThemeResolver.effects(theme: theme, providerId: "codex"))
-        XCTAssertEqual(style?.color, explicit)
+    // MARK: - Material & attention
+
+    func test_materialPrecedenceDefaultThemeUser() {
+        let themeOnly = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex)
+        XCTAssertEqual(themeOnly.material.rayDensity, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(themeOnly.material.ambientGlow, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(themeOnly.material.quotaOpacity, 1.0, accuracy: 0.0001, "unnamed fields keep V5 defaults")
+
+        let appearance = GlassAppearance(material: GlassMaterialOverrides(rayDensity: 0.7))
+        let user = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex, appearance: appearance)
+        XCTAssertEqual(user.material.rayDensity, 0.7, accuracy: 0.0001, "the user's edit wins")
+        XCTAssertEqual(user.material.ambientGlow, 0.5, accuracy: 0.0001, "other fields still follow the theme")
+    }
+
+    func test_materialIsClampedEvenFromASettingsFile() {
+        let appearance = GlassAppearance(material: GlassMaterialOverrides(rayDensity: 5, agentThemeStrength: -2))
+        let resolved = ThemeResolver.glassTheme(theme: nil, providerId: "codex", base: .codex, appearance: appearance)
+        XCTAssertEqual(resolved.material.rayDensity, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(resolved.material.agentThemeStrength, 0, accuracy: 0.0001)
+    }
+
+    func test_attentionGeometryFromThemeIsClamped() {
+        let resolved = ThemeResolver.glassTheme(theme: v2Theme, providerId: "codex", base: .codex)
+        XCTAssertEqual(resolved.attention.bottomRibbonHeight, 8, accuracy: 0.0001)
+        XCTAssertEqual(resolved.attention.sweepSecondsError, 12, accuracy: 0.0001)
+        XCTAssertEqual(resolved.attention.topLineHeight, 2, accuracy: 0.0001, "unnamed fields keep V5 defaults")
+    }
+
+    func test_exhaustedTrack_defaultsToOpaqueBlack() {
+        let resolved = ThemeResolver.glassTheme(theme: nil, providerId: "codex", base: .codex)
+        XCTAssertEqual(resolved.exhaustedTrack, RGBAColor(red: 0, green: 0, blue: 0, alpha: 1))
+    }
+
+    func test_baselineEnabledNeverTurnsOnAgainstTheUser() {
+        let off = ThemeDocument(schemaVersion: 2, id: "b", name: "B",
+                                global: .init(baselineEnabled: false))
+        XCTAssertFalse(ThemeResolver.glassTheme(theme: off, providerId: "codex", base: .codex).showsBaseline)
+        XCTAssertTrue(ThemeResolver.glassTheme(theme: nil, providerId: "codex", base: .codex).showsBaseline)
     }
 }

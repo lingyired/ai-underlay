@@ -30,25 +30,7 @@ public struct AppearanceTab: View {
                 Toggle("启用覆盖层", isOn: binding(\.overlayEnabled))
                 Toggle("显示基准线", isOn: binding(\.showBaseline))
                 Toggle("显示 Agent 动效", isOn: binding(\.showAgentEffects))
-                Picker("运行中动效", selection: binding(\.runningEffect)) {
-                    Text("呼吸灯").tag(RunningEffect.breathing)
-                    Text("扫光").tag(RunningEffect.sweep)
-                    Text("端点脉冲").tag(RunningEffect.dot)
-                    Text("频谱柱").tag(RunningEffect.spectrum)
-                    Text("光谱辉光 · Spectrum Glow").tag(RunningEffect.spectrumGlow)
-                    Text("无").tag(RunningEffect.none)
-                }
-                .disabled(!store.settings.showAgentEffects)
-                Picker("运行中颜色", selection: binding(\.runningEffectColor)) {
-                    Text("跟随主题").tag(RunningEffectColor.theme)
-                    Text("绿（工作中）").tag(RunningEffectColor.green)
-                    Text("白").tag(RunningEffectColor.white)
-                    Text("蓝").tag(RunningEffectColor.blue)
-                    Text("橙").tag(RunningEffectColor.orange)
-                    Text("紫").tag(RunningEffectColor.purple)
-                }
-                .disabled(!store.settings.showAgentEffects)
-                Text("状态靠颜色区分：运行=绿、等待=琥珀/橙、错误=红、完成=青。此处只改“运行中”的颜色。")
+                Text("只有一套视觉引擎：Glass Spectrum（玻璃光谱）。运行时光幕移动，error > waiting > unread 用统一结构的状态灯带提示；颜色、材质与状态灯色都在“主题”页配置。")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("减弱动效", isOn: binding(\.reduceMotion))
                 Toggle("显示菜单栏图标", isOn: binding(\.statusItemVisible))

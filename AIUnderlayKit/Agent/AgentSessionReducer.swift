@@ -203,6 +203,14 @@ public struct AgentSignals: Equatable, Sendable {
     /// Unknown / reconnecting sessions: never promoted to a definite state,
     /// and never on their own a reason to show a failure.
     public var unknownCount: Int
+    /// **Unread completions, from the durable completion ledger only.**
+    ///
+    /// This is an input contract, not a derived value: nothing may compute it
+    /// from `completedCount` (which is a transient acknowledgement and decays
+    /// after 20 s). Until the completion-inbox ledger is merged into `main`,
+    /// production keeps this at 0 and only fixtures set it — so a green
+    /// "unread" light can never be fabricated.
+    public var unreadCount: Int
 
     public init(
         activeCount: Int = 0,
@@ -210,7 +218,8 @@ public struct AgentSignals: Equatable, Sendable {
             waitingInputCount: Int = 0,
         errorCount: Int = 0,
         completedCount: Int = 0,
-        unknownCount: Int = 0
+        unknownCount: Int = 0,
+        unreadCount: Int = 0
     ) {
         self.activeCount = activeCount
             self.waitingApprovalCount = waitingApprovalCount
@@ -218,6 +227,7 @@ public struct AgentSignals: Equatable, Sendable {
         self.errorCount = errorCount
         self.completedCount = completedCount
         self.unknownCount = unknownCount
+        self.unreadCount = unreadCount
     }
 
         /// Any session waiting on the user, either flavor.
@@ -226,9 +236,10 @@ public struct AgentSignals: Equatable, Sendable {
     public var hasActive: Bool { activeCount > 0 }
     public var hasWaiting: Bool { waitingCount > 0 }
     public var hasError: Bool { errorCount > 0 }
+    public var hasUnread: Bool { unreadCount > 0 }
     public var isEmpty: Bool {
         activeCount == 0 && waitingCount == 0 && errorCount == 0
-            && completedCount == 0 && unknownCount == 0
+            && completedCount == 0 && unknownCount == 0 && unreadCount == 0
     }
 
     /// The highest-priority state, for callers that can only show one
@@ -255,6 +266,19 @@ public struct AgentSignals: Equatable, Sendable {
         case .unknown, .reconnecting: unknownCount = 1
         case .idle: break
         }
+    }
+
+    /// The signal dimensions the visual engine consumes, with the fixed
+    /// priority `error > waiting > unread > none` applied here — the one place
+    /// that decides which attention channel a provider is in.
+    ///
+    /// `completedCount` is deliberately *not* consulted: a transient
+    /// completion is not a durable unread receipt.
+    public var visualSignal: ProviderVisualSignal {
+        ProviderVisualSignal(
+            isRunning: hasActive,
+            attention: hasError ? .error : hasWaiting ? .waiting : hasUnread ? .unread : .none
+        )
     }
 
     /// Counts a session list into the four dimensions.

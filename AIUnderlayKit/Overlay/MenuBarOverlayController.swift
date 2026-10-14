@@ -1,76 +1,20 @@
 import AppKit
 
-/// What to draw for one provider on one side.
-public struct GaugePresentation: Sendable {
-    public var windows: [QuotaWindow]
-    public var palette: ProviderPalette
-    public var baseline: BaselineSpec?
-    /// What this provider's sessions are doing, as independent dimensions, so
-    /// "waiting" and "still working" can both be true at once.
-    public var agentSignals: AgentSignals?
-    public var showAgentEffects: Bool
-    public var reduceMotion: Bool
-    public var runningEffect: RunningEffect
-    public var runningColor: RGBAColor?
-    /// Optional measured response throughput. Nil keeps the low-speed fallback;
-    /// callers must never synthesize throughput when no source exists.
-    public var outputTPS: Double?
-    /// Appearance overrides from the active theme, if any.
-    public var effectTheme: AgentEffectTheme?
-
-    public init(
-        windows: [QuotaWindow],
-        palette: ProviderPalette,
-        baseline: BaselineSpec? = nil,
-        agentSignals: AgentSignals? = nil,
-        showAgentEffects: Bool = true,
-        reduceMotion: Bool = false,
-        runningEffect: RunningEffect = .breathing,
-        runningColor: RGBAColor? = nil,
-        outputTPS: Double? = nil,
-        effectTheme: AgentEffectTheme? = nil
-    ) {
-        self.windows = windows
-        self.palette = palette
-        self.baseline = baseline
-        self.agentSignals = agentSignals
-        self.showAgentEffects = showAgentEffects
-        self.reduceMotion = reduceMotion
-        self.runningEffect = runningEffect
-        self.runningColor = runningColor
-        self.outputTPS = outputTPS
-        self.effectTheme = effectTheme
-    }
-}
-
-/// A full description of what the overlay should show right now.
-public struct OverlayPresentation: Sendable {
-    public var config: DisplayConfiguration
-    public var left: GaugePresentation?
-    public var right: GaugePresentation?
-
-    public init(config: DisplayConfiguration, left: GaugePresentation?, right: GaugePresentation?) {
-        self.config = config
-        self.left = left
-        self.right = right
-    }
-}
-
-/// Owns one band window per display and renders the gauges into them.
+/// Owns one band window per display and renders the glass lanes into them.
 ///
 /// The controller is the only place that touches `NSScreen` and window
-/// geometry; all placement math is delegated to the pure `GaugeLayout`.
+/// geometry; all placement math is delegated to the pure `GaugeLayout`, and
+/// every lane is drawn by a persistent `GlassLayerHost` so updates diff
+/// properties instead of destroying the layer tree.
 @MainActor
 public final class MenuBarOverlayController {
     private var windows: [String: MenuBarBandWindow] = [:]
-    private var hosts: [String: NSView] = [:]
+    private var views: [String: NSView] = [:]
+    private var laneHosts: [String: [GaugeSide: GlassLayerHost]] = [:]
     private var watchdogTimer: Timer?
-    private let renderer: GaugeRendering
     private var lastPresentation: OverlayPresentation?
 
-    public init(renderer: GaugeRendering = GaugeLayerRenderer()) {
-        self.renderer = renderer
-    }
+    public init() {}
 
     // MARK: - Rendering
 
@@ -96,7 +40,9 @@ public final class MenuBarOverlayController {
         for (id, window) in windows where !seen.contains(id) {
             window.orderOut(nil)
             windows.removeValue(forKey: id)
-            hosts.removeValue(forKey: id)
+            views.removeValue(forKey: id)
+            laneHosts[id]?.values.forEach { $0.teardown() }
+            laneHosts.removeValue(forKey: id)
         }
     }
 
@@ -116,18 +62,14 @@ public final class MenuBarOverlayController {
         )
         window.setFrame(frame, display: false)
 
-        let host = hosts[displayID] ?? {
-            let view = NSView(frame: .zero)
-            view.wantsLayer = true
-            window.contentView = view
-            hosts[displayID] = view
-            return view
+        let view = views[displayID] ?? {
+            let created = NSView(frame: .zero)
+            created.wantsLayer = true
+            window.contentView = created
+            views[displayID] = created
+            return created
         }()
-        host.frame = NSRect(origin: .zero, size: frame.size)
-
-        let root = host.layer ?? CALayer()
-        root.frame = CGRect(origin: .zero, size: frame.size)
-        root.sublayers?.forEach { $0.removeFromSuperlayer() }
+        view.frame = NSRect(origin: .zero, size: frame.size)
 
         let notch = MenuBarGeometry.notchEdges(for: screen)
         let placed = GaugeLayout.layout(
@@ -139,42 +81,50 @@ public final class MenuBarOverlayController {
             notchEdges: notch
         )
 
+        var hosts = laneHosts[displayID] ?? [:]
+        var seenSides = Set<GaugeSide>()
         for gauge in placed {
-            let presentationSide: GaugePresentation?
+            seenSides.insert(gauge.side)
+            let side: LaneContent?
             switch (presentation.config.layout, gauge.side) {
-            case (.single, _): presentationSide = presentation.left
-            case (.dual, .left): presentationSide = presentation.left
-            case (.dual, .right): presentationSide = presentation.right
+            case (.single, _): side = presentation.left
+            case (.dual, .left): side = presentation.left
+            case (.dual, .right): side = presentation.right
             }
-            // Always draw the track so an empty/offline side shows the neutral
-            // groove rather than nothing at all.
-            let side = presentationSide ?? GaugePresentation(windows: [], palette: .neutral)
-            let layer = renderer.render(
-                windows: side.windows,
-                geometry: gauge.geometry,
-                palette: side.palette,
-                baseline: side.baseline
+            // Always draw the lane so an empty/offline side shows the neutral
+            // glass groove rather than nothing at all.
+            let content = side ?? LaneContent.empty(
+                providerId: "neutral",
+                reduceMotion: presentation.left?.reduceMotion ?? false
             )
-            root.addSublayer(layer)
-
-            if side.showAgentEffects, let signals = side.agentSignals,
-               let effect = AgentEffectLayer.make(signals: signals, geometry: gauge.geometry,
-                                                  reduceMotion: side.reduceMotion,
-                                                  runningEffect: side.runningEffect, runningColor: side.runningColor,
-                                                  outputTPS: side.outputTPS, theme: side.effectTheme) {
-                root.addSublayer(effect)
-            }
+            let spec = content.spec(geometry: gauge.geometry)
+            let host = hosts[gauge.side] ?? {
+                let created = GlassLayerHost()
+                view.layer?.addSublayer(created.root)
+                hosts[gauge.side] = created
+                return created
+            }()
+            host.root.contentsScale = screen.backingScaleFactor
+            host.update(spec)
         }
+        // Lanes that are no longer placed (e.g. after a layout change) stop.
+        let staleSides = hosts.keys.filter { !seenSides.contains($0) }
+        for side in staleSides {
+            hosts[side]?.teardown()
+            hosts.removeValue(forKey: side)
+        }
+        laneHosts[displayID] = hosts
 
-        host.layer = root
         window.orderFrontRegardless()
     }
 
     /// Removes every band window (teardown, or disabled).
     public func hideAll() {
         for (_, window) in windows { window.orderOut(nil) }
+        laneHosts.values.forEach { hosts in hosts.values.forEach { $0.teardown() } }
         windows.removeAll()
-        hosts.removeAll()
+        views.removeAll()
+        laneHosts.removeAll()
     }
 
     // MARK: - Watchdog & lifecycle
@@ -218,18 +168,26 @@ public final class MenuBarOverlayController {
     /// Number of band windows currently managed. Surfaced in diagnostics.
     public var managedBandCount: Int { windows.count }
 
+    /// The persistent lane host for a display/side, for diagnostics and tests.
+    public func laneHost(displayID: String, side: GaugeSide) -> GlassLayerHost? {
+        laneHosts[displayID]?[side]
+    }
+
     // MARK: - Static band (P0 debug helper, retained for diagnostics)
 
     public func showStaticBand() {
+        let window = QuotaWindow(id: "w", label: "W", kind: .weekly, durationSeconds: 604800,
+                                 remainingFraction: 0.6, resetAt: nil,
+                                 expectedRemainingFraction: nil, updatedAt: nil,
+                                 availability: .valid)
         let presentation = OverlayPresentation(
             config: DisplayConfiguration(displayID: "debug", layout: .single,
                                          singleDirection: .leadingToTrailing),
-            left: GaugePresentation(
-                windows: [QuotaWindow(id: "w", label: "W", kind: .weekly, durationSeconds: 604800,
-                                      remainingFraction: 0.6, resetAt: nil,
-                                      expectedRemainingFraction: nil, updatedAt: nil,
-                                      availability: .valid)],
-                palette: .codex
+            left: LaneContent(
+                providerId: "codex",
+                windows: [window],
+                palette: .codex,
+                glass: .default(providerId: "codex")
             ),
             right: nil
         )

@@ -216,7 +216,8 @@ public final class AppCoordinator: ObservableObject {
             // Every dimension is part of the signature: waiting + working must
             // repaint even when the highest-priority state did not change.
             let detail = signals.map {
-                "a\($0.activeCount)w\($0.waitingCount)e\($0.errorCount)c\($0.completedCount)u\($0.unknownCount)"
+                "a\($0.activeCount)w\($0.waitingCount)e\($0.errorCount)c\($0.completedCount)"
+                    + "u\($0.unknownCount)n\($0.unreadCount)"
             } ?? "none"
             return "\(provider):\(detail)"
         }.joined(separator: "|")
@@ -281,6 +282,12 @@ public final class AppCoordinator: ObservableObject {
         case "agentError": return AgentSignals(errorCount: 1)
         case "agentRunningWaiting": return AgentSignals(activeCount: 2, waitingApprovalCount: 1)
         case "agentRunningError": return AgentSignals(activeCount: 1, errorCount: 1)
+        // Unread fixtures exist only offline: production has no durable
+        // completion ledger yet, and `completedCount` must never stand in.
+        case "agentUnread": return AgentSignals(unreadCount: 1)
+        case "agentRunningUnread": return AgentSignals(activeCount: 1, unreadCount: 1)
+        case "agentAllSignals": return AgentSignals(activeCount: 1, waitingApprovalCount: 1,
+                                                    errorCount: 1, unreadCount: 1)
         default: return nil
         }
     }
@@ -380,7 +387,6 @@ public final class AppCoordinator: ObservableObject {
     }
 
     // MARK: - Rendering
-
     public func render() {
         let s = settings.settings
         let signature = agentSignature()
@@ -400,57 +406,56 @@ public final class AppCoordinator: ObservableObject {
         }
 
         let key = s.previewFixture!
-        let windows = FixtureSnapshots.windows(for: key)
         // A theme may switch the baseline off; it never switches it on against
         // the user's own setting.
-        let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)
-            ? BaselineSpec(selectedWindowIndex: 0, expectedRemainingFraction: 0.5)
-            : nil
-        func presentation(_ providerId: String, base: ProviderPalette) -> GaugePresentation {
-            GaugePresentation(
+        func content(for provider: String, windows: [QuotaWindow]) -> LaneContent {
+            let glass = glassTheme(for: provider, theme: theme, settings: s)
+            return LaneContent(
+                providerId: provider,
                 windows: windows,
-                palette: ThemeResolver.palette(theme: theme, providerId: providerId, base: base),
-                baseline: baseline,
-                agentSignals: s.showAgentEffects ? fixtureSignals(for: key) : nil,
-                showAgentEffects: s.showAgentEffects,
-                reduceMotion: s.reduceMotion,
-                runningEffect: s.runningEffect,
-                runningColor: Self.runningColor(s.runningEffectColor),
-                effectTheme: ThemeResolver.effects(theme: theme, providerId: providerId)
+                palette: glass.palette,
+                baseline: s.showBaseline && glass.showsBaseline
+                    ? baselineSpec(for: windows)
+                    : nil,
+                glass: glass,
+                signal: s.showAgentEffects ? fixtureSignals(for: key)?.visualSignal : nil,
+                reduceMotion: s.reduceMotion
             )
         }
-        apply(left: presentation("codex", base: .codex),
-              right: presentation("claude", base: .claude),
+        apply(left: content(for: "codex", windows: FixtureSnapshots.windows(for: key, providerId: "codex")),
+              right: content(for: "claude", windows: FixtureSnapshots.windows(for: key, providerId: "claude")),
               settings: s)
     }
 
     private func renderLive(_ s: AppSettings, theme: ThemeDocument?) {
-        func presentation(for provider: String, fallback: ProviderPalette) -> GaugePresentation? {
+        func content(for provider: String) -> LaneContent {
             // Agent activity must remain visible even when quota data is
             // unavailable (logged out, stale source, or before the first fetch).
             let windows = liveSnapshots[provider]?.windowsLongestFirst ?? []
-            let base = ProviderPalette.for(providerId: provider)
-            let palette = ThemeResolver.palette(theme: theme, providerId: provider, base: base)
-            let baseline = s.showBaseline && (theme?.global?.baselineEnabled ?? true)
-                ? baselineSpec(for: windows)
-                : nil
-            let agent = s.showAgentEffects ? agentSignals(for: provider) : nil
-            return GaugePresentation(
+            let glass = glassTheme(for: provider, theme: theme, settings: s)
+            return LaneContent(
+                providerId: provider,
                 windows: windows,
-                palette: palette == .neutral ? fallback : palette,
-                baseline: baseline,
-                agentSignals: agent,
-                showAgentEffects: s.showAgentEffects,
-                reduceMotion: s.reduceMotion,
-                runningEffect: s.runningEffect,
-                runningColor: Self.runningColor(s.runningEffectColor),
-                effectTheme: ThemeResolver.effects(theme: theme, providerId: provider)
+                palette: glass.palette,
+                baseline: s.showBaseline && glass.showsBaseline ? baselineSpec(for: windows) : nil,
+                glass: glass,
+                signal: s.showAgentEffects ? agentSignals(for: provider)?.visualSignal : nil,
+                reduceMotion: s.reduceMotion
             )
         }
 
-        let left = presentation(for: "codex", fallback: .codex)
-        let right = presentation(for: "claude", fallback: .claude)
-        apply(left: left, right: right, settings: s)
+        apply(left: content(for: "codex"), right: content(for: "claude"), settings: s)
+    }
+
+    /// Resolves the full glass theme for one provider: built-in V5 defaults,
+    /// then the active theme file, then the user's own appearance edits.
+    private func glassTheme(for providerId: String, theme: ThemeDocument?, settings s: AppSettings) -> ResolvedGlassTheme {
+        ThemeResolver.glassTheme(
+            theme: theme,
+            providerId: providerId,
+            base: ProviderPalette.for(providerId: providerId),
+            appearance: s.appearance
+        )
     }
 
     /// Binds the baseline to the outermost window with a known expected value.
@@ -463,7 +468,7 @@ public final class AppCoordinator: ObservableObject {
         return nil
     }
 
-    private func apply(left: GaugePresentation?, right: GaugePresentation?, settings s: AppSettings) {
+    private func apply(left: LaneContent?, right: LaneContent?, settings s: AppSettings) {
         let config = DisplayConfiguration(
             displayID: "primary",
             isEnabled: s.overlayEnabled,
@@ -479,13 +484,5 @@ public final class AppCoordinator: ObservableObject {
             left: left,
             right: config.layout == .dual ? right : nil
         ))
-    }
-
-    /// Maps the configured running-effect color. `nil` means "follow the theme"
-    /// — which, with no theme installed, is the built-in running color.
-    static func runningColor(_ c: RunningEffectColor) -> RGBAColor? {
-        guard c.isExplicit else { return nil }
-        let rgb = c.rgba
-        return RGBAColor(red: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 0.95)
     }
 }
