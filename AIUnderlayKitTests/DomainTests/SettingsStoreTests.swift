@@ -46,4 +46,69 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.settings.displays.first?.displayID, "3")
         XCTAssertEqual(reloaded.settings.displays.first?.assignments.count, 2)
     }
+
+    // MARK: - Legacy visual choices migrate instead of resetting
+
+    func test_legacyRunningEffectNone_becomesReduceMotion() throws {
+        // The old `none` meant "don't animate my bar". Its successor is the
+        // Reduce Motion switch, which keeps the static colours and the alert
+        // ribbon the old option also left visible.
+        let json = #"{"layout":"single","anchor":"notch","runningEffect":"none","overlayEnabled":false}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertTrue(settings.reduceMotion)
+        XCTAssertFalse(settings.overlayEnabled, "migration must not reset unrelated fields")
+        XCTAssertEqual(settings.layout, .single)
+        XCTAssertEqual(settings.anchor, .notch)
+    }
+
+    func test_legacyRunningEffectColor_becomesTheRunningSignalLight() throws {
+        let json = #"{"runningEffect":"breathing","runningEffectColor":"orange"}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertEqual(settings.appearance.signalColors[SignalColorKey.running.rawValue], "#FFA64D")
+        XCTAssertFalse(settings.reduceMotion, "any other effect migrates to the single engine")
+    }
+
+    func test_legacyRunningEffectColor_neverOverwritesAUserChoice() throws {
+        let json = #"""
+        {"runningEffectColor":"green","appearance":{"signalColors":{"running":"#123456"}}}
+        """#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertEqual(settings.appearance.signalColors[SignalColorKey.running.rawValue], "#123456")
+    }
+
+    func test_unknownLegacyValuesNeverFailTheWholeFile() throws {
+        let json = #"{"runningEffect":"hyperspace","runningEffectColor":"chartreuse","showBaseline":true}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertFalse(settings.reduceMotion)
+        XCTAssertNil(settings.appearance.signalColors[SignalColorKey.running.rawValue])
+        XCTAssertTrue(settings.showBaseline)
+    }
+
+    func test_removedVisualKeysAreNotRewrittenOnSave() throws {
+        let json = #"{"runningEffect":"none","runningEffectColor":"orange"}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        let saved = String(decoding: try JSONEncoder().encode(settings), as: UTF8.self)
+        XCTAssertFalse(saved.contains("runningEffect"))
+        XCTAssertTrue(saved.contains("reduceMotion"))
+    }
+
+    func test_appearanceOverridesSurviveARoundTrip() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = SettingsStore(fileURL: url)
+        store.update { settings in
+            settings.appearance = GlassAppearance(
+                agentThemeColors: ["codex": "#62AC96"],
+                quotaBaseColors: ["codex": "#00FF00"],
+                signalColors: ["error": "#FF0000", "running": "#D9EEFF"],
+                material: GlassMaterialOverrides(grain: 0.4)
+            )
+        }
+
+        let reloaded = SettingsStore(fileURL: url)
+        XCTAssertEqual(reloaded.settings.appearance.quotaBaseColors["codex"], "#00FF00")
+        XCTAssertEqual(reloaded.settings.appearance.signalColors["error"], "#FF0000")
+        XCTAssertEqual(reloaded.settings.appearance.material?.grain, 0.4)
+    }
 }

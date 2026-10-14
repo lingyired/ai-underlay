@@ -1,0 +1,43 @@
+{
+  "schemaVersion" : 2,
+  "id" : "selected-glass-v5",
+  "name" : "Selected Glass V5（用户选定）",
+  "global" : {
+    "baselineColor" : "#FFFFFF",
+    "baselineEnabled" : true,
+    "baselineOpacity" : 0.9,
+    "exhaustedTrackColor" : "#000000",
+    "exhaustedTrackOpacity" : 1
+  },
+  "providers" : {
+    "claude" : {
+      "agentThemeColor" : "#FFFFFF",
+      "quotaBaseColor" : "#FFB08A"
+    },
+    "codex" : {
+      "agentThemeColor" : "#62AC96",
+      "quotaBaseColor" : "#69BFFF"
+    }
+  },
+  "signals" : {
+    "error" : { "lightColor" : "#FF7596" },
+    "running" : { "lightColor" : "#D9EEFF" },
+    "unread" : { "lightColor" : "#64F1BD" },
+    "waiting" : { "lightColor" : "#FFE1A0" }
+  },
+  "material" : {
+    "agentThemeStrength" : 1,
+    "ambientGlow" : 0,
+    "blurRadiusTarget" : 17,
+    "grain" : 0,
+    "quotaOpacity" : 1,
+    "rayDensity" : 1
+  },
+  "attention" : {
+    "bottomRibbonHeight" : 5,
+    "sweepSecondsError" : 4,
+    "sweepSecondsUnread" : 7,
+    "sweepSecondsWaiting" : 5,
+    "topLineHeight" : 2
+  }
+}

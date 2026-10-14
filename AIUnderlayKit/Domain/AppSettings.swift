@@ -1,66 +1,27 @@
 import Foundation
 
-/// How the "agent running" state is animated on the menu bar.
-public enum RunningEffect: String, Codable, Sendable, CaseIterable {
-    /// The whole fill gently brightens and dims (breathing light).
-    case breathing
-    /// A soft highlight band sweeps along the fill direction.
-    case sweep
-    /// A small pulsing dot at the fill's anchor.
-    case dot
-    /// Equalizer-style bars rising from the menu bar's bottom edge; the rhythm
-    /// follows the agent's output speed (see `SpectrumRhythm`).
-    case spectrum
-    /// Layered spectral light field: thin luminous rays and soft ambient glow.
-    case spectrumGlow
-    /// No animation.
-    case none
-}
-
-/// Color of the "agent running" animation.
-public enum RunningEffectColor: String, Codable, Sendable, CaseIterable {
-    case green
-    case white
-    case blue
-    case orange
-    case purple
-    /// Follow the active theme's provider color. With no theme installed this
-    /// resolves to the built-in running color, so nothing changes for anyone who
-    /// never installs one.
-    case theme
-
-    public var rgba: (red: Double, green: Double, blue: Double) {
-        switch self {
-        case .green: return (0.30, 1.00, 0.45)
-        case .white: return (1.00, 1.00, 1.00)
-        case .blue: return (0.45, 0.80, 1.00)
-        case .orange: return (1.00, 0.65, 0.30)
-        case .purple: return (0.70, 0.55, 1.00)
-        case .theme: return (0.30, 1.00, 0.45)
-        }
-    }
-
-    /// Whether this choice names an explicit color. `theme` defers to the theme.
-    public var isExplicit: Bool { self != .theme }
-}
-
 /// User-facing appearance and display settings. Non-secret; persisted as JSON.
+///
+/// There is exactly one agent visual engine (`Glass Spectrum`); the old
+/// `RunningEffect` / `RunningEffectColor` choices are gone. Their legacy JSON
+/// keys are still *read* by `init(from:)` so an old file migrates instead of
+/// resetting (see `migrateLegacyVisualChoices`).
 public struct AppSettings: Codable, Sendable, Equatable {
     public var layout: LayoutMode
     public var anchor: AnchorMode
     public var singleDirection: SingleBarDirection
     /// Master on/off for the overlay band.
     public var overlayEnabled: Bool
-    /// How the "agent running" state is animated on the bar.
-    public var runningEffect: RunningEffect
-    /// Color of the running animation.
-    public var runningEffectColor: RunningEffectColor
     /// Explicit proxy URL for CLI child processes, e.g. "http://127.0.0.1:10808".
     /// Empty means "use the macOS system proxy settings".
     public var proxyOverride: String
     public var showBaseline: Bool
+    /// Master on/off for agent signalling (spectrum + attention ribbon).
+    /// Quota glass always renders, even when this is off.
     public var showAgentEffects: Bool
     public var reduceMotion: Bool
+    /// The user's own colour and material edits (settings-level overrides).
+    public var appearance: GlassAppearance
     /// Id of the active theme, or nil for the built-in default look. Themes live
     /// outside the app bundle, so app updates never overwrite them.
     public var activeThemeId: String?
@@ -79,12 +40,11 @@ public struct AppSettings: Codable, Sendable, Equatable {
         anchor: AnchorMode = .outerEdge,
         singleDirection: SingleBarDirection = .leadingToTrailing,
         overlayEnabled: Bool = true,
-        runningEffect: RunningEffect = .spectrumGlow,
-        runningEffectColor: RunningEffectColor = .theme,
         proxyOverride: String = "",
         showBaseline: Bool = true,
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
+        appearance: GlassAppearance = .empty,
         activeThemeId: String? = nil,
         previewFixture: String? = nil,
         statusItemVisible: Bool = true,
@@ -95,12 +55,11 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.anchor = anchor
         self.singleDirection = singleDirection
         self.overlayEnabled = overlayEnabled
-        self.runningEffect = runningEffect
-        self.runningEffectColor = runningEffectColor
         self.proxyOverride = proxyOverride
         self.showBaseline = showBaseline
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion
+        self.appearance = appearance
         self.activeThemeId = activeThemeId
         self.previewFixture = previewFixture
         self.statusItemVisible = statusItemVisible
@@ -109,6 +68,41 @@ public struct AppSettings: Codable, Sendable, Equatable {
     }
 
     public static let `default` = AppSettings()
+
+    /// Every key we ever wrote, including removed ones, so decoding can route
+    /// legacy values into the new model.
+    private enum CodingKeys: String, CodingKey {
+        case layout, anchor, singleDirection, overlayEnabled
+        case proxyOverride, showBaseline, showAgentEffects, reduceMotion
+        case appearance, activeThemeId, previewFixture, statusItemVisible
+        case displays, displayedProviders
+        // Removed settings (read-only compatibility):
+        case runningEffect
+        case runningEffectColor
+    }
+
+    /// The pre-refactor animation choices, kept only to migrate old files.
+    /// Decoded as a raw string: an unknown or removed value must never fail
+    /// the whole settings file.
+    enum LegacyRunningEffect: String {
+        case breathing, sweep, dot, spectrum, spectrumGlow, none
+    }
+
+    enum LegacyRunningColor: String {
+        case green, white, blue, orange, purple, theme
+
+        /// Matches the old `RunningEffectColor.rgba` values, in hex.
+        var hex: String? {
+            switch self {
+            case .green: return "#4DFF73"
+            case .white: return "#FFFFFF"
+            case .blue: return "#73CCFF"
+            case .orange: return "#FFA64D"
+            case .purple: return "#B38CFF"
+            case .theme: return nil
+            }
+        }
+    }
 
     /// Tolerant decoding: every field falls back to its default when absent, so
     /// an older settings file (or one written before a new key existed) still
@@ -120,16 +114,58 @@ public struct AppSettings: Codable, Sendable, Equatable {
         anchor = try c.decodeIfPresent(AnchorMode.self, forKey: .anchor) ?? d.anchor
         singleDirection = try c.decodeIfPresent(SingleBarDirection.self, forKey: .singleDirection) ?? d.singleDirection
         overlayEnabled = try c.decodeIfPresent(Bool.self, forKey: .overlayEnabled) ?? d.overlayEnabled
-        runningEffect = try c.decodeIfPresent(RunningEffect.self, forKey: .runningEffect) ?? d.runningEffect
-        runningEffectColor = try c.decodeIfPresent(RunningEffectColor.self, forKey: .runningEffectColor) ?? d.runningEffectColor
         proxyOverride = try c.decodeIfPresent(String.self, forKey: .proxyOverride) ?? d.proxyOverride
         showBaseline = try c.decodeIfPresent(Bool.self, forKey: .showBaseline) ?? d.showBaseline
         showAgentEffects = try c.decodeIfPresent(Bool.self, forKey: .showAgentEffects) ?? d.showAgentEffects
         reduceMotion = try c.decodeIfPresent(Bool.self, forKey: .reduceMotion) ?? d.reduceMotion
+        appearance = (try? c.decodeIfPresent(GlassAppearance.self, forKey: .appearance)) ?? d.appearance
         activeThemeId = try c.decodeIfPresent(String.self, forKey: .activeThemeId)
         previewFixture = try c.decodeIfPresent(String.self, forKey: .previewFixture)
         statusItemVisible = try c.decodeIfPresent(Bool.self, forKey: .statusItemVisible) ?? d.statusItemVisible
         displays = try c.decodeIfPresent([DisplayConfiguration].self, forKey: .displays) ?? d.displays
         displayedProviders = try c.decodeIfPresent([String].self, forKey: .displayedProviders) ?? d.displayedProviders
+
+        migrateLegacyVisualChoices(from: c)
+    }
+
+    /// One-time, decode-time migration of the removed effect picks.
+    ///
+    /// - `runningEffect == .none` meant "I don't want the bar animating", so it
+    ///   maps to `reduceMotion` — which keeps the static status colours and the
+    ///   attention ribbon that the old `none` also left visible.
+    /// - An explicit `runningEffectColor` becomes the user's running signal
+    ///   light, preserving the colour they had chosen.
+    /// - Any other effect value migrates to the single Glass Spectrum engine.
+    private mutating func migrateLegacyVisualChoices(from c: KeyedDecodingContainer<CodingKeys>) {
+        // Raw strings: a removed value can never throw here.
+        let legacyEffect = try? c.decodeIfPresent(String.self, forKey: .runningEffect)
+        if let raw = legacyEffect, let effect = LegacyRunningEffect(rawValue: raw), effect == .none {
+            reduceMotion = true
+        }
+        let legacyColor = try? c.decodeIfPresent(String.self, forKey: .runningEffectColor)
+        if let raw = legacyColor, let color = LegacyRunningColor(rawValue: raw), let hex = color.hex {
+            if appearance.signalColors[SignalColorKey.running.rawValue] == nil {
+                appearance.signalColors[SignalColorKey.running.rawValue] = hex
+            }
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(layout, forKey: .layout)
+        try c.encode(anchor, forKey: .anchor)
+        try c.encode(singleDirection, forKey: .singleDirection)
+        try c.encode(overlayEnabled, forKey: .overlayEnabled)
+        try c.encode(proxyOverride, forKey: .proxyOverride)
+        try c.encode(showBaseline, forKey: .showBaseline)
+        try c.encode(showAgentEffects, forKey: .showAgentEffects)
+        try c.encode(reduceMotion, forKey: .reduceMotion)
+        try c.encode(appearance, forKey: .appearance)
+        try c.encodeIfPresent(activeThemeId, forKey: .activeThemeId)
+        try c.encodeIfPresent(previewFixture, forKey: .previewFixture)
+        try c.encode(statusItemVisible, forKey: .statusItemVisible)
+        try c.encode(displays, forKey: .displays)
+        try c.encode(displayedProviders, forKey: .displayedProviders)
+        // The removed keys are deliberately not re-written.
     }
 }

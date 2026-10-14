@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/lingsmbp/ai-underlay/theme.schema.json",
   "title": "AIUnderlay theme",
-  "description": "Appearance only. A theme can never change the Error > Waiting > Normal priority, invent quota windows, or alter monitoring data.",
+  "description": "Appearance only. A theme can never change the Error > Waiting > Unread priority, invent quota windows, or alter monitoring data. Version 1 files keep working; version 2 adds the Glass Spectrum vocabulary.",
   "type": "object",
   "required": ["schemaVersion", "id", "name"],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
-      "const": 1,
-      "description": "Only version 1 is understood; anything else is rejected rather than guessed at."
+      "enum": [1, 2],
+      "description": "1 = classic vocabulary (quotaLayers / states). 2 = Glass Spectrum (material / signals / attention, plus version 1 fields). Anything else is rejected rather than guessed at."
     },
     "id": {
       "type": "string",
@@ -29,7 +29,12 @@
         "baselineEnabled": {
           "type": "boolean",
           "description": "false hides the pace baseline. It can never switch it on against the user's own setting."
-        }
+        },
+        "exhaustedTrackColor": {
+          "$ref": "#/definitions/color",
+          "description": "v2: the bed under a known quota. Built-in default is opaque #000000."
+        },
+        "exhaustedTrackOpacity": { "$ref": "#/definitions/opacity" }
       }
     },
     "providers": {
@@ -46,6 +51,14 @@
             "items": { "$ref": "#/definitions/color" },
             "description": "Longest window first: index 0 is the outermost layer. Only as many layers as the provider really reports — never invent a month."
           },
+          "quotaBaseColor": {
+            "$ref": "#/definitions/color",
+            "description": "v2: one base colour; the outer/middle/inner tier ladder derives from it. Mutually alternative to quotaLayers (explicit layers win)."
+          },
+          "agentThemeColor": {
+            "$ref": "#/definitions/color",
+            "description": "v2: this provider's glass tint. Affects the glass material only — never quotas, never signal lights."
+          },
           "spectrumColor": { "$ref": "#/definitions/color" },
           "spectrumOpacity": { "$ref": "#/definitions/opacity" }
         }
@@ -53,7 +66,7 @@
     },
     "states": {
       "type": "object",
-      "description": "Keyed by state: waiting, error (recovering may be added later).",
+      "description": "Version 1 vocabulary. Keyed by state: waiting, error (recovering may be added later). Version 2 files may still use these; signals win when both are present.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -65,6 +78,42 @@
           "borderWidth": { "type": "number", "minimum": 0, "maximum": 10, "description": "Top and bottom edge thickness, in points." }
         }
       }
+    },
+    "signals": {
+      "type": "object",
+      "description": "v2: the four signal lights. Global semantics; the Error > Waiting > Unread priority is a code constant and cannot be reordered here.",
+      "additionalProperties": false,
+      "properties": {
+        "running": { "$ref": "#/definitions/signal" },
+        "error": { "$ref": "#/definitions/signal" },
+        "waiting": { "$ref": "#/definitions/signal" },
+        "unread": { "$ref": "#/definitions/signal" }
+      }
+    },
+    "material": {
+      "type": "object",
+      "description": "v2: the glass material, as renderer targets.",
+      "additionalProperties": false,
+      "properties": {
+        "blurRadiusTarget": { "type": "number", "minimum": 0, "maximum": 32, "description": "Softness target in points, carried over from the V5 lab (17)." },
+        "ambientGlow": { "$ref": "#/definitions/opacity" },
+        "grain": { "$ref": "#/definitions/opacity" },
+        "rayDensity": { "$ref": "#/definitions/opacity" },
+        "quotaOpacity": { "$ref": "#/definitions/opacity" },
+        "agentThemeStrength": { "$ref": "#/definitions/opacity" }
+      }
+    },
+    "attention": {
+      "type": "object",
+      "description": "v2: the alert ribbon geometry and sweep tempos.",
+      "additionalProperties": false,
+      "properties": {
+        "topLineHeight": { "type": "number", "minimum": 0, "maximum": 6 },
+        "bottomRibbonHeight": { "type": "number", "minimum": 0, "maximum": 10 },
+        "sweepSecondsError": { "type": "number", "minimum": 1, "maximum": 60 },
+        "sweepSecondsWaiting": { "type": "number", "minimum": 1, "maximum": 60 },
+        "sweepSecondsUnread": { "type": "number", "minimum": 1, "maximum": 60 }
+      }
     }
   },
   "definitions": {
@@ -73,6 +122,13 @@
       "pattern": "^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
       "examples": ["#4361EE", "#FF8000CC"]
     },
-    "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+    "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+    "signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lightColor": { "$ref": "#/definitions/color" }
+      }
+    }
   }
 }

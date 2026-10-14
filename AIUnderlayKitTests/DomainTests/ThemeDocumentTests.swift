@@ -50,6 +50,101 @@ final class ThemeDocumentTests: XCTestCase {
         }
     }
 
+    // MARK: - schemaVersion 2 (Glass Spectrum)
+
+    func test_v2SelectedGlassV5RoundTripsThroughJSON() throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(ThemePresets.selectedGlassV5)
+        let decoded = try ThemeLoader.decode(data)
+        XCTAssertEqual(decoded.schemaVersion, 2)
+        XCTAssertEqual(decoded, ThemePresets.selectedGlassV5)
+        XCTAssertEqual(decoded.providers?["codex"]?.quotaBaseColor, "#69BFFF")
+        XCTAssertEqual(decoded.providers?["codex"]?.agentThemeColor, "#62AC96")
+        XCTAssertEqual(decoded.global?.exhaustedTrackColor, "#000000")
+        XCTAssertEqual(decoded.material?.rayDensity, 1.0)
+        XCTAssertEqual(decoded.attention?.sweepSecondsError, 4)
+    }
+
+    func test_v2ExportIsWhatTheThemeTabHandsToAgents() {
+        XCTAssertTrue(ThemePresets.exampleJSON.contains("\"schemaVersion\" : 2"))
+        XCTAssertTrue(ThemePresets.exampleJSON.contains("#69BFFF"))
+    }
+
+    /// The shipped examples are part of the contract an AI agent copies from;
+    /// they must decode and validate with the same rules as any user file.
+    func test_shippedExamplesAllDecodeAndValidate() throws {
+        let examples = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // DomainTests
+            .deletingLastPathComponent()   // AIUnderlayKitTests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("docs/theme/examples", isDirectory: true)
+        let files = try FileManager.default.contentsOfDirectory(at: examples, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+        XCTAssertGreaterThanOrEqual(files.count, 2, "vivid (v1) and selected-glass-v5 (v2) must ship")
+        for file in files {
+            let data = try Data(contentsOf: file)
+            XCTAssertNoThrow(try ThemeLoader.decode(data), "\(file.lastPathComponent) must validate")
+        }
+        // The v2 example mirrors exactly what the app exports today.
+        let v5 = try Data(contentsOf: examples.appendingPathComponent("selected-glass-v5.json"))
+        XCTAssertEqual(try ThemeLoader.decode(v5), ThemePresets.selectedGlassV5)
+    }
+
+    func test_v2FileMayNameOnlyTheRequiredFields() throws {
+        let json = #"{"schemaVersion":2,"id":"minimal","name":"Minimal"}"#
+        let document = try ThemeLoader.decode(Data(json.utf8))
+        XCTAssertEqual(document.schemaVersion, 2)
+        XCTAssertNil(document.material)
+        XCTAssertNil(document.signals)
+    }
+
+    /// v1 files keep their own vocabulary; a v2 file may still use v1 fields
+    /// (mixed documents are decoded into one resolved theme).
+    func test_v1AndV2FieldsCoexistWithoutValidationErrors() throws {
+        let json = #"""
+        {"schemaVersion":2,"id":"mixed","name":"Mixed",
+         "providers":{"codex":{"quotaLayers":["#111111"],"quotaBaseColor":"#69BFFF","agentThemeColor":"#62AC96"}},
+         "states":{"waiting":{"borderColor":"#FFE15C"}},
+         "signals":{"waiting":{"lightColor":"#FFE1A0"}}}
+        """#
+        let document = try ThemeLoader.decode(Data(json.utf8))
+        XCTAssertEqual(document.providers?["codex"]?.quotaLayers, ["#111111"])
+        XCTAssertEqual(document.states?["waiting"]?.borderColor, "#FFE15C")
+        XCTAssertEqual(document.signals?.waiting?.lightColor, "#FFE1A0")
+    }
+
+    func test_v2ValidationCatchesOutOfRangeMaterialAttentionAndSignals() {
+        let document = ThemeDocument(
+            schemaVersion: 2,
+            id: "v2-bad",
+            name: "V2 Bad",
+            global: .init(exhaustedTrackColor: "#000000", exhaustedTrackOpacity: 1.5),
+            providers: ["codex": .init(quotaBaseColor: "not-a-color")],
+            signals: .init(running: .init(lightColor: "#GGGGGG")),
+            material: .init(blurRadiusTarget: 40, grain: -0.1),
+            attention: .init(bottomRibbonHeight: 12, sweepSecondsError: 0.5)
+        )
+        let issues = ThemeLoader.validate(document)
+        XCTAssertTrue(issues.contains { $0.contains("global.exhaustedTrackOpacity") }, issues.joined(separator: " | "))
+        XCTAssertTrue(issues.contains { $0.contains("providers.codex.quotaBaseColor") })
+        XCTAssertTrue(issues.contains { $0.contains("signals.running.lightColor") })
+        XCTAssertTrue(issues.contains { $0.contains("material.blurRadiusTarget") })
+        XCTAssertTrue(issues.contains { $0.contains("material.grain") })
+        XCTAssertTrue(issues.contains { $0.contains("attention.bottomRibbonHeight") })
+        XCTAssertTrue(issues.contains { $0.contains("attention.sweepSecondsError") })
+    }
+
+    func test_invalidV2FileIsRejectedWithReasonsNotHalfApplied() {
+        let json = #"{"schemaVersion":2,"id":"x","name":"X","material":{"rayDensity":9}}"#
+        XCTAssertThrowsError(try ThemeLoader.decode(Data(json.utf8))) { error in
+            guard case .invalid(let issues) = (error as? ThemeLoader.Failure) else {
+                return XCTFail("expected .invalid, got \(error)")
+            }
+            XCTAssertTrue(issues.contains { $0.contains("material.rayDensity") })
+        }
+    }
+
     func test_unsupportedSchemaVersionIsRejectedNotGuessed() {
         let json = #"{"schemaVersion": 7, "id": "x", "name": "X"}"#
         XCTAssertThrowsError(try ThemeLoader.decode(Data(json.utf8))) { error in
