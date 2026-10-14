@@ -9,10 +9,13 @@ import CoreGraphics
 /// moving even when no speed has been measured. A missing measurement is not
 /// "0 tokens/s", so `nil` uses the floor.
 public enum SpectrumRhythm {
-    /// Slowest rhythm. An active agent always moves, even with no speed data.
-    public static let floorFrequencyHz: Double = 0.18
+    /// Slowest rhythm. An active agent always moves, even with no speed data —
+    /// and since speed is usually unmeasured, this floor is the tempo the
+    /// spectrum actually shows. Tuned up after it read as sluggish in use:
+    /// one full cycle now takes ~2.9s instead of ~5.6s.
+    public static let floorFrequencyHz: Double = 0.34
     /// Fastest rhythm, reached at `referenceTPS` and above.
-    public static let ceilingFrequencyHz: Double = 0.62
+    public static let ceilingFrequencyHz: Double = 1.10
     /// Output speed that saturates the curve, in tokens/s.
     public static let referenceTPS: Double = 160
 
@@ -74,8 +77,10 @@ public enum SpectrumRhythm {
     /// Height factors (0…1) sampled over one full cycle.
     ///
     /// `steps` keyframes are handed to Core Animation; it interpolates between
-    /// them, so eight samples per cycle read as a smooth, continuous wave.
-    public static func keyframeValues(index: Int, steps: Int = 8) -> [Double] {
+    /// them, so this many samples per cycle read as a smooth, continuous wave.
+    /// Twelve rather than eight because the tempo is now fast enough that the
+    /// straight lines between samples started to show as facets.
+    public static func keyframeValues(index: Int, steps: Int = 12) -> [Double] {
         guard steps > 0 else { return [] }
         let wave = wave(index: index)
         return (0..<steps).map { step in

@@ -38,6 +38,21 @@ final class SpectrumRhythmTests: XCTestCase {
                        1 / SpectrumRhythm.ceilingFrequencyHz, accuracy: 0.0001)
     }
 
+    func test_tempo_isNotSluggish() {
+        // Speed is usually unmeasured, so the floor *is* the tempo on screen.
+        // It read as sluggish at ~5.6s per cycle; keep it under three.
+        XCTAssertLessThanOrEqual(SpectrumRhythm.cycleDuration(outputTPS: nil), 3.0)
+        XCTAssertGreaterThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.0)
+        // Still a rhythm, not a strobe.
+        XCTAssertLessThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.5)
+    }
+
+    func test_keyframes_areDenseEnoughForTheFasterTempo() {
+        // Facets show when a fast cycle has too few samples, especially for the
+        // bars whose wave runs at double speed.
+        XCTAssertGreaterThanOrEqual(SpectrumRhythm.keyframeValues(index: 0).count, 12)
+    }
+
     func test_barOffsets_spacingIsEvenAndInsideTheFill() {
         let width: CGFloat = 200
         let offsets = SpectrumRhythm.barOffsets(width: width, growsTowardRight: true)
