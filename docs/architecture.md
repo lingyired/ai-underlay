@@ -61,6 +61,11 @@ laneHost
   server with no per-frame CPU work and no timer. A 0.70 Hz cycle over 16–24
   frames is 11–17 fps — deliberately the V5 lab's cadence ("the amplitude
   change, not a high framerate, makes Running recognizable"), not 60 fps.
+  The timeline closes at one whole cycle (`curtainKeyframeTimeline`): a
+  `contents` sequence whose last key time is below 1.0 hands the rest of the
+  cycle back to the layer's model value, which silently drops the final phase
+  and stretches the phase before the seam
+  (`docs/visual-reference/glass-motion-visibility/timeline-probe.swift`).
   Reduce Motion keeps the static layout and drops every animation.
 - The frame cache is an LRU bounded in **bitmap bytes** (16 MiB), not entries:
   a wide single-bar lane costs ~983 KiB per frame, so the budget is what keeps
