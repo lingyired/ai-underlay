@@ -1,33 +1,71 @@
 import AppKit
 
-/// The one and only running effect: a dense fine-ray light curtain with a
-/// traveling light field and a soft specular crest, in the signal light colour.
-/// Like the V5 lab, the rays stand on the strip's bottom edge — the bases form
-/// one baseline and only the tips wave.
+/// The one and only running effect: a dense fine-ray light curtain whose
+/// individual rays rise and fall with a travelling wave, in the signal light
+/// colour. Like the V5 lab, the rays stand on the strip's bottom edge — the
+/// bases form one baseline and only the tips wave.
 ///
-/// Everything is Core Animation over **pre-rendered textures**: the ray curtain
-/// is rasterised once per (size, colour, density) and cached, and motion is a
-/// handful of transform/position animations on a few layers. There is no
-/// per-frame CPU work, no shader, and no one-layer-per-ray. Ray density is a
-/// texture property, never a layer count.
+/// ## How the motion is produced
+///
+/// The ray *shape* is a function of time, not a static texture that gets
+/// scaled: `SpectrumWaveModel` samples every ray at a phase, and the renderer
+/// rasterises a short sequence of those phases (`framesPerCycle`, 10–16). Core
+/// Animation then plays that sequence with a discrete keyframe animation on
+/// `contents`, so the wave runs in the render server with no per-frame CPU
+/// work and no timer in the app.
+///
+/// This is deliberately the V5 lab's low cadence rather than 60 fps: V5
+/// repaints its canvas about every 90 ms ("the amplitude change, not a high
+/// framerate, makes Running recognizable"). A half-width lane plays 24 frames
+/// per 0.70 Hz cycle (~17 fps) and a wide single-bar lane still plays 16
+/// (~11 fps), because the frame count is capped by a bitmap budget. A lane
+/// therefore needs **one** animated layer: no layer per ray, no shader, no
+/// display link.
 @MainActor
 public enum GlassSpectrumRenderer {
-    /// Ray groups per spectrum. Each group needs two layers: the weak static
-    /// bed and its bright, mask-windowed copy that shares the same cached
-    /// texture. Density is a texture property — never a layer count.
-    public static let rayGroupCount = 3
-    /// Continuous per-lane animation budget for the phase-B design: three
-    /// bright peak copies, the three window masks and the two wide fields.
-    /// The static bed deliberately does not animate.
-    public static let maxAnimatedLayers = 8
+    /// Frames per cycle for a half-width lane. A 0.70 Hz cycle over 24 frames
+    /// is ~17 fps: smooth enough for the ray height to read as a wave, cheap
+    /// enough to stay well inside the byte budget.
+    public static let nominalFramesPerCycle = 24
+    /// Never fewer than this: below it the wave reads as stepping rather than
+    /// flowing.
+    public static let minimumFramesPerCycle = 12
+    /// The most frames a single cycle ever holds, even on a tiny lane.
+    public static let maximumFramesPerCycle = 24
+    /// One sequence's bitmap budget. A wide single-bar lane is ~983 KiB per
+    /// frame, so a 2048 pt lane lands on 16 frames and a half-width lane on 24.
+    public static let maxSequenceBytes = 16 * 1024 * 1024
+    /// Continuous per-lane animation budget: the curtain plus the attention
+    /// band's own layers. Far below the old bed/peak/mask/field tree.
+    public static let maxAnimatedLayers = 4
 
-    /// First-round calibration of the weak static bed. The bed keeps the ray
-    /// structure readable without the always-on comb look; brightness now comes
-    /// from the travelling peak window.
-    public static let bedOpacity: Float = 0.16
-    /// Bright peak copies reuse the same texture at a higher opacity. The local
-    /// mask decides where it shows, so off-peak rays fade toward the bed.
-    public static let peakOpacity: Float = 0.78
+    /// Animation key owned by this renderer.
+    static let curtainKey = "curtainFrames"
+
+    // MARK: - Sizing
+
+    public static func framesPerCycle(width: CGFloat, height: CGFloat, scale: CGFloat) -> Int {
+        let bytes = pixelByteCount(width: width, height: height, scale: scale)
+        guard bytes > 0 else { return nominalFramesPerCycle }
+        let affordable = maxSequenceBytes / bytes
+        return min(maximumFramesPerCycle, max(minimumFramesPerCycle, affordable))
+    }
+
+    static func pixelByteCount(width: CGFloat, height: CGFloat, scale: CGFloat) -> Int {
+        guard width > 0, height > 0, scale > 0 else { return 0 }
+        let pixels = Int((width * scale).rounded()) * Int((height * scale).rounded())
+        return pixels * 4
+    }
+
+    /// Frame index shown for a phase (0…1 per loop).
+    static func frameIndex(forPhase phase: Double, frameCount: Int) -> Int {
+        guard frameCount > 1 else { return 0 }
+        let wrapped = SpectrumWaveModel.wrappedPhase(phase)
+        return min(frameCount - 1, Int(wrapped * Double(frameCount)))
+    }
+
+    // MARK: - Rendering
+
     /// A fresh layer tree (tests, offline preview).
     public static func render(_ spec: LaneRenderSpec, running: Bool, cycle: Double, restart: Bool) -> CALayer {
         let lane = CALayer()
@@ -63,10 +101,10 @@ public enum GlassSpectrumRenderer {
             // Full coverage preserves unknown's neutral track and mask identity.
             clip.frame = root.bounds
         } else {
-            // The Lane region is not the quota's remaining length. A full-height
-            // peak or halo must never relight the known-exhausted black area, so
-            // the whole spectrum subtree is clipped to the real outermost length
-            // from NestedGauge. Static, lane-local, mirroring `fillRect`.
+            // The Lane region is not the quota's remaining length. A tall crest
+            // must never relight the known-exhausted black area, so the whole
+            // spectrum subtree is clipped to the real outermost length from
+            // `NestedGauge`. Static, lane-local, mirroring `fillRect`.
             let fractions = spec.windows.map(\.remainingFraction)
             let outerRemaining = NestedGauge.nestedLengths(
                 trackWidth: spec.geometry.fillBounds.width, remaining: fractions
@@ -82,14 +120,13 @@ public enum GlassSpectrumRenderer {
 
         guard running else {
             root.isHidden = true
-            stopAnimations(root)
+            stopAnimations(lane)
             return
         }
         root.isHidden = false
 
         let color = spec.glass.signalLights.light(for: spec.signal?.attention ?? .none)
         let density = spec.glass.material.rayDensity
-        let grain = spec.glass.material.grain
         let size = region.size
         let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
         let animated = !spec.reduceMotion
@@ -110,109 +147,113 @@ public enum GlassSpectrumRenderer {
         ]
         scrim.locations = [0.18, 1]
 
-        var slots: [String] = ["scrim", "quotaClip"]
-        let texture = { (group: Int) -> CGImage? in
-            RayTextureCache.image(
-                width: size.width, height: size.height, scale: scale,
-                group: group, groupCount: rayGroupCount,
-                color: color, density: density, grain: grain
-            )
-        }
+        let curtain = LayerSlot.named("curtain", in: root)
+        curtain.frame = CGRect(origin: .zero, size: size)
+        curtain.contentsScale = scale
+        curtain.contentsGravity = .resize
+        curtain.masksToBounds = true
 
-        // Three weak static bed groups. They never animate: the whole point of
-        // phase B is that the eye follows the moving local peak, not a
-        // permanently bright curtain.
-        for group in 0..<rayGroupCount {
-            let name = "rays\(group)"
-            slots.append(name)
-            let rays = LayerSlot.named(name, in: root)
-            rays.frame = CGRect(origin: .zero, size: size)
-            rays.contentsScale = scale
-            rays.contents = texture(group)
-            rays.opacity = bedOpacity
-            rays.removeAnimation(forKey: "rayBreath")
-        }
-
-        let fields = LightFieldGeometry.racetrack(size: size, growsTowardRight: spec.geometry.growsTowardRight)
-        let model = SpectrumPhaseGeometry(
-            size: size, fields: fields, cycle: cycle, growsTowardRight: spec.geometry.growsTowardRight
+        let frames = SpectrumFrameCache.sequence(
+            width: size.width, height: size.height, scale: scale,
+            color: color, density: density, intensity: spec.waveIntensity,
+            travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight
         )
-        let travels = spec.showsTravelingLight && animated
-        let origin = CACurrentMediaTime()
-
-        for (index, field) in fields.enumerated() {
-            let name = "field\(index)"
-            slots.append(name)
-            let layer = LayerSlot.named(name, in: root, as: CAGradientLayer.self)
-
-            // The wide sheen and the local peak share one geometry, one
-            // direction and one time origin. Turning the traveller off hides
-            // the full-width sheen entirely; the fixed local energy window
-            // survives only in the bright-ray mask, so no broad sheen remains.
-            guard spec.showsTravelingLight else {
-                layer.isHidden = true
-                layer.removeAnimation(forKey: "fieldTravel")
-                continue
-            }
-            layer.isHidden = false
-
-            layer.frame = field.frame
-            layer.type = .axial
-            layer.startPoint = CGPoint(x: 0, y: 0.5)
-            layer.endPoint = CGPoint(x: 1, y: 0.5)
-            let stops = field.stops.map { pattern -> CGColor in
-                switch pattern {
-                case .clear: return color.withAlpha(0).cgColor
-                case .tint(let alpha): return color.withAlpha(alpha).cgColor
-                case .white(let alpha): return CGColor(red: 1, green: 1, blue: 1, alpha: alpha)
-                }
-            }
-            layer.colors = stops
-            layer.locations = field.locations.map { NSNumber(value: $0) }
-            layer.opacity = Float(field.opacity)
-            if animated {
-                ensureFieldAnimation(layer, field: field, cycle: cycle, restart: restart, origin: origin)
-            } else {
-                layer.removeAnimation(forKey: "fieldTravel")
-                layer.position.x = size.width / 2
-            }
+        if animated, frames.count > 1 {
+            ensureCurtainAnimation(curtain, frames: frames, cycle: cycle, restart: restart)
+        } else {
+            curtain.removeAnimation(forKey: curtainKey)
+            _ = setCurtainFrame(curtain, frames: frames, phase: 0)
         }
 
-        // Three bright copies of the same textures, each clipped by a real
-        // moving `mask` (not an overlay) so off-window rays fade to the weak
-        // bed. The mask spans the whole lane and is translated, so its centre
-        // always coincides with its light-field centre.
-        for group in 0..<rayGroupCount {
-            let name = "peak\(group)"
-            slots.append(name)
-            let peaks = LayerSlot.named(name, in: root)
-            peaks.frame = CGRect(origin: .zero, size: size)
-            peaks.contentsScale = scale
-            peaks.contents = texture(group)
-            peaks.opacity = peakOpacity
-            anchorToBottom(peaks)
-            if animated {
-                ensurePeakBreath(peaks, cycle: cycle, group: group, origin: origin)
-            } else {
-                peaks.removeAnimation(forKey: "peakBreath")
-                peaks.transform = CATransform3DMakeScale(1, 0.97, 1)
-            }
+        LayerSlot.reconcile(root, keeping: ["scrim", "curtain"])
+    }
 
-            let mask = attachPeakMask(on: peaks, named: peakMaskKey(group: group))
-            mask.contentsScale = scale
-            mask.type = .axial
-            mask.startPoint = CGPoint(x: 0, y: 0.5)
-            mask.endPoint = CGPoint(x: 1, y: 0.5)
-            applyPeakMask(mask, window: model.primary.window, laneWidth: size.width, height: size.height)
-            if travels {
-                ensurePeakTravel(mask, journey: model.primary, cycle: cycle, restart: restart, origin: origin)
-            } else {
-                mask.removeAnimation(forKey: "peakTravel")
-                _ = applyMaskPhase(mask, journey: model.parkedJourneys[0], phase: 0)
-            }
+    /// Freezes one lane at one phase: the offline preview path and the test
+    /// hook. Never call this on the live tree while it is running.
+    @discardableResult
+    public static func applySampledPhase(into lane: CALayer, spec: LaneRenderSpec, phase: Double) -> Bool {
+        guard let root = LayerSlot.root(named: "spectrum", in: lane) else { return false }
+        stopAnimations(lane)
+        guard spec.signal?.isRunning == true, !spec.reduceMotion else { return false }
+        let region = spec.geometry.localFillBounds
+        let size = region.size
+        let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
+        let curtain = LayerSlot.named("curtain", in: root)
+        let frames = SpectrumFrameCache.sequence(
+            width: size.width, height: size.height, scale: scale,
+            color: spec.glass.signalLights.light(for: spec.signal?.attention ?? .none),
+            density: spec.glass.material.rayDensity, intensity: spec.waveIntensity,
+            travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight
+        )
+        return setCurtainFrame(curtain, frames: frames, phase: phase)
+    }
+
+    @discardableResult
+    private static func setCurtainFrame(_ curtain: CALayer, frames: [CGImage], phase: Double) -> Bool {
+        guard !frames.isEmpty else { return false }
+        let index = frameIndex(forPhase: phase, frameCount: frames.count)
+        curtain.contents = frames[index]
+        return true
+    }
+
+    /// The rasterised frame for one spec at one phase — used by the offline
+    /// tests and the preview matrix, so a frozen PNG is the same picture the
+    /// live sequence plays.
+    public static func frameImage(for spec: LaneRenderSpec, phase: Double, scale: CGFloat = 2) -> CGImage? {
+        let size = spec.geometry.localFillBounds.size
+        return SpectrumFrameRasteriser.frame(
+            width: size.width, height: size.height, scale: scale,
+            color: spec.glass.signalLights.light(for: spec.signal?.attention ?? .none),
+            density: spec.glass.material.rayDensity, intensity: spec.waveIntensity,
+            travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight,
+            phase: phase
+        )
+    }
+
+    // MARK: - Motion
+
+    /// Plays the pre-rasterised phase sequence as one discrete keyframe
+    /// animation. `contents` is a real animatable property, and discrete
+    /// keyframes make Core Animation swap whole frames in the render server —
+    /// no per-frame CPU work and no timer in the app.
+    private static func ensureCurtainAnimation(
+        _ layer: CALayer, frames: [CGImage], cycle: Double, restart: Bool
+    ) {
+        let existing = layer.animation(forKey: curtainKey) as? CAKeyframeAnimation
+        if !restart, let existing, existing.duration == cycle, sameImages(existing.values, frames) {
+            return
         }
+        let localOrigin = layer.convertTime(CACurrentMediaTime(), from: nil)
+        let carry = phaseCarry(from: existing, now: localOrigin)
+        let animation = CAKeyframeAnimation(keyPath: "contents")
+        animation.values = frames
+        // Discrete keyframes: frame *i* holds from keyTime *i* to *i+1*, and
+        // the last one holds to the end of the cycle.
+        animation.keyTimes = (0..<frames.count).map { NSNumber(value: Double($0) / Double(frames.count)) }
+        animation.calculationMode = .discrete
+        animation.duration = cycle
+        animation.repeatCount = .infinity
+        animation.beginTime = localOrigin
+        animation.timeOffset = carry * cycle
+        layer.contents = frames[0]
+        layer.add(animation, forKey: curtainKey)
+    }
 
-        LayerSlot.reconcile(root, keeping: slots)
+    private static func sameImages(_ values: Any?, _ frames: [CGImage]) -> Bool {
+        guard let images = values as? [CGImage], images.count == frames.count else { return false }
+        return zip(images, frames).allSatisfy { $0 === $1 }
+    }
+
+    /// Normalised phase carried across a duration or frame-count change so a
+    /// live adjustment re-times from where the animation already is. The layer
+    /// keeps its identity; only the timeline is rewritten.
+    static func phaseCarry(from animation: CAAnimation?, now: CFTimeInterval) -> Double {
+        guard let animation, animation.duration > 0 else { return 0 }
+        let previous = animation.duration
+        let begin = animation.beginTime == 0 ? now : animation.beginTime
+        let elapsed = now - begin + animation.timeOffset
+        let wrapped = elapsed.truncatingRemainder(dividingBy: previous)
+        return ((wrapped / previous) + 1).truncatingRemainder(dividingBy: 1)
     }
 
     /// Stops every animation this renderer owns, so a disabled overlay or a
@@ -223,295 +264,148 @@ public enum GlassSpectrumRenderer {
     }
 
     /// Recursively clears every animation key this renderer enables, including
-    /// the peak masks (which are `mask` children, not `sublayers`).
+    /// layers attached as `mask` children.
     static func stopSpectrumAnimations(_ root: CALayer) {
         var stack = [root]
         while let layer = stack.popLast() {
-            layer.removeAnimation(forKey: "rayBreath")
-            layer.removeAnimation(forKey: "peakBreath")
-            layer.removeAnimation(forKey: "peakTravel")
-            layer.removeAnimation(forKey: "fieldTravel")
+            layer.removeAnimation(forKey: curtainKey)
             if let mask = layer.mask {
                 stack.append(mask)
             }
             stack.append(contentsOf: layer.sublayers ?? [])
         }
     }
+}
 
-    static func peakMaskKey(group: Int) -> String { "peakmask\(group)" }
-
-    /// Find-or-create the `mask` child of a bright peak layer. `LayerSlot.named`
-    /// keeps identity across updates, but adding a fresh mask through it puts
-    /// the layer in `sublayers`; assigning `mask` afterwards detaches it again,
-    /// so the mask never shows up as a normal child or in diagnostics sublayers.
-    /// Returns a mask layer that is already attached via `peaks.mask`. Any
-    /// previous mask is detached so the tree never accumulates orphans.
-    private static func attachPeakMask(on peaks: CALayer, named name: String) -> CAGradientLayer {
-        if let existing = peaks.mask as? CAGradientLayer, existing.name == name {
-            return existing
-        }
-        peaks.mask?.removeFromSuperlayer()
-        peaks.mask = nil
-        let mask = CAGradientLayer()
-        mask.name = name
-        peaks.mask = mask
-        return mask
+/// LRU cache of rasterised phase sequences, with a byte budget.
+///
+/// A sequence is regenerated only when the picture actually changes (size,
+/// scale, light colour, density, intensity, travel mode), never on a data
+/// poll. The budget is expressed in **bytes of bitmap**, not entries: a wide
+/// lane costs ~700 KiB per frame, so the cap is what keeps a 34 pt single-bar
+/// lane from turning into a permanent 12 MiB allocation.
+@MainActor
+enum SpectrumFrameCache {
+    struct Key: Hashable {
+        var width: Int
+        var height: Int
+        var scale: Int
+        var colorHex: String
+        var density: Int
+        var intensity: Int
+        var travels: Bool
+        var growsTowardRight: Bool
+        var frameCount: Int
     }
 
-    // MARK: - Motion
+    /// Total bitmap bytes kept across every lane and every variant.
+    static let byteLimit = 16 * 1024 * 1024
 
-    /// The bright peak copies keep the bottom anchor and only breathe in
-    /// height. The horizontal window does the travelling, so this never turns
-    /// back into the old all-over compression of a fully bright curtain.
-    private static func ensurePeakBreath(_ layer: CALayer, cycle: Double, group: Int, origin: CFTimeInterval) {
-        anchorToBottom(layer)
-        let existing = layer.animation(forKey: "peakBreath") as? CAKeyframeAnimation
-        guard existing?.duration != cycle else { return }
-        let localOrigin = layer.convertTime(origin, from: nil)
-        let animation = CAKeyframeAnimation(keyPath: "transform.scale.y")
-        animation.values = [0.94, 1.0, 0.97, 0.94]
-        animation.keyTimes = [0, 0.34, 0.72, 1]
-        animation.duration = cycle
-        animation.repeatCount = .infinity
-        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        animation.beginTime = localOrigin
-        animation.timeOffset = cycle * (existing.map {
-            phaseCarry(from: $0, now: localOrigin)
-        } ?? (Double(group) / Double(rayGroupCount) * 0.5))
-        layer.add(animation, forKey: "peakBreath")
-    }
+    private static var cache: [Key: [CGImage]] = [:]
+    private static var order: [Key] = []
+    private static var bytesByKey: [Key: Int] = [:]
+    private static var bytes = 0
 
-    private static func anchorToBottom(_ layer: CALayer) {
-        layer.anchorPoint = CGPoint(x: 0.5, y: 0)
-        let size = layer.bounds.size
-        layer.position = CGPoint(x: size.width / 2, y: 0)
-        layer.bounds = CGRect(origin: .zero, size: size)
-    }
+    static var cachedByteCount: Int { bytes }
+    static var cachedSequenceCount: Int { cache.count }
 
-    /// A local energy window centered at zero, translated to the field centre.
-    static func applyPeakMask(_ mask: CAGradientLayer, window: SpectrumPhaseGeometry.PeakWindow, laneWidth: CGFloat, height: CGFloat) {
-        let lane = max(1, laneWidth)
-        let core = min(window.width, lane)
-        mask.bounds = CGRect(x: 0, y: 0, width: core, height: height)
-        mask.position = CGPoint(x: 0, y: height / 2)
-        mask.colors = SpectrumPhaseGeometry.windowAlphas.map {
-            CGColor(red: 0, green: 0, blue: 0, alpha: $0)
-        }
-        mask.locations = SpectrumPhaseGeometry.windowLocations.map { NSNumber(value: $0) }
-    }
-
-    @discardableResult
-    private static func applyMaskPhase(_ mask: CAGradientLayer, journey: SpectrumPhaseGeometry.PeakJourney, phase: Double) -> CGFloat {
-        let position = journey.offset(at: phase)
-        var transform = CATransform3DIdentity
-        transform.m41 = position
-        mask.transform = transform
-        return position
-    }
-
-    /// The travelling light field, mirrored when the lane grows leftward.
-    /// `origin` is the one time origin shared by every spectrum animation in
-    /// this update, so the field and its mask stay in lockstep.
-    private static func ensureFieldAnimation(
-        _ layer: CAGradientLayer, field: LightField, cycle: Double, restart: Bool, origin: CFTimeInterval
-    ) {
-        let duration = cycle * field.cycleFactor
-        let existing = layer.animation(forKey: "fieldTravel") as? CABasicAnimation
-        guard restart || existing?.duration != duration
-            || existing?.fromValue as? CGFloat != field.fromX
-            || existing?.toValue as? CGFloat != field.toX else { return }
-        let localOrigin = layer.convertTime(origin, from: nil)
-        let carry = phaseCarry(from: existing, now: localOrigin)
-        let travel = CABasicAnimation(keyPath: "position.x")
-        travel.fromValue = field.fromX
-        travel.toValue = field.toX
-        travel.duration = duration
-        travel.repeatCount = .infinity
-        travel.timingFunction = CAMediaTimingFunction(name: .linear)
-        travel.beginTime = localOrigin
-        travel.timeOffset = carry * duration
-        layer.add(travel, forKey: "fieldTravel")
-    }
-
-    /// The local peak window shares the field's endpoints, duration, direction
-    /// and time origin, so the mask can never drift away from the light.
-    private static func ensurePeakTravel(
-        _ mask: CAGradientLayer, journey: SpectrumPhaseGeometry.PeakJourney, cycle: Double, restart: Bool, origin: CFTimeInterval
-    ) {
-        let duration = cycle * journey.cycleFactor
-        let existing = mask.animation(forKey: "peakTravel") as? CABasicAnimation
-        guard restart || existing?.duration != duration
-            || existing?.fromValue as? CGFloat != journey.from
-            || existing?.toValue as? CGFloat != journey.to else { return }
-        let localOrigin = mask.convertTime(origin, from: nil)
-        let carry = phaseCarry(from: existing, now: localOrigin)
-        let travel = CABasicAnimation(keyPath: "transform.translation.x")
-        travel.fromValue = journey.from
-        travel.toValue = journey.to
-        travel.duration = duration
-        travel.repeatCount = .infinity
-        travel.timingFunction = CAMediaTimingFunction(name: .linear)
-        travel.beginTime = localOrigin
-        travel.timeOffset = carry * duration
-        mask.add(travel, forKey: "peakTravel")
-    }
-
-    /// Normalised phase carried across a duration change so a live floor
-    /// adjustment re-times from where the animation already is. The layer keeps
-    /// its identity; only the timeline is rewritten.
-    static func phaseCarry(from animation: CAAnimation?, now: CFTimeInterval) -> Double {
-        guard let animation, animation.duration > 0 else { return 0 }
-        let previous = animation.duration
-        let begin = animation.beginTime == 0 ? now : animation.beginTime
-        let elapsed = now - begin + animation.timeOffset
-        let wrapped = elapsed.truncatingRemainder(dividingBy: previous)
-        return ((wrapped / previous) + 1).truncatingRemainder(dividingBy: 1)
-    }
-
-    /// Samples horizontal peak motion for offline tests/preview. The vertical
-    /// breath is held at 0.97 to isolate the moving brightness window; live CA
-    /// composition is validated separately. Never call this on the live tree.
-    static func applySampledPhase(
-        into lane: CALayer,
-        spec: LaneRenderSpec,
-        cycle: Double,
-        phase: Double
-    ) {
-        guard let root = LayerSlot.root(named: "spectrum", in: lane) else { return }
-        guard spec.signal?.isRunning == true, !spec.reduceMotion else {
-            stopSpectrumAnimations(root)
-            return
-        }
-        let region = spec.geometry.localFillBounds
-        let size = region.size
-        let fields = LightFieldGeometry.racetrack(size: size, growsTowardRight: spec.geometry.growsTowardRight)
-        let model = SpectrumPhaseGeometry(
-            size: size, fields: fields, cycle: cycle, growsTowardRight: spec.geometry.growsTowardRight
+    static func sequence(
+        width: CGFloat,
+        height: CGFloat,
+        scale: CGFloat,
+        color: RGBAColor,
+        density: Double,
+        intensity: Double,
+        travels: Bool,
+        growsTowardRight: Bool
+    ) -> [CGImage] {
+        guard width > 0, height > 0 else { return [] }
+        let frameCount = GlassSpectrumRenderer.framesPerCycle(width: width, height: height, scale: scale)
+        let key = Key(
+            width: Int(width.rounded()),
+            height: Int(height.rounded()),
+            scale: Int((scale * 100).rounded()),
+            colorHex: color.withAlpha(1).hexString,
+            density: Int((density * 100).rounded()),
+            intensity: Int((SpectrumRhythm.clampedIntensity(intensity) * 100).rounded()),
+            travels: travels,
+            growsTowardRight: growsTowardRight,
+            frameCount: frameCount
         )
-        let travels = spec.showsTravelingLight
-        let sample = model.sample(at: phase)
-        let journey = travels ? model.primary : model.parkedJourneys[0]
-        let journeyPhase = travels ? phase : 0
-
-        for (index, field) in fields.enumerated() {
-            guard let layer = root.sublayers?.first(where: { $0.name == "field\(index)" }) else { continue }
-            layer.removeAnimation(forKey: "fieldTravel")
-            layer.position.x = travels ? sample.lightFieldOffsets[index] : size.width / 2
+        if let cached = cache[key] {
+            touch(key)
+            return cached
         }
-
-        for group in 0..<rayGroupCount {
-            let peak = LayerSlot.named("peak\(group)", in: root)
-            peak.removeAnimation(forKey: "peakBreath")
-            peak.transform = CATransform3DMakeScale(1, 0.97, 1)
-            guard let gradient = peak.mask as? CAGradientLayer else { continue }
-            gradient.removeAnimation(forKey: "peakTravel")
-            _ = applyMaskPhase(gradient, journey: journey, phase: journeyPhase)
+        let frames = (0..<frameCount).compactMap { index in
+            SpectrumFrameRasteriser.frame(
+                width: width, height: height, scale: scale, color: color,
+                density: density, intensity: intensity, travels: travels,
+                growsTowardRight: growsTowardRight,
+                phase: SpectrumWaveModel.framePhase(index: index, count: frameCount)
+            )
         }
+        guard frames.count == frameCount else { return frames }
+        cache[key] = frames
+        order.append(key)
+        let size = frames.count * GlassSpectrumRenderer.pixelByteCount(width: width, height: height, scale: scale)
+        bytesByKey[key] = size
+        bytes += size
+        evictIfNeeded()
+        return frames
     }
 
-    // MARK: - Light field geometry (pure)
-
-    enum StopPattern: Equatable {
-        case clear
-        case tint(Double)
-        case white(Double)
+    /// Drops everything, including the ray sprites. Tests use it to observe
+    /// cache behaviour.
+    static func reset() {
+        cache.removeAll()
+        order.removeAll()
+        bytesByKey.removeAll()
+        bytes = 0
+        RaySpriteCache.reset()
     }
 
-    struct LightField: Equatable {
-        var frame: CGRect
-        var stops: [StopPattern]
-        var locations: [Double]
-        var opacity: Double
-        var fromX: CGFloat
-        var toX: CGFloat
-        var restX: CGFloat
-        var cycleFactor: Double
+    private static func touch(_ key: Key) {
+        guard let index = order.firstIndex(of: key) else { return }
+        order.remove(at: index)
+        order.append(key)
     }
 
-    enum LightFieldGeometry {
-        /// Two fields at different speeds (and mirrored directions), matching
-        /// the reference's primary cursor + secondary reflected cursor.
-        static func racetrack(size: CGSize, growsTowardRight: Bool) -> [LightField] {
-            let width = max(size.width, 1)
-            let primaryWidth = min(width, max(140, width * 0.42))
-            let secondaryWidth = min(width, max(90, width * 0.26))
-
-            func travel(_ fieldWidth: CGFloat, forward: Bool) -> (from: CGFloat, to: CGFloat, rest: CGFloat) {
-                let leadingStart: CGFloat = -fieldWidth / 2
-                let leadingEnd = width + fieldWidth / 2
-                let start = growsTowardRight == forward ? leadingStart : leadingEnd
-                let end = growsTowardRight == forward ? leadingEnd : leadingStart
-                return (start, end, start)
+    private static func evictIfNeeded() {
+        while bytes > byteLimit, order.count > 1, let oldest = order.first {
+            order.removeFirst()
+            if cache.removeValue(forKey: oldest) != nil {
+                bytes -= bytesByKey.removeValue(forKey: oldest) ?? 0
             }
-
-            let primary = travel(primaryWidth, forward: true)
-            let secondary = travel(secondaryWidth, forward: false)
-            return [
-                LightField(
-                    frame: CGRect(x: 0, y: 0, width: primaryWidth, height: size.height),
-                    stops: [.clear, .tint(0.10), .white(0.09), .tint(0.30), .clear],
-                    locations: [0, 0.22, 0.5, 0.78, 1],
-                    opacity: 0.95,
-                    fromX: primary.from, toX: primary.to, restX: primary.rest,
-                    cycleFactor: 1.0
-                ),
-                LightField(
-                    frame: CGRect(x: 0, y: 0, width: secondaryWidth, height: size.height),
-                    stops: [.clear, .tint(0.07), .tint(0.16), .clear],
-                    locations: [0, 0.3, 0.7, 1],
-                    opacity: 0.7,
-                    fromX: secondary.from, toX: secondary.to, restX: secondary.rest,
-                    cycleFactor: 1.7
-                ),
-            ]
         }
     }
 }
 
-/// Deterministic ray-curtain textures, cached per (size, colour, density).
-/// The texture is the density: 100% means "clearly visible rays at 30–34pt",
-/// and it costs one bitmap, not one layer per ray.
+/// Rasterises one phase of the curtain.
+///
+/// The rays are stamped from a cached sprite rather than re-built from
+/// `CGGradient` objects: a frame is a few hundred small blits, which keeps a
+/// whole phase sequence in the low tens of milliseconds — cheap enough to
+/// build on the main actor when a lane's size, colour or theme changes.
 @MainActor
-enum RayTextureCache {
-    private static var cache: [String: CGImage] = [:]
-    private static var order: [String] = []
-    private static let limit = 12
+enum SpectrumFrameRasteriser {
+    /// Reference height of the ray sprite. Taller than any real ray, so a
+    /// stamped ray is always a downscale and the gradient stays smooth.
+    static let spriteHeight: CGFloat = 64
+    static let haloWidth: CGFloat = 4.2
+    static let coreWidth: CGFloat = 1.16
+    /// V5's specular reflection near the bottom edge.
+    static let reflectionAlpha: Double = 0.105
 
-    static func image(
+    static func frame(
         width: CGFloat,
         height: CGFloat,
         scale: CGFloat,
-        group: Int,
-        groupCount: Int,
         color: RGBAColor,
         density: Double,
-        grain: Double
-    ) -> CGImage? {
-        guard width > 0, height > 0 else { return nil }
-        let key = "\(Int(width.rounded()))x\(Int(height.rounded()))@\(scale)g\(group)/\(groupCount)"
-            + "|\(color.hexString)|\(Int((density * 100).rounded()))|\(Int((grain * 100).rounded()))"
-        if let cached = cache[key] { return cached }
-
-        guard let image = draw(width: width, height: height, scale: scale, group: group, groupCount: groupCount,
-                               color: color, density: density, grain: grain) else { return nil }
-        cache[key] = image
-        order.append(key)
-        while order.count > limit, let oldest = order.first {
-            order.removeFirst()
-            cache.removeValue(forKey: oldest)
-        }
-        return image
-    }
-
-    private static func draw(
-        width: CGFloat,
-        height: CGFloat,
-        scale: CGFloat,
-        group: Int,
-        groupCount: Int,
-        color: RGBAColor,
-        density: Double,
-        grain: Double
+        intensity: Double,
+        travels: Bool,
+        growsTowardRight: Bool,
+        phase: Double
     ) -> CGImage? {
         let pixelWidth = max(1, Int((width * scale).rounded()))
         let pixelHeight = max(1, Int((height * scale).rounded()))
@@ -520,249 +414,174 @@ enum RayTextureCache {
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
+        ), let halo = RaySpriteCache.sprite(kind: .halo, color: color, scale: scale),
+           let core = RaySpriteCache.sprite(kind: .core, color: color, scale: scale) else { return nil }
         context.scaleBy(x: scale, y: scale)
+        context.setShouldAntialias(true)
+        context.interpolationQuality = .high
 
-        // The V5 density curve: 100% is roughly 1.8 rays per 8.5pt — clearly
-        // visible on a 30pt strip; 0% still leaves a sparse curtain.
-        let densityBoost = 0.55 + density * 1.25
-        let rayCount = max(24, Int((width / 8.5 * densityBoost).rounded()))
+        let primary = SpectrumWaveModel.primaryCrestCenter(
+            at: phase, travels: travels, travelsTowardRight: growsTowardRight
+        )
+        let secondary = SpectrumWaveModel.secondaryCrestCenter(
+            at: phase, travels: travels, travelsTowardRight: growsTowardRight
+        )
+        let radius = SpectrumWaveModel.focusRadiusFraction * Double(width)
 
-        for index in group..<rayCount where index % groupCount == group {
-            let u = (CGFloat(index) + 0.5) / CGFloat(rayCount)
-            let x = u * width
-            let wave1 = 0.5 + 0.5 * sin(Double(u) * .pi * 4.1 + Double(index) * 0.072)
-            let wave2 = 0.5 + 0.5 * sin(Double(u) * .pi * 2.4 + Double(index) * 0.27)
-            let crest = 0.61 * wave1 + 0.39 * wave2
-            // A static focus profile keeps the curtain from looking like a
-            // comb; the moving field adds the rest of the travelling light.
-            let focus = max(exp(-pow((Double(u) - 0.30) / 0.16, 2)),
-                            0.6 * exp(-pow((Double(u) - 0.74) / 0.20, 2)))
-            // Taller and more opaque than the browser lab's canvas pass: the
-            // native band is composited under the system menu bar material,
-            // which costs roughly 40% of the contrast we draw.
-            let rayHeight = height * CGFloat(0.32 + 0.48 * crest + 0.34 * focus)
-            let alpha = min(1, 0.46 + 0.36 * crest + 0.42 * focus)
-            // The V5 curtain stands on the strip: every ray's base sits on the
-            // bottom edge (Quartz y = 0), so only the tips wave. Starting at
-            // `height - rayHeight` instead would hang the curtain from the top
-            // edge and put the ragged hem at the bottom.
-            let base: CGFloat = 0
+        // The travelling light field caught by the frosted panel. Drawn
+        // additively, like the lab's `screen` pass, so it lifts the glass
+        // instead of laying a flat white sheet over it.
+        context.saveGState()
+        context.setBlendMode(.plusLighter)
+        drawGlow(in: context, width: width, height: height,
+                 center: primary, radius: radius, color: color, weight: 0.72)
+        drawGlow(in: context, width: width, height: height,
+                 center: secondary, radius: radius * 0.66, color: color,
+                 weight: SpectrumWaveModel.secondaryWeight)
+        // Soft specular reflection along the bottom edge, only under the crest.
+        drawReflection(in: context, width: width, height: height, center: primary, radius: radius)
+        context.restoreGState()
 
-            drawRay(in: context, x: x, y: base, height: rayHeight, alpha: alpha, color: color)
+        // The curtain itself: every ray is a soft chromatic halo plus a bright
+        // core, and every ray carries its own height and visibility.
+        for ray in SpectrumWaveModel.rays(width: Double(width), density: density) {
+            let sample = SpectrumWaveModel.sample(
+                normalizedX: ray.normalizedX, rayIndex: ray.index, phase: phase,
+                primaryCenter: primary, intensity: intensity
+            )
+            let rayHeight = height * CGFloat(sample.heightFraction)
+            let x = CGFloat(ray.normalizedX) * width
+            context.setAlpha(CGFloat(sample.alpha))
+            context.draw(halo, in: CGRect(x: x - haloWidth / 2, y: 0, width: haloWidth, height: rayHeight))
+            context.draw(core, in: CGRect(x: x - coreWidth / 2, y: 0, width: coreWidth, height: rayHeight))
         }
-
-        if grain > 0.001 {
-            drawGrain(in: context, width: width, height: height, intensity: grain)
-        }
+        context.setAlpha(1)
 
         return context.makeImage()
     }
 
-    /// One fine luminous ray: a soft chromatic halo plus a bright core that
-    /// whitens toward the baseline the ray stands on.
-    private static func drawRay(in context: CGContext, x: CGFloat, y: CGFloat, height: CGFloat, alpha: Double, color: RGBAColor) {
-        let haloWidth: CGFloat = 4.2
-        let halo = CGGradient(
+    private static func drawGlow(
+        in context: CGContext, width: CGFloat, height: CGFloat,
+        center: Double, radius: Double, color: RGBAColor, weight: Double
+    ) {
+        guard radius > 0 else { return }
+        let centerX = CGFloat(center) * width
+        let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: [
+                color.withAlpha(0.22 * weight).cgColor,
+                color.withAlpha(0.10 * weight).cgColor,
                 color.withAlpha(0).cgColor,
-                color.withAlpha(alpha * 0.34).cgColor,
-                color.withAlpha(alpha * 0.86).cgColor,
-                color.withAlpha(alpha * 0.98).cgColor,
             ] as CFArray,
-            locations: [0, 0.18, 0.64, 1]
+            locations: [0, 0.34, 1]
         )
-        if let halo {
-            context.saveGState()
-            context.clip(to: CGRect(x: x - haloWidth / 2, y: y, width: haloWidth, height: height))
-            context.drawLinearGradient(halo, start: CGPoint(x: 0, y: y + height), end: CGPoint(x: 0, y: y), options: [])
-            context.restoreGState()
-        }
+        guard let gradient else { return }
+        context.saveGState()
+        context.clip(to: CGRect(x: 0, y: 0, width: width, height: height))
+        context.drawRadialGradient(
+            gradient,
+            startCenter: CGPoint(x: centerX, y: height * 0.77), startRadius: 0,
+            endCenter: CGPoint(x: centerX, y: height * 0.77), endRadius: radius,
+            options: [.drawsAfterEndLocation]
+        )
+        context.restoreGState()
+    }
 
-        let coreWidth: CGFloat = 1.3
-        let core = CGGradient(
+    private static func drawReflection(
+        in context: CGContext, width: CGFloat, height: CGFloat, center: Double, radius: Double
+    ) {
+        guard radius > 0, width > 0 else { return }
+        let centerX = CGFloat(center) * width
+        let half = CGFloat(radius) * 0.5
+        let left = max(0, centerX - half)
+        let right = min(width, centerX + half)
+        guard right > left else { return }
+        let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: [
-                color.withAlpha(0).cgColor,
-                color.withAlpha(min(1, alpha * 0.5)).cgColor,
-                CGColor(red: 1, green: 1, blue: 1, alpha: min(1, alpha)),
+                CGColor(red: 1, green: 1, blue: 1, alpha: 0),
+                CGColor(red: 1, green: 1, blue: 1, alpha: reflectionAlpha),
+                CGColor(red: 1, green: 1, blue: 1, alpha: 0),
             ] as CFArray,
             locations: [0, 0.5, 1]
         )
-        if let core {
-            context.saveGState()
-            context.clip(to: CGRect(x: x - coreWidth / 2, y: y, width: coreWidth, height: height))
-            context.drawLinearGradient(core, start: CGPoint(x: 0, y: y + height), end: CGPoint(x: 0, y: y), options: [])
-            context.restoreGState()
-        }
-    }
-
-    /// Optional frosted speckle. Default grain is 0 — no noise unless asked.
-    private static func drawGrain(in context: CGContext, width: CGFloat, height: CGFloat, intensity: Double) {
-        var seed: UInt64 = 0x9E37_79B9_7F4A_7C15
-        func next() -> Double {
-            seed = seed &* 6364136223846793005 &+ 1442695040888963407
-            return Double((seed >> 33) & 0xFFFF) / 65535
-        }
-        let step: CGFloat = 2
-        let alpha = 0.05 + intensity * 0.10
-        var y: CGFloat = 0
-        while y < height {
-            var x: CGFloat = 0
-            while x < width {
-                let value = next()
-                if value > 0.72 {
-                    context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: alpha * (value - 0.72) / 0.28))
-                    context.fill(CGRect(x: x, y: y, width: 1, height: 1))
-                } else if value < 0.18 {
-                    context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: alpha * (0.18 - value) / 0.18))
-                    context.fill(CGRect(x: x, y: y, width: 1, height: 1))
-                }
-                x += step
-            }
-            y += step
-        }
+        guard let gradient else { return }
+        context.saveGState()
+        context.clip(to: CGRect(x: left, y: 0, width: right - left, height: height * 0.28))
+        context.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: left, y: 0), end: CGPoint(x: right, y: 0), options: []
+        )
+        context.restoreGState()
     }
 }
 
-/// Pure, nonisolated geometry for the deterministic peak phase sampler. Shared
-/// by the live Core Animation timelines and the offline rasteriser so a frozen
-/// frame and the running animation can never disagree about where the peak is.
-///
-/// Deliberately outside `@MainActor GlassSpectrumRenderer` so it stays a plain
-/// `Sendable` value with no actor-isolated members.
-struct SpectrumPhaseGeometry: Sendable {
-    static let windowLocations: [Double] = [0, 0.25, 0.5, 0.75, 1]
-    static let windowAlphas: [Double] = [0, 0.15, 1, 0.15, 0]
-    /// Window plateau as a fraction of the visible lane width, clamped to the
-    /// plan's 20%–32% range; the secondary reflection is narrower and weaker.
-    static let primaryPeakWidthFraction: CGFloat = 0.26
-    static let secondaryPeakWidthFraction: CGFloat = 0.18
-    /// Fraction of the window spent fading at each edge of the travelling mask.
-    static let peakEdgeFadeFraction: CGFloat = 0.15
-
-    struct PeakWindow: Equatable, Sendable {
-        var center: CGFloat
-        var width: CGFloat
-
-        func sample(offset: CGFloat) -> PeakWindowSample {
-            PeakWindowSample(offset: offset, alphaAtOffset: 1, window: width)
-        }
+/// Cached ray sprites. One sprite per (kind, colour, scale) — the density model
+/// decides how often a sprite is stamped, never how many layers exist.
+@MainActor
+enum RaySpriteCache {
+    enum Kind: Hashable {
+        case halo
+        case core
     }
 
-    struct PeakWindowSample: Equatable, Sendable {
-        var offset: CGFloat
-        var alphaAtOffset: Double
-        var window: CGFloat
+    private static var cache: [String: CGImage] = [:]
+
+    static func sprite(kind: Kind, color: RGBAColor, scale: CGFloat) -> CGImage? {
+        let key = "\(kind)|\(color.withAlpha(1).hexString)|\(Int((scale * 100).rounded()))"
+        if let cached = cache[key] { return cached }
+        guard let image = draw(kind: kind, color: color, scale: scale) else { return nil }
+        cache[key] = image
+        return image
     }
 
-    /// One peak's travel: the same endpoints, duration and direction as its
-    /// light field, so a positive phase advances mask and field together.
-    struct PeakJourney: Equatable, Sendable {
-        var from: CGFloat
-        var to: CGFloat
-        var cycleFactor: Double
-        var window: PeakWindow
-        /// True when increasing phase moves toward the growing edge.
-        var travelsTowardLeadingEdge: Bool
+    static func reset() { cache.removeAll() }
 
-        func offset(at phase: Double) -> CGFloat {
-            let wrapped = phase.truncatingRemainder(dividingBy: 1)
-            let normalised = wrapped < 0 ? wrapped + 1 : wrapped
-            return from + (to - from) * CGFloat(normalised)
-        }
+    private static func draw(kind: Kind, color: RGBAColor, scale: CGFloat) -> CGImage? {
+        let width: CGFloat = kind == .halo ? SpectrumFrameRasteriser.haloWidth : SpectrumFrameRasteriser.coreWidth
+        let pixelWidth = max(1, Int((width * scale).rounded()))
+        let pixelHeight = max(2, Int((SpectrumFrameRasteriser.spriteHeight * scale).rounded()))
+        guard let context = CGContext(
+            data: nil, width: pixelWidth, height: pixelHeight,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.scaleBy(x: scale, y: scale)
 
-        func sample(at phase: Double) -> PeakWindowSample {
-            window.sample(offset: offset(at: phase))
-        }
-    }
-
-    struct PeakSample: Equatable, Sendable {
-        var primary: PeakWindowSample
-        var secondary: PeakWindowSample
-        /// Wide light-field centres; when travelling is on these coincide with
-        /// the mask offsets above.
-        var lightFieldOffsets: [CGFloat]
-    }
-
-    var laneWidth: CGFloat
-    var primary: PeakJourney
-    var secondary: PeakJourney
-    var cycle: Double
-
-    init(size: CGSize, fields: [GlassSpectrumRenderer.LightField], cycle: Double, growsTowardRight: Bool) {
-        let lane = max(1, size.width)
-        laneWidth = lane
-        self.cycle = cycle
-        func plateau(_ fraction: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
-            min(max(lane * fraction, lane * lower), lane * upper)
-        }
-        let primaryWindow = PeakWindow(
-            center: 0,
-            width: plateau(Self.primaryPeakWidthFraction, lower: 0.20, upper: 0.32)
-        )
-        let secondaryWindow = PeakWindow(
-            center: 0,
-            width: plateau(Self.secondaryPeakWidthFraction, lower: 0.14, upper: 0.24)
-        )
-        let primaryField = fields.first
-        let secondaryField = fields.count > 1 ? fields[1] : primaryField
-        primary = PeakJourney(
-            from: primaryField?.fromX ?? 0,
-            to: primaryField?.toX ?? lane,
-            cycleFactor: primaryField?.cycleFactor ?? 1,
-            window: primaryWindow,
-            travelsTowardLeadingEdge: growsTowardRight
-        )
-        secondary = PeakJourney(
-            from: secondaryField?.fromX ?? lane,
-            to: secondaryField?.toX ?? 0,
-            cycleFactor: secondaryField?.cycleFactor ?? 1.7,
-            window: secondaryWindow,
-            travelsTowardLeadingEdge: !growsTowardRight
-        )
-    }
-
-    var journeys: [PeakJourney] { [primary, secondary] }
-
-    func sample(at phase: Double) -> PeakSample {
-        PeakSample(
-            primary: primary.sample(at: phase / primary.cycleFactor),
-            secondary: secondary.sample(at: phase / secondary.cycleFactor),
-            lightFieldOffsets: [primary.offset(at: phase / primary.cycleFactor),
-                               secondary.offset(at: phase / secondary.cycleFactor)]
-        )
-    }
-
-    /// Both peaks parked on the lane centre: a fixed local undulation with no
-    /// horizontal crossing. Used when `showsTravelingLight` is off and when
-    /// Reduce Motion freezes the lane.
-    var parkedJourneys: [PeakJourney] {
-        let centre = laneWidth / 2
-        return journeys.map { journey in
-            PeakJourney(
-                from: centre,
-                to: centre,
-                cycleFactor: journey.cycleFactor,
-                window: journey.window,
-                travelsTowardLeadingEdge: journey.travelsTowardLeadingEdge
+        let gradient: CGGradient?
+        switch kind {
+        case .halo:
+            // Tip → base: the chromatic halo of a fine ray.
+            gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [
+                    color.withAlpha(0).cgColor,
+                    color.withAlpha(0.28).cgColor,
+                    color.withAlpha(0.78).cgColor,
+                    color.withAlpha(0.92).cgColor,
+                ] as CFArray,
+                locations: [0, 0.18, 0.64, 1]
+            )
+        case .core:
+            // Tip → base: a white-hot centre that whitens where it meets the strip.
+            gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [
+                    CGColor(red: 1, green: 1, blue: 1, alpha: 0),
+                    color.withAlpha(0.42).cgColor,
+                    CGColor(red: 0.96, green: 0.98, blue: 1, alpha: 0.76),
+                ] as CFArray,
+                locations: [0, 0.5, 1]
             )
         }
-    }
-
-    func maskAlpha(at x: CGFloat, phase: Double) -> Double {
-        Self.rampAlpha(x, sample: primary.sample(at: phase / primary.cycleFactor))
-    }
-
-    static func rampAlpha(_ x: CGFloat, sample: PeakWindowSample) -> Double {
-        let u = Double((x - sample.offset) / max(1, sample.window)) + 0.5
-        guard u >= 0, u <= 1 else { return 0 }
-        for index in 1..<windowLocations.count where u <= windowLocations[index] {
-            let start = windowLocations[index - 1]
-            let progress = (u - start) / (windowLocations[index] - start)
-            return windowAlphas[index - 1] + (windowAlphas[index] - windowAlphas[index - 1]) * progress
-        }
-        return 0
+        guard let gradient else { return nil }
+        context.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: 0, y: SpectrumFrameRasteriser.spriteHeight),
+            end: CGPoint(x: 0, y: 0),
+            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+        )
+        return context.makeImage()
     }
 }

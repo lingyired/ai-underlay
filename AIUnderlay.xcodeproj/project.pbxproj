@@ -98,6 +98,7 @@
 		C6DE3F6CB2B4BBBF7B8CDF0E /* SessionCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C88035D344707F24402DA5 /* SessionCatalogTests.swift */; };
 		C6FC91C89DFAC7B4D24E2ECA /* AIUnderlayKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C78563105E93C4BC1673E768 /* LaneRenderSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3287BBFB3D55DD8508C63A /* LaneRenderSpec.swift */; };
+		C8488EB8C005013BC4BF6B2E /* SpectrumWaveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D86ED1F072BD23EC2550363 /* SpectrumWaveModel.swift */; };
 		CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */; };
 		CC2CA59E5B3D5D61FB2C908B /* GlassSpectrumRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DC96C21D8570582349700F /* GlassSpectrumRenderer.swift */; };
 		CF7E85EF05423C7432F8ED68 /* DashboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B7583F73B9356754A1E3A1 /* DashboardModel.swift */; };
@@ -247,6 +248,7 @@
 		98FB8A2030F59A03596BF6A7 /* AIUnderlayKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIUnderlayKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9BAFC71C23F973301794AA5C /* SpectrumRhythmTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumRhythmTests.swift; sourceTree = "<group>"; };
 		9C22E7BD8D324BADEC3B32CF /* CodexBarProviderCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarProviderCatalog.swift; sourceTree = "<group>"; };
+		9D86ED1F072BD23EC2550363 /* SpectrumWaveModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumWaveModel.swift; sourceTree = "<group>"; };
 		9E48A5ACFB73D713B7C5DD84 /* PanelGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelGeometryTests.swift; sourceTree = "<group>"; };
 		A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandWindowLevelTests.swift; sourceTree = "<group>"; };
 		A20FEE059E082DD8C6C0C315 /* claude-usage-notloggedin.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "claude-usage-notloggedin.json"; sourceTree = "<group>"; };
@@ -350,6 +352,7 @@
 				CFABB65B186E745FAC57BD84 /* MenuBarGeometry.swift */,
 				93F6B59E476A605FA34BFA1D /* MenuBarOverlayController.swift */,
 				C3882DEB5863B6DE396FC725 /* SpectrumRhythm.swift */,
+				9D86ED1F072BD23EC2550363 /* SpectrumWaveModel.swift */,
 				905706BFAEDD3BB94BA83E73 /* ThemePalette.swift */,
 				F405A52DEB8B2A655BB5E9F1 /* ThemeResolver.swift */,
 			);
@@ -822,6 +825,7 @@
 				E8E8089539B58E02737966AD /* SettingsWindowController.swift in Sources */,
 				E0E28D57DC8D8A4FB4C40447 /* SnapshotCache.swift in Sources */,
 				59AF096E4CCBE85665B8376C /* SpectrumRhythm.swift in Sources */,
+				C8488EB8C005013BC4BF6B2E /* SpectrumWaveModel.swift in Sources */,
 				A10F478BFEDEBF4B3CC20633 /* StatusItemController.swift in Sources */,
 				BA4A5DF127B81D8F85C4C879 /* ThemeDocument.swift in Sources */,
 				03A502E286714E5DBA364EA4 /* ThemePalette.swift in Sources */,
