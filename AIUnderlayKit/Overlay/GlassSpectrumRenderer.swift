@@ -9,7 +9,7 @@ import AppKit
 ///
 /// The ray *shape* is a function of time, not a static texture that gets
 /// scaled: `SpectrumWaveModel` samples every ray at a phase, and the renderer
-/// rasterises a short sequence of those phases (`framesPerCycle`, 10–16). Core
+/// rasterises a short sequence of those phases (`framesPerCycle`, 12–24). Core
 /// Animation then plays that sequence with a discrete keyframe animation on
 /// `contents`, so the wave runs in the render server with no per-frame CPU
 /// work and no timer in the app.
