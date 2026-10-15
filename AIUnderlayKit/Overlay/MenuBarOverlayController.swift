@@ -98,6 +98,8 @@ public final class MenuBarOverlayController {
                 reduceMotion: presentation.left?.reduceMotion ?? false,
                 spectrumFloorHz: presentation.left?.spectrumFloorHz
                     ?? SpectrumRhythm.floorFrequencyHz,
+                waveIntensity: presentation.left?.waveIntensity
+                    ?? SpectrumRhythm.motionIntensityDefault,
                 showsTravelingLight: presentation.left?.showsTravelingLight ?? true,
                 showsAttentionSweep: presentation.left?.showsAttentionSweep ?? true
             )

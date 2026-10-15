@@ -32,6 +32,9 @@ public struct LaneContent: Sendable, Equatable {
     /// tokens/s curve. The coordinator resolves it from the user's setting;
     /// the default keeps every other caller on the built-in floor.
     public var spectrumFloorHz: Double
+    /// How pronounced the ray wave is, 0.30…1.00. This is a visual setting
+    /// only: output speed changes the rhythm, never the wave amplitude.
+    public var waveIntensity: Double
     /// Whether the wide travelling light fields run across this lane.
     public var showsTravelingLight: Bool
     /// Whether the attention ribbon sweeps its bright band across this lane.
@@ -46,6 +49,7 @@ public struct LaneContent: Sendable, Equatable {
         signal: ProviderVisualSignal? = nil,
         reduceMotion: Bool = false,
         spectrumFloorHz: Double = SpectrumRhythm.floorFrequencyHz,
+        waveIntensity: Double = SpectrumRhythm.motionIntensityDefault,
         showsTravelingLight: Bool = true,
         showsAttentionSweep: Bool = true
     ) {
@@ -57,6 +61,7 @@ public struct LaneContent: Sendable, Equatable {
         self.signal = signal
         self.reduceMotion = reduceMotion
         self.spectrumFloorHz = spectrumFloorHz
+        self.waveIntensity = waveIntensity
         self.showsTravelingLight = showsTravelingLight
         self.showsAttentionSweep = showsAttentionSweep
     }
@@ -66,6 +71,7 @@ public struct LaneContent: Sendable, Equatable {
         providerId: String,
         reduceMotion: Bool = false,
         spectrumFloorHz: Double = SpectrumRhythm.floorFrequencyHz,
+        waveIntensity: Double = SpectrumRhythm.motionIntensityDefault,
         showsTravelingLight: Bool = true,
         showsAttentionSweep: Bool = true
     ) -> LaneContent {
@@ -78,6 +84,7 @@ public struct LaneContent: Sendable, Equatable {
             signal: nil,
             reduceMotion: reduceMotion,
             spectrumFloorHz: spectrumFloorHz,
+            waveIntensity: waveIntensity,
             showsTravelingLight: showsTravelingLight,
             showsAttentionSweep: showsAttentionSweep
         )
@@ -94,6 +101,7 @@ public struct LaneContent: Sendable, Equatable {
             signal: signal,
             reduceMotion: reduceMotion,
             spectrumFloorHz: spectrumFloorHz,
+            waveIntensity: waveIntensity,
             showsTravelingLight: showsTravelingLight,
             showsAttentionSweep: showsAttentionSweep
         )
@@ -113,6 +121,7 @@ public struct LaneRenderSpec: Sendable, Equatable {
     public var signal: ProviderVisualSignal?
     public var reduceMotion: Bool
     public var spectrumFloorHz: Double
+    public var waveIntensity: Double
     public var showsTravelingLight: Bool
     public var showsAttentionSweep: Bool
 
@@ -126,6 +135,7 @@ public struct LaneRenderSpec: Sendable, Equatable {
         signal: ProviderVisualSignal? = nil,
         reduceMotion: Bool = false,
         spectrumFloorHz: Double = SpectrumRhythm.floorFrequencyHz,
+        waveIntensity: Double = SpectrumRhythm.motionIntensityDefault,
         showsTravelingLight: Bool = true,
         showsAttentionSweep: Bool = true
     ) {
@@ -138,6 +148,7 @@ public struct LaneRenderSpec: Sendable, Equatable {
         self.signal = signal
         self.reduceMotion = reduceMotion
         self.spectrumFloorHz = spectrumFloorHz
+        self.waveIntensity = waveIntensity
         self.showsTravelingLight = showsTravelingLight
         self.showsAttentionSweep = showsAttentionSweep
     }

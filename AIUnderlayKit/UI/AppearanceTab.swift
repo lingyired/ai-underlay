@@ -69,7 +69,18 @@ public struct AppearanceTab: View {
                     )
                     Text(Self.motionReadout(store.settings.motionFloorFrequencyHz))
                         .font(.caption.monospacedDigit())
-                        .frame(width: 112, alignment: .trailing)
+                        .frame(width: 124, alignment: .trailing)
+                }
+            }
+            LabeledContent("波浪强度") {
+                HStack(spacing: 8) {
+                    Slider(
+                        value: motionIntensityBinding,
+                        in: SpectrumRhythm.minimumMotionIntensity...SpectrumRhythm.maximumMotionIntensity
+                    )
+                    Text(Self.intensityReadout(store.settings.motionIntensity))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 124, alignment: .trailing)
                 }
             }
             HStack {
@@ -80,29 +91,45 @@ public struct AppearanceTab: View {
                     .help("\(String(format: "%.2f", preset.hz)) Hz · \(String(format: "%.1f", 1 / preset.hz)) 秒/圈")
                 }
             }
-            Button("恢复默认") {
-                store.update { $0.motionFloorFrequencyHz = nil }
+            Text(Self.tempoStatus(store.settings))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("使用推荐运动设置") {
+                    store.update {
+                        $0.motionFloorFrequencyHz = SpectrumRhythm.floorFrequencyHz
+                        $0.motionIntensity = SpectrumRhythm.motionIntensityDefault
+                        $0.showTravelingLight = true
+                    }
+                }
+                .help("会把基础节奏设为 \(String(format: "%.2f", SpectrumRhythm.floorFrequencyHz)) Hz（\(String(format: "%.1f", 1 / SpectrumRhythm.floorFrequencyHz)) 秒/圈）、波浪强度设为 \(String(format: "%.2f", SpectrumRhythm.motionIntensityDefault))，并打开「横穿扫光」。不动状态灯带扫光，也不动主题、布局和额度设置。")
+                Button("恢复默认") {
+                    store.update {
+                        $0.motionFloorFrequencyHz = nil
+                        $0.motionIntensity = nil
+                    }
+                }
             }
             Toggle("横穿扫光", isOn: binding(\.showTravelingLight))
             Toggle("状态灯带扫光", isOn: binding(\.showAttentionSweep))
         } header: {
             Text("Agent 动效节奏")
         } footer: {
-            Text("一个完整循环的时长：\(String(format: "%.2f", 1 / SpectrumRhythm.floorFrequencyHz)) 秒是当前默认，越小越快。天花板上限 \(String(format: "%.2f", SpectrumRhythm.ceilingFrequencyHz)) Hz（\(String(format: "%.1f", 1 / SpectrumRhythm.ceilingFrequencyHz)) 秒/圈）。真实 tok/s 尚未接入，所以这里就是菜单栏的实际速度；接入后它会成为速度曲线的下限。关掉「横穿扫光」只去掉那层横扫过去的高光，射线幕照常呼吸；关掉「状态灯带扫光」保留顶线与底带，只去掉在其中来回的亮带。")
+            Text("一个完整循环的时长：默认 \(String(format: "%.2f", 1 / SpectrumRhythm.floorFrequencyHz)) 秒，越小越快（上限 \(String(format: "%.2f", SpectrumRhythm.ceilingFrequencyHz)) Hz，约 \(String(format: "%.1f", 1 / SpectrumRhythm.ceilingFrequencyHz)) 秒/圈）。真实 tok/s 尚未接入，所以这里就是菜单栏的实际速度；接入后它只会成为速度曲线的下限，不影响颜色和亮度。\n关掉「横穿扫光」只是不再有横扫过去的高光，射线自身仍按波浪起伏；关掉「状态灯带扫光」保留顶线与底带，只去掉在其中来回的亮带。")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private struct MotionPreset {
-        var label: String
         var hz: Double
+        var label: String { String(format: "%.1f 秒", 1 / hz) }
     }
 
     private static let motionPresets: [MotionPreset] = [
-        MotionPreset(label: "2.9 秒", hz: SpectrumRhythm.floorFrequencyHz),
-        MotionPreset(label: "2.0 秒", hz: 0.50),
-        MotionPreset(label: "1.4 秒", hz: 0.70),
-        MotionPreset(label: "1.1 秒", hz: SpectrumRhythm.ceilingFrequencyHz),
+        MotionPreset(hz: SpectrumRhythm.tempoPresets[0]),
+        MotionPreset(hz: SpectrumRhythm.tempoPresets[1]),
+        MotionPreset(hz: SpectrumRhythm.tempoPresets[2]),
+        MotionPreset(hz: SpectrumRhythm.tempoPresets[3]),
     ]
 
     private static func motionReadout(_ hz: Double?) -> String {
@@ -110,10 +137,33 @@ public struct AppearanceTab: View {
         return String(format: "%.2f Hz · %.1f 秒/圈", resolved, 1 / resolved)
     }
 
+    private static func intensityReadout(_ intensity: Double?) -> String {
+        String(format: "%.2f", SpectrumRhythm.clampedIntensity(intensity))
+    }
+
+    /// Which tempo is actually on screen right now: the built-in baseline, the
+    /// user's own value, and (once it exists) the measured-speed curve are
+    /// three different things, and the settings page must not blur them.
+    private static func tempoStatus(_ settings: AppSettings) -> String {
+        let resolved = SpectrumRhythm.clampedFloor(settings.motionFloorFrequencyHz)
+        let tempo = String(format: "%.2f Hz · %.1f 秒/圈", resolved, 1 / resolved)
+        let source = settings.motionFloorFrequencyHz == nil
+            ? "默认基础节奏"
+            : "你保存的基础节奏"
+        return "当前生效：\(source) \(tempo)，按基础节奏运行（真实 tok/s 尚未接入）。"
+    }
+
     private var motionFloorBinding: Binding<Double> {
         Binding(
             get: { SpectrumRhythm.clampedFloor(store.settings.motionFloorFrequencyHz) },
             set: { hz in store.update { $0.motionFloorFrequencyHz = SpectrumRhythm.clampedFloor(hz) } }
+        )
+    }
+
+    private var motionIntensityBinding: Binding<Double> {
+        Binding(
+            get: { SpectrumRhythm.clampedIntensity(store.settings.motionIntensity) },
+            set: { value in store.update { $0.motionIntensity = SpectrumRhythm.clampedIntensity(value) } }
         )
     }
 

@@ -24,6 +24,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// the tokens/s curve, and (while no tokens/s source exists) the tempo the
     /// menu bar actually runs at. `nil` = the built-in `SpectrumRhythm` floor.
     public var motionFloorFrequencyHz: Double?
+    /// How pronounced the ray wave is, 0.30…1.00. Visual only: output speed
+    /// changes the rhythm, never the wave amplitude. `nil` = the built-in
+    /// `SpectrumRhythm.motionIntensityDefault`.
+    public var motionIntensity: Double?
     /// The two wide light fields that sweep across a *running* lane. The ray
     /// curtain keeps breathing either way; this is only the travelling sheen.
     public var showTravelingLight: Bool
@@ -55,6 +59,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
         motionFloorFrequencyHz: Double? = nil,
+        motionIntensity: Double? = nil,
         showTravelingLight: Bool = true,
         showAttentionSweep: Bool = true,
         appearance: GlassAppearance = .empty,
@@ -73,6 +78,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion
         self.motionFloorFrequencyHz = motionFloorFrequencyHz
+        self.motionIntensity = motionIntensity
         self.showTravelingLight = showTravelingLight
         self.showAttentionSweep = showAttentionSweep
         self.appearance = appearance
@@ -91,6 +97,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         case layout, anchor, singleDirection, overlayEnabled
         case proxyOverride, showBaseline, showAgentEffects, reduceMotion
         case motionFloorFrequencyHz
+        case motionIntensity
         case showTravelingLight, showAttentionSweep
         case appearance, activeThemeId, previewFixture, statusItemVisible
         case displays, displayedProviders
@@ -137,6 +144,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         showAgentEffects = try c.decodeIfPresent(Bool.self, forKey: .showAgentEffects) ?? d.showAgentEffects
         reduceMotion = try c.decodeIfPresent(Bool.self, forKey: .reduceMotion) ?? d.reduceMotion
         motionFloorFrequencyHz = try? c.decodeIfPresent(Double.self, forKey: .motionFloorFrequencyHz)
+        motionIntensity = try? c.decodeIfPresent(Double.self, forKey: .motionIntensity)
         showTravelingLight = try c.decodeIfPresent(Bool.self, forKey: .showTravelingLight) ?? d.showTravelingLight
         showAttentionSweep = try c.decodeIfPresent(Bool.self, forKey: .showAttentionSweep) ?? d.showAttentionSweep
         appearance = (try? c.decodeIfPresent(GlassAppearance.self, forKey: .appearance)) ?? d.appearance
@@ -182,6 +190,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         try c.encode(showAgentEffects, forKey: .showAgentEffects)
         try c.encode(reduceMotion, forKey: .reduceMotion)
         try c.encodeIfPresent(motionFloorFrequencyHz, forKey: .motionFloorFrequencyHz)
+        try c.encodeIfPresent(motionIntensity, forKey: .motionIntensity)
         try c.encode(showTravelingLight, forKey: .showTravelingLight)
         try c.encode(showAttentionSweep, forKey: .showAttentionSweep)
         try c.encode(appearance, forKey: .appearance)

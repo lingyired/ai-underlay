@@ -41,10 +41,35 @@ final class SpectrumRhythmTests: XCTestCase {
 
     func test_tempo_isNotSluggish() {
         // Speed is usually unmeasured, so the floor *is* the tempo on screen.
-        XCTAssertLessThanOrEqual(SpectrumRhythm.cycleDuration(outputTPS: nil), 3.0)
+        // A first glance has to be able to tell Running from idle: the old
+        // 0.34 Hz (2.9 s) read as "almost static".
+        XCTAssertEqual(SpectrumRhythm.floorFrequencyHz, 0.70, accuracy: 0.0001)
+        XCTAssertLessThanOrEqual(SpectrumRhythm.cycleDuration(outputTPS: nil), 1.5)
         XCTAssertGreaterThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.0)
         // Still a rhythm, not a strobe.
         XCTAssertLessThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.5)
+    }
+
+    func test_tempoPresets_areOrderedAndInsideTheSliderRange() {
+        XCTAssertEqual(SpectrumRhythm.tempoPresets, [0.50, 0.70, 0.90, 1.10])
+        for hz in SpectrumRhythm.tempoPresets {
+            XCTAssertGreaterThanOrEqual(hz, SpectrumRhythm.minimumFloorFrequencyHz)
+            XCTAssertLessThanOrEqual(hz, SpectrumRhythm.ceilingFrequencyHz)
+        }
+        XCTAssertEqual(SpectrumRhythm.tempoPresets, SpectrumRhythm.tempoPresets.sorted())
+    }
+
+    func test_intensity_isClampedAndKeepsTheDefaultMeaning() {
+        XCTAssertEqual(SpectrumRhythm.clampedIntensity(nil), SpectrumRhythm.motionIntensityDefault)
+        XCTAssertEqual(SpectrumRhythm.clampedIntensity(.nan), SpectrumRhythm.motionIntensityDefault)
+        XCTAssertEqual(SpectrumRhythm.clampedIntensity(0), SpectrumRhythm.minimumMotionIntensity)
+        XCTAssertEqual(SpectrumRhythm.clampedIntensity(9), SpectrumRhythm.maximumMotionIntensity)
+        XCTAssertEqual(SpectrumRhythm.clampedIntensity(0.5), 0.5, accuracy: 0.0001)
+        // The default is the reference amplitude: 1.0 means "exactly V5".
+        XCTAssertEqual(SpectrumRhythm.waveAmplitudeScale(SpectrumRhythm.motionIntensityDefault),
+                       1.0, accuracy: 0.0001)
+        XCTAssertLessThan(SpectrumRhythm.waveAmplitudeScale(0.30), 1)
+        XCTAssertGreaterThan(SpectrumRhythm.waveAmplitudeScale(1.0), 1)
     }
 
     func test_userFloor_isTheBaselineTempo() {
@@ -74,17 +99,32 @@ final class SpectrumRhythmTests: XCTestCase {
         XCTAssertEqual(SpectrumRhythm.clampedFloor(99), SpectrumRhythm.ceilingFrequencyHz)
     }
 
-    func test_wave_isDeterministicAndBounded() {
+    func test_waveValue_isDeterministicAndBounded() {
         for index in 0..<32 {
-            let wave = SpectrumRhythm.wave(index: index)
-            XCTAssertTrue(wave.speed >= 1 && wave.speed <= 2)
-            XCTAssertGreaterThan(wave.amplitude, 0)
-            XCTAssertLessThanOrEqual(wave.amplitude, 1)
-            XCTAssertEqual(wave, SpectrumRhythm.wave(index: index))
+            for phase in [0.0, 0.23, 0.5, 0.87, 1.0] {
+                let wave = SpectrumWaveModel.waveValue(
+                    normalizedX: Double(index) / 32, rayIndex: index, phase: phase
+                )
+                XCTAssertGreaterThanOrEqual(wave, 0)
+                XCTAssertLessThanOrEqual(wave, 1)
+            }
+            XCTAssertEqual(
+                SpectrumWaveModel.waveValue(normalizedX: 0.5, rayIndex: index, phase: 0.31),
+                SpectrumWaveModel.waveValue(normalizedX: 0.5, rayIndex: index, phase: 0.31)
+            )
         }
     }
 
-    func test_wave_differsBetweenNeighbouringRays() {
-        XCTAssertNotEqual(SpectrumRhythm.wave(index: 0), SpectrumRhythm.wave(index: 1))
+    func test_waveValue_differsBetweenNeighbouringRays_andPropagates() {
+        let neighbours = (0..<8).map {
+            SpectrumWaveModel.waveValue(normalizedX: Double($0) / 40, rayIndex: $0, phase: 0.3)
+        }
+        XCTAssertEqual(Set(neighbours.map { Int($0 * 1000) }).count, neighbours.count,
+                       "no two neighbouring rays share the same wave sample")
+        XCTAssertNotEqual(
+            SpectrumWaveModel.waveValue(normalizedX: 0.5, rayIndex: 0, phase: 0.0),
+            SpectrumWaveModel.waveValue(normalizedX: 0.5, rayIndex: 0, phase: 0.25),
+            "phase must move the wave in time"
+        )
     }
 }

@@ -139,6 +139,59 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(settings.reduceMotion, "an unrelated field must survive")
     }
 
+    // MARK: - Wave intensity (visual strength)
+
+    func test_motionIntensity_roundTripsAndDefaultsToNil() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = SettingsStore(fileURL: url)
+        XCTAssertNil(store.settings.motionIntensity, "unset means the built-in intensity")
+
+        store.update { $0.motionIntensity = 0.5 }
+        XCTAssertEqual(SettingsStore(fileURL: url).settings.motionIntensity, 0.5)
+
+        store.update { $0.motionIntensity = nil }
+        let saved = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        XCTAssertFalse(saved.contains("motionIntensity"))
+        XCTAssertNil(SettingsStore(fileURL: url).settings.motionIntensity)
+    }
+
+    func test_motionIntensity_olderFilesDecodeWithoutItAndKeepTravelingOff() throws {
+        // The exact shape a user who turned the traveller off already has: the
+        // new key is absent and their `false` must survive the migration.
+        let json = #"{"showTravelingLight":false,"motionFloorFrequencyHz":0.82}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertNil(settings.motionIntensity)
+        XCTAssertFalse(settings.showTravelingLight, "an explicit off must never be flipped on")
+        XCTAssertEqual(settings.motionFloorFrequencyHz, 0.82, "the user's own tempo must survive")
+        XCTAssertEqual(SpectrumRhythm.clampedFloor(settings.motionFloorFrequencyHz), 0.82, accuracy: 0.0001)
+    }
+
+    func test_recommendedMotionSettings_changeOnlyTheTargetFields() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = SettingsStore(fileURL: url)
+        store.update {
+            $0.motionFloorFrequencyHz = 0.82
+            $0.motionIntensity = 0.4
+            $0.showTravelingLight = false
+            $0.showAttentionSweep = false
+            $0.reduceMotion = true
+        }
+        store.update {
+            $0.motionFloorFrequencyHz = SpectrumRhythm.floorFrequencyHz
+            $0.motionIntensity = SpectrumRhythm.motionIntensityDefault
+            $0.showTravelingLight = true
+        }
+        let saved = store.settings
+        XCTAssertEqual(saved.motionFloorFrequencyHz, 0.70)
+        XCTAssertEqual(saved.motionIntensity, SpectrumRhythm.motionIntensityDefault)
+        XCTAssertTrue(saved.showTravelingLight)
+        XCTAssertFalse(saved.showAttentionSweep, "the recommendation must not touch the attention sweep")
+        XCTAssertTrue(saved.reduceMotion, "the recommendation must not touch Reduce Motion")
+    }
+
     func test_sweepToggles_defaultToOnAndSurviveARoundTrip() throws {
         // The sweeps are opt-out: an older file (or a fresh install) must keep
         // the full V5 look rather than silently turning motion off.

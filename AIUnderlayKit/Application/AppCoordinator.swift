@@ -446,6 +446,7 @@ public final class AppCoordinator: ObservableObject {
                 signal: s.showAgentEffects ? fixtureSignals(for: key)?.visualSignal : nil,
                 reduceMotion: s.reduceMotion,
                 spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
+                waveIntensity: SpectrumRhythm.clampedIntensity(s.motionIntensity),
                 showsTravelingLight: s.showTravelingLight,
                 showsAttentionSweep: s.showAttentionSweep
             )
@@ -470,6 +471,7 @@ public final class AppCoordinator: ObservableObject {
                 signal: s.showAgentEffects ? agentSignals(for: provider)?.visualSignal : nil,
                 reduceMotion: s.reduceMotion,
                 spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
+                waveIntensity: SpectrumRhythm.clampedIntensity(s.motionIntensity),
                 showsTravelingLight: s.showTravelingLight,
                 showsAttentionSweep: s.showAttentionSweep
             )
