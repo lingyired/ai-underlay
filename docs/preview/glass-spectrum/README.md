@@ -11,6 +11,17 @@ The root PNGs are one provider lane at 30pt/2x. Dumping also produces
 30/32/34pt at 1x/2x in size-specific subfolders. Running previews explicitly
 sample spectrum phase 0.35; the two `codex-running-phase*-32pt-2x.png` files
 sample 0.2 and 0.6. The provider-softness0/17/32 images isolate the idle glass material. All use the actual renderers and selected V5 parameters.
+
+The motion-visibility matrix lives in two extra sets, both sampled through the
+same `GlassSpectrumRenderer.frameImage` path the live sequence plays:
+
+| Folder | What it shows |
+|---|---|
+| `running-{30,32,34}pt-{1,2}x/phase{00,25,50,75}.png` | Travelling light **on**: four phases of one cycle |
+| `parked-{30,32,34}pt-{1,2}x/phase{00,25,50,75}.png` | Travelling light **off**: the wave still propagates across the rays |
+
+Compare the two sets per size: with the traveller off the crest no longer moves
+horizontally, but the per-ray silhouette must still change between phases.
 These are deterministic offline fixtures, not captures of the CA presentation
 tree or proof of system-menu-bar compositing.
 

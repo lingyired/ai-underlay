@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
-[![Tests: 384 passing](https://img.shields.io/badge/Tests-384%20passing-brightgreen.svg)](Scripts/test.sh)
+[![Tests: 421 passing](https://img.shields.io/badge/Tests-421%20passing-brightgreen.svg)](Scripts/test.sh)
 [![No telemetry](https://img.shields.io/badge/Telemetry-none-lightgrey.svg)](docs/privacy-and-permissions.md)
 
 Draws an AI quota and agent-activity bar **into the macOS menu bar background**.
@@ -21,6 +21,10 @@ that sits above the desktop icons and below the menu bar.
   A dense fine-ray light curtain travels while an agent works, and the same
   ribbon/lamp language shows Error > Waiting > Unread. Cached ray textures
   provide a faint bed and moving local peaks; no per-frame CPU painting.
+  Turning **横穿扫光** (the whole-lane sweep) off does not stop the motion: each
+  ray keeps its own travelling wave, so a running lane is never mistaken for
+  an idle one. Tempo defaults to 1.4 s/cycle and is adjustable in
+  Settings → Appearance → Agent 动效节奏, together with the wave strength.
 - Three separate colour roles: **quota colours**, the per-provider **glass
   tint**, and global **signal lights** — a theme can change any of them without
   changing the others.

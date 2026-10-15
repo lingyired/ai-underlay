@@ -1,4 +1,4 @@
-# Acceptance Guide — Glass Spectrum（2026-10-14）
+# Acceptance Guide — Glass Spectrum（2026-10-15）
 
 单引擎重构完成后的复核清单。自动化证据见
 `docs/implementation-progress.md` P6 与 `docs/preview/glass-spectrum/`。
@@ -8,9 +8,25 @@
 ```bash
 cd /Users/lingsmbp/.codex/worktrees/glass-spectrum/ai-underlay
 xcodegen generate
-Scripts/test.sh                    # expect: 384 tests, 0 failures, 1 skipped
+Scripts/test.sh                    # expect: 421 tests, 0 failures, 1 skipped
 Scripts/check-domain-purity.sh     # expect: OK
 ```
+
+## 0.1 动效可见性复核（本次重点）
+
+1. Settings → Appearance → **Agent 动效节奏**：默认 `0.70 Hz · 1.4 秒/圈`。
+   拖动滑块或点 `0.5/0.7/0.9/1.1 秒` 预设时，菜单栏动画**立即**变化，不重启、
+   不闪额度。
+2. 关闭 **横穿扫光**：光线**自身**仍有明显波浪起伏（逐根高度不同），
+   只是不再有一条横扫全条的高光。这是上一版最明显的缺口。
+3. 打开 **横穿扫光**：主光峰 1–2 秒内从一条光带连续掠过 Provider 区域，
+   顶部系统文字/图标仍清晰。
+4. **波浪强度**：`0.30` 极轻、`0.75` 默认、`1.00` 最强；它只改变起伏幅度，
+   不改变颜色、不随 tok/s 变化。
+5. **使用推荐运动设置**：基础节奏→`0.70 Hz`、波浪强度→`0.75`、
+   打开横穿扫光；不动状态灯带扫光、Reduce Motion、主题与额度设置。
+6. 已保存的 `motionFloorFrequencyHz`（例如 `0.82`）和
+   `showTravelingLight=false` **不会被默认值覆盖**；“恢复默认”回到 `0.70 Hz`。
 
 可选的离线视觉证据重生成（写入 `docs/preview/glass-spectrum/`）：
 

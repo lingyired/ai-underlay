@@ -40,7 +40,7 @@ from three renderers over one stable layer tree:
 ```text
 laneHost
 ├── quotaGlass        bed (used-up black / neutral groove) + nested fills + tint + caps
-├── spectrum          weak static rays + masked bright copies + 2 traveling light fields
+├── spectrum          static scrim + one frame-sequence ray curtain
 ├── attention         wash + glow + bottom ribbon (+ glint sweep) + 2pt top line
 └── baseline          pace marker, always on top
 ```
@@ -50,19 +50,36 @@ laneHost
   quota refresh, a theme hot-reload, or a repeated identical render never
   rebuilds the tree and never restarts an animation. A 100× repeat keeps layer
   identity and `animationStarts` at 1 (test: `GlassLayerHostTests`).
-- Per-lane continuous animation budget: at most 10 layers, including mask
-  layers, attention and optional ambient drift. Three cached ray images are
-  shared by a faint static bed and local bright copies; density changes pixels,
-  never the number of ray layers. Diagnostics recurse through masks too.
-- Motion is Core Animation only: `transform.scale.y` keyframes, `position.x`
-  travel, and a once-per-state-change ribbon sweep. No per-frame CPU work;
-  Reduce Motion keeps the static layout and drops every animation (0 animated
-  layers).
+- Per-lane continuous animation budget: the curtain is **one** layer, plus the
+  attention band's own layers and optional ambient drift (`≤4`, test
+  `test_animatedLayerBudget_isSmall`). Ray density changes pixels inside the
+  cached bitmap, never the number of layers. Diagnostics recurse through masks.
+- Motion is Core Animation only. `SpectrumWaveModel` samples every ray at a
+  phase, `SpectrumFrameRasteriser` turns one phase into one bitmap, and the
+  renderer plays `SpectrumFrameCache`'s phase sequence with a discrete
+  `contents` keyframe animation, so the wave swaps frames inside the render
+  server with no per-frame CPU work and no timer. A 0.70 Hz cycle over 16–24
+  frames is 11–17 fps — deliberately the V5 lab's cadence ("the amplitude
+  change, not a high framerate, makes Running recognizable"), not 60 fps.
+  Reduce Motion keeps the static layout and drops every animation.
+- The frame cache is an LRU bounded in **bitmap bytes** (16 MiB), not entries:
+  a wide single-bar lane costs ~983 KiB per frame, so the budget is what keeps
+  the sequence from becoming a permanent allocation. Ray sprites are cached
+  per (kind, colour, scale) and stamped; a frame is a few hundred blits.
 - Tempo is part of the spec, not a global: `LaneRenderSpec.spectrumFloorHz`
   carries the user's baseline (settings → coordinator → spec) into
-  `SpectrumRhythm.cycleDuration(outputTPS:floorHz:)`. The floor is clamped to
-  0.15–1.10 Hz, and a change re-times the running curtain on the next render
-  instead of waiting for the old cycle to finish.
+  `SpectrumRhythm.cycleDuration(outputTPS:floorHz:)`. The default floor is
+  0.70 Hz (≈1.4 s/cycle); the floor is clamped to 0.15–1.10 Hz, and a change
+  re-times the running curtain on the next render instead of waiting for the
+  old cycle to finish.
+- Wave shape and tempo are separate inputs. `LaneRenderSpec.waveIntensity`
+  (0.30–1.00, default 0.75) scales only the wave's modulation terms; measured
+  output speed changes the rhythm and nothing else, so a fast model cannot
+  brighten or flatten the curtain.
+- `showTravelingLight` is a spec flag, not a global switch: with it off the
+  crest parks at the lane centre and the ray wave keeps propagating, so a
+  running lane is still visibly in motion. The attention sweep is a separate
+  flag (`showsAttentionSweep`) with its own per-kind tempo.
 - Priority is a code constant, `Error > Waiting > Unread > none`; Running is an
   independent boolean. A running lane wears the highest attention colour.
 
