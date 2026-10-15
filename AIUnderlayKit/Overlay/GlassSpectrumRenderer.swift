@@ -2,6 +2,8 @@ import AppKit
 
 /// The one and only running effect: a dense fine-ray light curtain with a
 /// traveling light field and a soft specular crest, in the signal light colour.
+/// Like the V5 lab, the rays stand on the strip's bottom edge — the bases form
+/// one baseline and only the tips wave.
 ///
 /// Everything is Core Animation over **pre-rendered textures**: the ray curtain
 /// is rasterised once per (size, colour, density) and cached, and motion is a
@@ -270,9 +272,13 @@ enum RayTextureCache {
                             0.6 * exp(-pow((Double(u) - 0.74) / 0.20, 2)))
             let rayHeight = height * CGFloat(0.20 + 0.50 * crest + 0.30 * focus)
             let alpha = min(0.96, 0.20 + 0.30 * crest + 0.46 * focus)
-            let y = height - rayHeight
+            // The V5 curtain stands on the strip: every ray's base sits on the
+            // bottom edge (Quartz y = 0), so only the tips wave. Starting at
+            // `height - rayHeight` instead would hang the curtain from the top
+            // edge and put the ragged hem at the bottom.
+            let base: CGFloat = 0
 
-            drawRay(in: context, x: x, y: y, height: rayHeight, alpha: alpha, color: color)
+            drawRay(in: context, x: x, y: base, height: rayHeight, alpha: alpha, color: color)
         }
 
         if grain > 0.001 {
@@ -283,7 +289,7 @@ enum RayTextureCache {
     }
 
     /// One fine luminous ray: a soft chromatic halo plus a bright core that
-    /// whitens toward the bar's baseline.
+    /// whitens toward the baseline the ray stands on.
     private static func drawRay(in context: CGContext, x: CGFloat, y: CGFloat, height: CGFloat, alpha: Double, color: RGBAColor) {
         let haloWidth: CGFloat = 4.2
         let halo = CGGradient(

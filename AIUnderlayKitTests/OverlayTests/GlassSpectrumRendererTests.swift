@@ -81,6 +81,48 @@ final class GlassSpectrumRendererTests: XCTestCase {
                       "the same settings must reuse the cached texture")
     }
 
+    /// The V5 curtain stands on the strip: every ray's base is flush with the
+    /// bottom edge and only the tips wave. An earlier port drew from the top
+    /// edge, which hung the curtain from the top and put the ragged hem at the
+    /// bottom — a structural test cannot see that, so this looks at pixels.
+    func test_rayCurtain_standsOnTheBottomEdge() throws {
+        let lane = GlassSpectrumRenderer.render(
+            spec(signal: ProviderVisualSignal(isRunning: true)),
+            running: true, cycle: 2.9, restart: true
+        )
+        let spectrum = try XCTUnwrap(root(of: lane))
+        let layer = try XCTUnwrap(spectrum.sublayers?.first { $0.name == "rays0" })
+        let texture = try XCTUnwrap(layer.contents) as! CGImage
+        let rep = NSBitmapImageRep(cgImage: texture)
+        let pixelWidth = rep.pixelsWide
+        let pixelHeight = rep.pixelsHigh
+
+        func alpha(nearCentre centre: Int, row: Int) -> CGFloat {
+            ((-1)...1).compactMap { rep.colorAt(x: centre + $0, y: row)?.alphaComponent }.max() ?? 0
+        }
+
+        // The ray-centre rule is the one the texture draws with: every third
+        // ray belongs to group 0.
+        let density = ResolvedGlassTheme.default(providerId: "codex").material.rayDensity
+        let rayCount = max(24, Int((geometry.trackRect.width / 8.5 * (0.55 + density * 1.25)).rounded()))
+        let centres = stride(from: 0, to: rayCount, by: 3).map { index in
+            Int(((CGFloat(index) + 0.5) / CGFloat(rayCount)) * CGFloat(pixelWidth))
+        }
+        XCTAssertGreaterThan(centres.count, 20)
+
+        let litAtBottom = centres.filter { alpha(nearCentre: $0, row: pixelHeight - 1) > 0.08 }
+        XCTAssertEqual(litAtBottom.count, centres.count,
+                       "every ray's base is flush with the bottom edge, so the strip stands on one baseline")
+
+        let tips = centres.compactMap { centre in
+            (0..<pixelHeight).first { alpha(nearCentre: centre, row: $0) > 0.08 }
+        }
+        XCTAssertEqual(tips.count, centres.count, "every ray is drawn")
+        let spread = (tips.max() ?? 0) - (tips.min() ?? 0)
+        XCTAssertGreaterThan(Double(spread), Double(pixelHeight) * 0.15,
+                             "the wave lives in the tips, not in a flat block")
+    }
+
     func test_rayGroups_breathWithPhaseOffsets() throws {
         let cycle = 2.9
         let lane = GlassSpectrumRenderer.render(

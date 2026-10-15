@@ -112,8 +112,10 @@ Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`�
 | P6-6 离线视觉证据 | DONE | `GlassPreviewTests` 渲染 13 张 PNG 到 `docs/preview/glass-spectrum/`，并像素校验黑底与染色裁切 |
 | P6-7 Unread 输入契约 | PARTIAL | `AgentSignals.unreadCount` 作为输入契约 + fixtures（`agentUnread`/`agentRunningUnread`/`agentAllSignals`）；真实完成账本仍在未合并的 `codex/unread-completion-attention-ribbon` 分支，生产保持 0 |
 | P6-8 NSVisualEffectView 尖刺 | TODO | 默认路径为"渲染玻璃"（不采样桌面）；30 分钟真机模糊/CPU 尖刺未执行 |
+| P6-9 光幕基线 | DONE | 射线立在轨道下边缘（Quartz `y = 0`），所有柱底共线、只有波峰起伏；修正首版把幕帘挂在上边缘的问题，`test_rayCurtain_standsOnTheBottomEdge` 逐像素守卫 |
+| P6-10 Attention 三段渐变方向 | DONE | V5 的 `.hint` / `.edge-bottom` / 上向阴影都是**底部最强**：wash `to top`、ribbon `180deg transparent→alert`、glow 贴 ribbon 向上衰减。首版三条渐变 y 方向全部写反，下半条出现硬边"厚板"，现已翻正并有结构测试守卫 |
 
-Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x）。Total tests: 357 passing
+Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x）。Total tests: 359 passing
 (1 skipped = the opt-in PNG dump), `Scripts/check-domain-purity.sh` OK。
 
 Known limits: 真实 TPS 未接入（光场始终最慢节奏）；Unread 仅 fixtures；

@@ -44,28 +44,36 @@ public enum AttentionLightRenderer {
         let animated = !spec.reduceMotion
 
         // Full-lane wash, bottom-up: the breathing room of the alert.
+        // V5's `.hint` is `linear-gradient(to top, rgba(tint,.24), transparent
+        // 95%)` — the tint sits on the *bottom* edge, so the wash never reads
+        // as a veil over the quota. Gradient y = 1 is the top of the layer.
         let wash = LayerSlot.named("wash", in: root, as: CAGradientLayer.self)
         wash.frame = CGRect(origin: .zero, size: size)
         wash.type = .axial
-        wash.startPoint = CGPoint(x: 0.5, y: 1)
-        wash.endPoint = CGPoint(x: 0.5, y: 0.05)
+        wash.startPoint = CGPoint(x: 0.5, y: 0)
+        wash.endPoint = CGPoint(x: 0.5, y: 0.95)
         wash.colors = [color.withAlpha(0.24).cgColor, color.withAlpha(0).cgColor]
 
-        // Glow rising out of the ribbon.
+        // Glow rising out of the ribbon: the V5 band casts a shadow *upward*
+        // (`0 -4px 12px`), so it is brightest where it meets the ribbon and
+        // fades with height instead of starting at its own top edge.
         let glow = LayerSlot.named("glow", in: root, as: CAGradientLayer.self)
         glow.frame = CGRect(x: 0, y: 0, width: size.width, height: glowHeight)
         glow.type = .axial
         glow.startPoint = CGPoint(x: 0.5, y: 0)
         glow.endPoint = CGPoint(x: 0.5, y: 1)
-        glow.colors = [color.withAlpha(0).cgColor, color.withAlpha(0.38).cgColor]
+        glow.colors = [color.withAlpha(0.38).cgColor, color.withAlpha(0).cgColor]
 
-        // The ribbon: translucent so the quota fill stays readable through it.
+        // The ribbon: translucent so the quota fill stays readable through it,
+        // and bright on the bottom edge — V5 draws
+        // `linear-gradient(180deg, transparent, alert)`, i.e. the alert hugs
+        // the bottom of the bar rather than capping the band from above.
         let ribbon = LayerSlot.named("ribbon", in: root, as: CAGradientLayer.self)
         ribbon.frame = CGRect(x: 0, y: 0, width: size.width, height: ribbonHeight)
         ribbon.type = .axial
         ribbon.startPoint = CGPoint(x: 0.5, y: 1)
         ribbon.endPoint = CGPoint(x: 0.5, y: 0)
-        ribbon.colors = [color.withAlpha(min(color.alpha, 0.85)).cgColor, color.withAlpha(0.05).cgColor]
+        ribbon.colors = [color.withAlpha(0.05).cgColor, color.withAlpha(min(color.alpha, 0.85)).cgColor]
         ribbon.masksToBounds = true
 
         // The top line: 2pt of solid alert that survives Reduce Motion.

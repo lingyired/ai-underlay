@@ -50,13 +50,37 @@ final class AttentionLightRendererTests: XCTestCase {
         XCTAssertEqual(ribbon.frame.minY, 0, accuracy: 0.001)
     }
 
-    func test_ribbonStaysTranslucentSoQuotaRemainsReadable() throws {
+    /// The ribbon hugs the bottom edge: transparent at its own top, alert
+    /// colour on the bottom of the bar (V5: `linearGradient(180deg,
+    /// transparent, alert)`). A bright *top* edge would read as a heavy slab
+    /// floating above the bottom edge.
+    func test_ribbonHugsTheBottomEdge_andStaysTranslucent() throws {
         let lane = AttentionLightRenderer.render(spec(), attention: .error, restartSweep: true)
         let attention = try XCTUnwrap(root(of: lane))
         let ribbon = try XCTUnwrap(attention.sublayers?.first { $0.name == "ribbon" } as? CAGradientLayer)
         let colors = try XCTUnwrap(ribbon.colors as? [CGColor])
-        XCTAssertLessThanOrEqual(colors[0].alpha, 0.85)
-        XCTAssertGreaterThan(colors[0].alpha, 0.2)
+        XCTAssertEqual(ribbon.endPoint.y, 0, accuracy: 0.0001, "the bright end is the bottom edge")
+        XCTAssertLessThan(colors[0].alpha, 0.1, "no hard bright edge at the top of the band")
+        XCTAssertLessThanOrEqual(colors[1].alpha, 0.85, "still translucent over the quota")
+        XCTAssertGreaterThan(colors[1].alpha, 0.2)
+    }
+
+    /// The wash and the glow are bottom-heavy: the V5 wash fades upward from
+    /// the bottom edge and the ribbon's glow is brightest where it meets the
+    /// ribbon. Both used to be flipped, which stacked a bright slab in the
+    /// lower half of the bar.
+    func test_washAndGlow_fadeAwayFromTheBottomEdge() throws {
+        let lane = AttentionLightRenderer.render(spec(), attention: .waiting, restartSweep: true)
+        let attention = try XCTUnwrap(root(of: lane))
+        let wash = try XCTUnwrap(attention.sublayers?.first { $0.name == "wash" } as? CAGradientLayer)
+        let glow = try XCTUnwrap(attention.sublayers?.first { $0.name == "glow" } as? CAGradientLayer)
+
+        XCTAssertEqual(wash.startPoint.y, 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(try XCTUnwrap(wash.colors as? [CGColor])[0].alpha,
+                             try XCTUnwrap(wash.colors as? [CGColor])[1].alpha)
+        XCTAssertEqual(glow.startPoint.y, 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(try XCTUnwrap(glow.colors as? [CGColor])[0].alpha,
+                             try XCTUnwrap(glow.colors as? [CGColor])[1].alpha)
     }
 
     // MARK: - Colour per kind
