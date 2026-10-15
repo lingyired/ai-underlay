@@ -519,6 +519,43 @@ final class GlassSpectrumRendererTests: XCTestCase {
 
     // MARK: - Phase carry
 
+    func test_curtainKeyframes_closeTheLoopWithEveryFrameShownOnce() throws {
+        let frames = try (0..<6).map { index -> CGImage in
+            try XCTUnwrap(GlassSpectrumRenderer.frameImage(
+                for: spec(signal: ProviderVisualSignal(isRunning: true)),
+                phase: SpectrumWaveModel.framePhase(index: index, count: 6)
+            ))
+        }
+        let timeline = GlassSpectrumRenderer.curtainKeyframeTimeline(frames: frames)
+        // A `contents` keyframe animation whose last key time is below 1.0
+        // falls back to the model value for the rest of the cycle: the last
+        // frame never appears and the loop hitches once per cycle.
+        XCTAssertEqual(timeline.keyTimes.last?.doubleValue, 1.0)
+        XCTAssertEqual(timeline.values.count, frames.count + 1,
+                       "the timeline closes with the first phase again")
+        XCTAssertTrue(timeline.values.last === frames[0])
+        let steps = zip(timeline.keyTimes, timeline.keyTimes.dropFirst())
+            .map { $1.doubleValue - $0.doubleValue }
+        for step in steps {
+            XCTAssertEqual(step, 1.0 / Double(frames.count), accuracy: 0.0001,
+                           "every phase holds for exactly one step")
+        }
+    }
+
+    func test_curtainAnimation_playsTheClosedTimeline() throws {
+        let lane = GlassSpectrumRenderer.render(
+            spec(signal: ProviderVisualSignal(isRunning: true)),
+            running: true, cycle: cycle, restart: true
+        )
+        let animation = try XCTUnwrap(
+            curtain(in: try XCTUnwrap(root(of: lane)))?.animation(forKey: "curtainFrames")
+                as? CAKeyframeAnimation
+        )
+        let keyTimes = try XCTUnwrap(animation.keyTimes)
+        XCTAssertEqual(keyTimes.last?.doubleValue, 1.0)
+        XCTAssertEqual((animation.values as? [CGImage])?.count, keyTimes.count)
+    }
+
     func test_phaseCarry_survivesADurationChange() {
         let animation = CABasicAnimation(keyPath: "contents")
         animation.duration = 2

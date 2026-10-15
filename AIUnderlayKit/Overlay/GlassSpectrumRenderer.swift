@@ -49,6 +49,21 @@ public enum GlassSpectrumRenderer {
     /// Animation key owned by this renderer.
     static let curtainKey = "curtainFrames"
 
+    /// The keyframe timeline for a phase sequence.
+    ///
+    /// A `contents` keyframe animation needs the timeline to close at one whole
+    /// cycle: with the last key time below `1.0` Core Animation falls back to
+    /// the *model* value for the remaining stretch, so the last frame is never
+    /// shown and whichever frame precedes it holds for two steps — a visible
+    /// hitch once per cycle. Closing the timeline with the first phase again
+    /// gives every frame exactly one step.
+    static func curtainKeyframeTimeline(frames: [CGImage]) -> (values: [CGImage], keyTimes: [NSNumber]) {
+        guard let first = frames.first else { return ([], []) }
+        let values = frames + [first]
+        let keyTimes = (0...frames.count).map { NSNumber(value: Double($0) / Double(frames.count)) }
+        return (values, keyTimes)
+    }
+
     // MARK: - Sizing
 
     public static func framesPerCycle(
@@ -236,16 +251,19 @@ public enum GlassSpectrumRenderer {
         _ layer: CALayer, frames: [CGImage], cycle: Double, restart: Bool
     ) {
         let existing = layer.animation(forKey: curtainKey) as? CAKeyframeAnimation
-        if !restart, let existing, existing.duration == cycle, sameImages(existing.values, frames) {
+        let timeline = curtainKeyframeTimeline(frames: frames)
+        if !restart, let existing, existing.duration == cycle,
+           sameImages(existing.values, timeline.values) {
             return
         }
         let localOrigin = layer.convertTime(CACurrentMediaTime(), from: nil)
         let carry = phaseCarry(from: existing, now: localOrigin)
         let animation = CAKeyframeAnimation(keyPath: "contents")
-        animation.values = frames
-        // Discrete keyframes: frame *i* holds from keyTime *i* to *i+1*, and
-        // the last one holds to the end of the cycle.
-        animation.keyTimes = (0..<frames.count).map { NSNumber(value: Double($0) / Double(frames.count)) }
+        animation.values = timeline.values
+        // Discrete keyframes: frame *i* holds from keyTime *i* to *i+1*. The
+        // timeline ends with the first phase again, so the last frame is shown
+        // for a full step and the loop seam is a step, not a double hold.
+        animation.keyTimes = timeline.keyTimes
         animation.calculationMode = .discrete
         animation.duration = cycle
         animation.repeatCount = .infinity
