@@ -38,15 +38,15 @@ final class GlassLayerHostTests: XCTestCase {
         host.update(spec(spectrumFloorHz: 0.5))
 
         let rays = host.root.sublayers?.first { $0.name == "spectrum" }?
-            .sublayers?.first { $0.name == "rays0" }
-        let breath = try XCTUnwrap(rays?.animation(forKey: "rayBreath") as? CAKeyframeAnimation)
+            .sublayers?.first { $0.name == "peak0" }
+        let breath = try XCTUnwrap(rays?.animation(forKey: "peakBreath") as? CAKeyframeAnimation)
         XCTAssertEqual(breath.duration, 2.0, accuracy: 0.0001,
                        "0.5 Hz is a two-second cycle, whatever the engine default is")
 
         // Picking a new baseline re-times the running animation instead of
         // waiting for the old cycle to end.
         host.update(spec(spectrumFloorHz: 0.7))
-        let retimed = try XCTUnwrap(rays?.animation(forKey: "rayBreath") as? CAKeyframeAnimation)
+        let retimed = try XCTUnwrap(rays?.animation(forKey: "peakBreath") as? CAKeyframeAnimation)
         XCTAssertEqual(retimed.duration, 1 / 0.7, accuracy: 0.0001)
     }
 
@@ -78,18 +78,46 @@ final class GlassLayerHostTests: XCTestCase {
                        "an unchanged spec must not restart a single animation")
     }
 
+    func test_diagnosticsIncludeAnimationsInsideMasks() {
+        let host = GlassLayerHost()
+        host.update(spec())
+        let count = host.diagnostics.layerCount
+        let animated = host.diagnostics.animatedLayerCount
+        let mask = CALayer()
+        mask.frame = host.root.bounds
+        mask.backgroundColor = NSColor.white.cgColor
+        let peak = CALayer()
+        peak.frame = mask.bounds
+        let travel = CABasicAnimation(keyPath: "position.x")
+        travel.fromValue = 0
+        travel.toValue = 100
+        travel.duration = 2
+        travel.repeatCount = .infinity
+        peak.add(travel, forKey: "diagnosticProbe")
+        mask.addSublayer(peak)
+        host.root.mask = mask
+
+        host.update(spec())
+
+        XCTAssertEqual(host.diagnostics.layerCount, count + 2)
+        XCTAssertEqual(host.diagnostics.animatedLayerCount, animated + 1,
+                       "mask animations consume the same compositor budget as sublayers")
+        peak.removeAllAnimations()
+        host.root.mask = nil
+    }
+
     func test_quotaRefreshKeepsTheRunningAnimationAlive() {
         let host = GlassLayerHost()
         host.update(spec(quota: 0.8))
         let rays = host.root.sublayers?.first { $0.name == "spectrum" }?
-            .sublayers?.first { $0.name == "rays0" }
-        let first = rays?.animation(forKey: "rayBreath")
+            .sublayers?.first { $0.name == "peak0" }
+        let first = rays?.animation(forKey: "peakBreath")
         XCTAssertNotNil(first)
 
         // The new quota snapshot arrives; nothing about motion changed.
         host.update(spec(quota: 0.4))
 
-        let second = rays?.animation(forKey: "rayBreath")
+        let second = rays?.animation(forKey: "peakBreath")
         XCTAssertTrue(first === second, "a quota refresh must not restart the light field")
         XCTAssertEqual(host.diagnostics.animationStarts, 1)
     }
@@ -112,15 +140,15 @@ final class GlassLayerHostTests: XCTestCase {
         let host = GlassLayerHost()
         host.update(spec())
         let spectrum = host.root.sublayers?.first { $0.name == "spectrum" }
-        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "rays0" }?.animation(forKey: "rayBreath"))
+        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "peak0" }?.animation(forKey: "peakBreath"))
 
         host.update(spec(signal: ProviderVisualSignal(isRunning: false)))
         XCTAssertEqual(spectrum?.isHidden, true)
-        XCTAssertNil(spectrum?.sublayers?.first { $0.name == "rays0" }?.animation(forKey: "rayBreath"))
+        XCTAssertNil(spectrum?.sublayers?.first { $0.name == "peak0" }?.animation(forKey: "peakBreath"))
 
         host.update(spec())
         XCTAssertEqual(spectrum?.isHidden, false)
-        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "rays0" }?.animation(forKey: "rayBreath"))
+        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "peak0" }?.animation(forKey: "peakBreath"))
     }
 
     func test_attentionKindChangeRestartsTheSweep_butRepeatDoesNot() {
@@ -160,6 +188,22 @@ final class GlassLayerHostTests: XCTestCase {
         XCTAssertEqual(host.root.sublayers?.first { $0.name == "attention" }?.isHidden, false)
     }
 
+    func test_laneAnimationBudgetIncludesMasksAttentionAndAmbient() {
+        var glass = ResolvedGlassTheme.default(providerId: "codex")
+        glass.material.ambientGlow = 0.6
+        let host = GlassLayerHost()
+        host.update(spec(glass: glass, signal: ProviderVisualSignal(isRunning: true, attention: .error)))
+
+        XCTAssertGreaterThan(host.diagnostics.animatedLayerCount, 0)
+        XCTAssertLessThanOrEqual(host.diagnostics.animatedLayerCount, 10,
+                                 "the entire lane budget includes masks, optional ambient and attention")
+
+        host.update(spec(glass: glass, signal: ProviderVisualSignal(isRunning: true, attention: .error),
+                         reduceMotion: true))
+        XCTAssertEqual(host.diagnostics.animatedLayerCount, 0,
+                       "switching Reduce Motion on must stop existing mask animations too")
+    }
+
     func test_teardownLeavesNothingAnimating() {
         let host = GlassLayerHost()
         host.update(spec(signal: ProviderVisualSignal(isRunning: true, attention: .error)))
@@ -194,6 +238,34 @@ final class GlassLayerHostTests: XCTestCase {
     }
 
     // MARK: - Dual-lane isolation
+
+    func test_quotaMasksStayInsideBothProviderRegions() throws {
+        let (left, right) = try dualGeometries()
+        let shifted = [left, right].map { geometry in
+            GaugeGeometry(
+                trackRect: geometry.trackRect.offsetBy(dx: -2048, dy: 1122),
+                fillBounds: geometry.fillBounds.offsetBy(dx: -2048, dy: 1122),
+                growsTowardRight: geometry.growsTowardRight,
+                trackBounds: geometry.trackBounds.offsetBy(dx: -2048, dy: 1122)
+            )
+        }
+        for geometry in [left, right] + shifted {
+            let host = GlassLayerHost()
+            host.update(specFor(geometry: geometry, provider: "codex",
+                                signal: ProviderVisualSignal(isRunning: true)))
+            let spectrum = try XCTUnwrap(host.root.sublayers?.first { $0.name == "spectrum" })
+            let mask = try XCTUnwrap(spectrum.mask)
+            XCTAssertFalse(spectrum.sublayers?.contains { $0 === mask } ?? false,
+                           "a mask cannot also be an ordinary visible sublayer")
+            XCTAssertGreaterThan(mask.frame.intersection(spectrum.bounds).width, 0,
+                                 "the right provider must not disappear because its mask uses lane coordinates")
+            XCTAssertEqual(mask.frame.width, geometry.fillBounds.width * 0.82, accuracy: 0.001)
+            XCTAssertGreaterThanOrEqual(mask.frame.minX, 0)
+            XCTAssertLessThanOrEqual(mask.frame.maxX, spectrum.bounds.width + 0.001)
+            XCTAssertEqual(mask.frame.minY, 0, accuracy: 0.001,
+                           "menu bar screen coordinates must not leak into its local mask")
+        }
+    }
 
     /// In a dual layout the two lanes are siblings stacked on the same screen-
     /// wide track, so anything a lane paints at full width lands on top of the

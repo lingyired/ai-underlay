@@ -7,6 +7,11 @@ import Foundation
 /// `docs/architecture.md`). Every field except `blurRadiusTarget` is a 0…1
 /// strength; `blurRadiusTarget` is a 0…32 point softness target carried over
 /// from the V5 browser reference.
+///
+/// `blurRadiusTarget` is consumed by `GlassMaterialRenderer`, which turns it
+/// into a real pre-blurred halo texture (rendered glass, not desktop backdrop
+/// sampling): `kernelRadiusPixels = value × backingScale × 0.5`. The stored key,
+/// its 0…32 range and its default of 17 stay backward compatible.
 public struct GlassMaterialParameters: Codable, Sendable, Equatable {
     public var blurRadiusTarget: Double
     public var ambientGlow: Double

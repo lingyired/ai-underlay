@@ -9,6 +9,12 @@ import UniformTypeIdentifiers
 /// 这里的手动取色不会改写内置主题或你的主题文件，而是保存在设置里，
 /// 永远优先于主题文件 —— 改一个颜色不需要重新编译，也不会与热重载打架。
 public struct ThemeTab: View {
+    /// Copy pinned by `ThemeTabTests`: the slider must describe the rendered
+    /// material softening, never claim a system backdrop-blur radius.
+    public static let softnessLabel = "材质柔化"
+    public static let softnessNote =
+        "原生绘制材质的柔化（0 清晰 / 17 默认 / 32 最软）；不采样桌面背景，泛光与颗粒为 0 时同样生效。"
+
     @ObservedObject var settings: SettingsStore
     @ObservedObject var themes: ThemeStore
     @State private var status = ""
@@ -109,8 +115,11 @@ public struct ThemeTab: View {
     private var materialSection: some View {
         Section {
             DisclosureGroup("玻璃材质参数", isExpanded: $materialExpanded) {
-                materialSlider("玻璃模糊目标", keyPath: \.blurRadiusTarget,
+                materialSlider(Self.softnessLabel, keyPath: \.blurRadiusTarget,
                                range: 0...32, `default`: GlassDefaults.material.blurRadiusTarget)
+                Text(Self.softnessNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 materialSlider("环境泛光", keyPath: \.ambientGlow,
                                range: 0...1, `default`: GlassDefaults.material.ambientGlow)
                 materialSlider("颗粒质感", keyPath: \.grain,

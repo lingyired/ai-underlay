@@ -25,11 +25,12 @@ final class GlassQuotaRendererTests: XCTestCase {
         palette: ProviderPalette = .codex,
         glass: ResolvedGlassTheme = .default(providerId: "codex"),
         baseline: BaselineSpec? = nil,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        signal: ProviderVisualSignal? = nil
     ) -> LaneRenderSpec {
         LaneRenderSpec(
             providerId: "codex", geometry: geometry, windows: windows, palette: palette,
-            baseline: baseline, glass: glass, signal: nil, reduceMotion: reduceMotion
+            baseline: baseline, glass: glass, signal: signal, reduceMotion: reduceMotion
         )
     }
 
@@ -37,6 +38,76 @@ final class GlassQuotaRendererTests: XCTestCase {
         let fills = lane.sublayers?.first { $0.name == "quotaGlass" }?
             .sublayers?.first { $0.name == "fills" }
         return (fills?.sublayers ?? []).map(\.frame)
+    }
+
+    private func tint(_ lane: CALayer) -> CALayer? {
+        lane.sublayers?.first { $0.name == "quotaGlass" }?
+            .sublayers?.first { $0.name == "tint" }
+    }
+
+    private func tintClip(_ lane: CALayer) -> CALayer? {
+        tint(lane)?.sublayers?.first { $0.name == "tintClip" }
+    }
+
+    private func haloImage(of lane: CALayer) -> CGImage? {
+        tintClip(lane)?.sublayers?.first { $0.name == "tintHalo" }?.contents.map { $0 as! CGImage }
+    }
+
+    // MARK: - Rendered-material rasterisation helpers
+
+    private func alphaPlane(_ image: CGImage) -> [Double] {
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0 else { return [] }
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        pixels.withUnsafeMutableBytes { raw in
+            guard let context = CGContext(
+                data: raw.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return }
+            context.interpolationQuality = .none
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        return (0..<(width * height)).map { Double(pixels[$0 * 4 + 3]) / 255 }
+    }
+
+    /// Mean absolute alpha change between two same-size material textures.
+    private func meanAlphaDifference(_ a: CGImage, _ b: CGImage) -> Double {
+        let left = alphaPlane(a)
+        let right = alphaPlane(b)
+        guard !left.isEmpty, left.count == right.count else { return 0 }
+        let total = zip(left, right).reduce(0.0) { $0 + abs($1.0 - $1.1) }
+        return total / Double(left.count)
+    }
+
+    /// The first column (from the left) where the running alpha reaches 1% of
+    /// the texture's total. Softening spreads the reflection outward, so this
+    /// index moves left as the material gets softer.
+    private func leftTailReach(_ image: CGImage) -> Int {
+        let width = image.width
+        let height = image.height
+        let plane = alphaPlane(image)
+        guard width > 0, height > 0, plane.count == width * height else { return width }
+        var columns = [Double](repeating: 0, count: width)
+        for y in 0..<height {
+            for x in 0..<width {
+                columns[x] += plane[y * width + x]
+            }
+        }
+        let total = columns.reduce(0, +)
+        guard total > 0 else { return width }
+        let target = total * 0.01
+        var running = 0.0
+        for x in 0..<width {
+            running += columns[x]
+            if running >= target { return x }
+        }
+        return width
     }
 
     // MARK: - Nested geometry (the V5 numbers)
@@ -262,5 +333,202 @@ final class GlassQuotaRendererTests: XCTestCase {
         XCTAssertEqual(QuotaDisplayState.resolve(windows: [window("w", remaining: 0)]), .valid)
         XCTAssertEqual(QuotaDisplayState.resolve(windows: [window("w", remaining: 0.5),
                                                            window("s", remaining: 0.5, availability: .stale)]), .stale)
+    }
+
+    // MARK: - Rendered softness: the blur-radius token reaches the material
+
+    func test_softnessToken_lengthensTheMaterialKernelInDevicePixels() {
+        XCTAssertEqual(GlassMaterialRenderer.clampedSoftness(-4), 0)
+        XCTAssertEqual(GlassMaterialRenderer.clampedSoftness(64), GlassMaterialRenderer.maxSoftnessPoints)
+        XCTAssertEqual(GlassMaterialRenderer.kernelRadiusPixels(softnessPoints: 0, scale: 2), 0, accuracy: 0.0001)
+        XCTAssertEqual(GlassMaterialRenderer.kernelRadiusPixels(softnessPoints: 17, scale: 2), 17, accuracy: 0.0001)
+        XCTAssertEqual(GlassMaterialRenderer.kernelRadiusPixels(softnessPoints: 32, scale: 2), 32, accuracy: 0.0001)
+        // The token is stored in points, so at 1x the same 17 softens half as far.
+        XCTAssertEqual(GlassMaterialRenderer.kernelRadiusPixels(softnessPoints: 17, scale: 1), 8.5, accuracy: 0.0001)
+
+        let crisp = GlassMaterialRenderer.edgeTransitionSpanPixels(softnessPoints: 0, scale: 2)
+        let normal = GlassMaterialRenderer.edgeTransitionSpanPixels(softnessPoints: 17, scale: 2)
+        let soft = GlassMaterialRenderer.edgeTransitionSpanPixels(softnessPoints: 32, scale: 2)
+        XCTAssertLessThanOrEqual(crisp, 1, "0pt must stay a hard edge")
+        XCTAssertGreaterThan(normal, crisp + 8, "17pt visibly widens the edge")
+        XCTAssertGreaterThan(soft, normal + 8, "32pt widens it further")
+    }
+
+    func test_softnessToken_changesTheRenderedMaterialTexture() throws {
+        GlassMaterialRenderer.resetCache()
+        let tint = GlassDefaults.codexAgentTheme
+        let size = CGSize(width: 240, height: 30)
+        let crisp = try XCTUnwrap(GlassMaterialRenderer.haloImage(tint: tint, laneSize: size, scale: 2, softnessPoints: 0))
+        let normal = try XCTUnwrap(GlassMaterialRenderer.haloImage(tint: tint, laneSize: size, scale: 2, softnessPoints: 17))
+        let soft = try XCTUnwrap(GlassMaterialRenderer.haloImage(tint: tint, laneSize: size, scale: 2, softnessPoints: 32))
+
+        XCTAssertFalse(crisp === normal)
+        XCTAssertFalse(normal === soft)
+        XCTAssertGreaterThan(meanAlphaDifference(crisp, normal), 0.005,
+                             "17pt must actually repaint the material, not just the JSON")
+        XCTAssertGreaterThan(meanAlphaDifference(crisp, soft), meanAlphaDifference(crisp, normal))
+        XCTAssertLessThan(leftTailReach(soft), leftTailReach(crisp),
+                          "a softer reflection reaches further out from the blob")
+    }
+
+    /// The parent review found the original key was built from the *capped*
+    /// bitmap size, so two lanes wider than the cap would wrongly share a
+    /// texture whose stretch — and therefore whose kernel — differ.
+    func test_textureKey_keepsLanesThatShareTheCappedBitmapApart() {
+        let tint = GlassDefaults.codexAgentTheme
+        let narrow = GlassMaterialRenderer.textureKey(
+            tint: tint, laneSize: CGSize(width: 320, height: 30), scale: 2, softnessPoints: 32)
+        let wide = GlassMaterialRenderer.textureKey(
+            tint: tint, laneSize: CGSize(width: 640, height: 30), scale: 2, softnessPoints: 32)
+        XCTAssertEqual(narrow.pixelWidth, wide.pixelWidth, "both lanes cap to the same bitmap width")
+        XCTAssertNotEqual(narrow, wide, "…but they must not share one cache entry")
+        XCTAssertNotEqual(narrow.kernelRadiusX, wide.kernelRadiusX, accuracy: 0.0001)
+
+        GlassMaterialRenderer.resetCache()
+        _ = GlassMaterialRenderer.haloImage(tint: tint, laneSize: CGSize(width: 320, height: 30), scale: 2, softnessPoints: 32)
+        _ = GlassMaterialRenderer.haloImage(tint: tint, laneSize: CGSize(width: 640, height: 30), scale: 2, softnessPoints: 32)
+        XCTAssertEqual(GlassMaterialRenderer.textureGenerationCount, 2,
+                       "the wider lane must not reuse the narrower lane's kernel")
+        XCTAssertEqual(GlassMaterialRenderer.cacheEntryCount, 2)
+    }
+
+    func test_textureGeneration_readsBackTheQuantizedKeyValues() throws {
+        GlassMaterialRenderer.resetCache()
+        let tint = GlassDefaults.codexAgentTheme
+        let size = CGSize(width: 320, height: 30)
+        // 17.01 and 17.24 both quantize to the same 0.5pt step.
+        let first = try XCTUnwrap(GlassMaterialRenderer.haloImage(tint: tint, laneSize: size, scale: 2, softnessPoints: 17.01))
+        let second = try XCTUnwrap(GlassMaterialRenderer.haloImage(tint: tint, laneSize: size, scale: 2, softnessPoints: 17.24))
+        XCTAssertTrue(first === second)
+        XCTAssertEqual(GlassMaterialRenderer.textureGenerationCount, 1)
+
+        // A real 0.5pt step is a new texture.
+        let third = try XCTUnwrap(GlassMaterialRenderer.haloImage(tint: tint, laneSize: size, scale: 2, softnessPoints: 17.6))
+        XCTAssertFalse(third === first)
+        XCTAssertEqual(GlassMaterialRenderer.textureGenerationCount, 2)
+    }
+
+    func test_materialTexture_isCachedPerParametersOnly() {
+        GlassMaterialRenderer.resetCache()
+        let glass = ResolvedGlassTheme.default(providerId: "codex")
+
+        _ = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.8)], glass: glass))
+        let firstGeneration = GlassMaterialRenderer.textureGenerationCount
+        XCTAssertEqual(firstGeneration, 1)
+        XCTAssertEqual(GlassMaterialRenderer.cacheEntryCount, 1)
+        XCTAssertGreaterThan(GlassMaterialRenderer.cacheByteCount, 0)
+        // A new quota poll with identical material parameters reuses the bitmap.
+        _ = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.35)], glass: glass))
+        XCTAssertEqual(GlassMaterialRenderer.textureGenerationCount, firstGeneration,
+                       "only a parameter change may regenerate the material")
+        XCTAssertGreaterThan(GlassMaterialRenderer.cacheHitCount, 0)
+
+        // A real parameter change does generate a new one.
+        var softer = glass
+        softer.material.blurRadiusTarget = 32
+        _ = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.35)], glass: softer))
+        XCTAssertEqual(GlassMaterialRenderer.textureGenerationCount, firstGeneration + 1)
+        XCTAssertEqual(GlassMaterialRenderer.cacheEntryCount, 2)
+        XCTAssertLessThanOrEqual(GlassMaterialRenderer.cacheEntryCount, GlassMaterialRenderer.maxCacheEntries)
+        XCTAssertLessThanOrEqual(GlassMaterialRenderer.cacheByteCount, GlassMaterialRenderer.maxCacheBytes)
+    }
+
+    func test_materialCache_staysBoundedUnderManyDistinctParameters() {
+        GlassMaterialRenderer.resetCache()
+        let tint = GlassDefaults.codexAgentTheme
+        for step in 0...40 {
+            _ = GlassMaterialRenderer.haloImage(
+                tint: tint,
+                laneSize: CGSize(width: 320, height: 30),
+                scale: 2,
+                softnessPoints: Double(step)
+            )
+        }
+        XCTAssertGreaterThan(GlassMaterialRenderer.textureGenerationCount, GlassMaterialRenderer.maxCacheEntries)
+        XCTAssertLessThanOrEqual(GlassMaterialRenderer.cacheEntryCount, GlassMaterialRenderer.maxCacheEntries)
+        XCTAssertLessThanOrEqual(GlassMaterialRenderer.cacheByteCount, GlassMaterialRenderer.maxCacheBytes)
+    }
+
+    func test_materialHalo_staysInsideTheRealOuterFillClip() throws {
+        GlassMaterialRenderer.resetCache()
+        let lane = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.4)]))
+        let clip = try XCTUnwrap(tintClip(lane))
+        XCTAssertEqual(clip.frame.width, 400, accuracy: 0.01, "the halo is clipped to the real outer fill")
+        XCTAssertTrue(clip.masksToBounds)
+        let halo = try XCTUnwrap(clip.sublayers?.first { $0.name == "tintHalo" })
+        XCTAssertGreaterThan(halo.opacity, 0)
+        let image = try XCTUnwrap(halo.contents) as! CGImage
+        XCTAssertLessThanOrEqual(image.width, GlassMaterialRenderer.maxTextureWidthPixels)
+        XCTAssertLessThanOrEqual(image.height, GlassMaterialRenderer.maxTextureHeightPixels)
+    }
+
+    func test_softness_isIndependentOfAmbientGlowAndGrain() throws {
+        GlassMaterialRenderer.resetCache()
+        func renderedHalo(softness: Double) throws -> CGImage {
+            var glass = ResolvedGlassTheme.default(providerId: "codex")
+            glass.material.blurRadiusTarget = softness
+            glass.material.ambientGlow = 0
+            glass.material.grain = 0
+            let lane = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.5)], glass: glass))
+            return try XCTUnwrap(haloImage(of: lane))
+        }
+        let crisp = try renderedHalo(softness: 0)
+        let soft = try renderedHalo(softness: 32)
+        XCTAssertFalse(crisp === soft)
+        XCTAssertGreaterThan(meanAlphaDifference(crisp, soft), 0.005,
+                             "softness must reach the material with glow and grain at 0")
+    }
+
+    func test_themeStrengthZero_hidesTheTintAndStopsItsAnimation() throws {
+        var glass = ResolvedGlassTheme.default(providerId: "codex")
+        glass.material.ambientGlow = 0.6
+        let running = ProviderVisualSignal(isRunning: true)
+        let lane = GlassQuotaRenderer.render(
+            spec(windows: [window("w", remaining: 0.8)], glass: glass, signal: running))
+        let ambient = try XCTUnwrap(tintClip(lane)?.sublayers?.first { $0.name == "tintAmbient" })
+        XCTAssertNotNil(ambient.animation(forKey: "ambientDrift"))
+        let generation = GlassMaterialRenderer.textureGenerationCount
+
+        glass.material.agentThemeStrength = 0
+        GlassQuotaRenderer.update(
+            into: lane, spec: spec(windows: [window("w", remaining: 0.8)], glass: glass, signal: running))
+        XCTAssertEqual(tint(lane)?.isHidden, true)
+        XCTAssertNil(ambient.animation(forKey: "ambientDrift"),
+                     "a hidden tint must not keep a continuous animation running")
+        XCTAssertEqual(GlassMaterialRenderer.textureGenerationCount, generation,
+                       "strength 0 rasterises no material")
+    }
+
+    // MARK: - Quota contrast (dark base, dim outer, bright inner)
+
+    func test_outerTierFillIsVisiblyWeakerThanTheInnerTier() {
+        let outer = CAGradientLayer()
+        let inner = CAGradientLayer()
+        GlassQuotaRenderer.applyFillGradient(outer, color: ProviderPalette.codex.outer, rank: 0, isInnermost: false)
+        GlassQuotaRenderer.applyFillGradient(inner, color: ProviderPalette.codex.inner, rank: 1, isInnermost: true)
+        let outerColors = outer.colors as? [CGColor] ?? []
+        let innerColors = inner.colors as? [CGColor] ?? []
+        XCTAssertEqual(outerColors.count, 4)
+        XCTAssertEqual(innerColors.count, 4)
+        XCTAssertLessThan(outerColors[1].alpha, innerColors[1].alpha - 0.2,
+                          "the outer window must read as a darker glass tier")
+        XCTAssertLessThan(outerColors[2].alpha, innerColors[2].alpha)
+        XCTAssertLessThan(outerColors[3].alpha, innerColors[3].alpha)
+        XCTAssertLessThan(outerColors[0].alpha, innerColors[0].alpha)
+        XCTAssertLessThanOrEqual(innerColors[0].alpha, 0.32, "the top bevel stays a limited highlight")
+    }
+
+    func test_tintStaysALocalReflectionNotAUniformWash() throws {
+        GlassMaterialRenderer.resetCache()
+        let lane = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.8),
+                                                           window("s", remaining: 0.5)]))
+        let clip = try XCTUnwrap(tintClip(lane))
+        let bloom = try XCTUnwrap(clip.sublayers?.first { $0.name == "tintBloom" })
+        let linear = try XCTUnwrap(clip.sublayers?.first { $0.name == "tintLinear" })
+        let halo = try XCTUnwrap(clip.sublayers?.first { $0.name == "tintHalo" })
+        XCTAssertLessThanOrEqual(bloom.opacity, 0.25, "the radial bloom no longer floods the whole fill")
+        XCTAssertLessThanOrEqual(linear.opacity, 0.32)
+        XCTAssertGreaterThan(halo.opacity, bloom.opacity, "the local reflection carries the tint")
+        XCTAssertNotNil(halo.contents)
     }
 }

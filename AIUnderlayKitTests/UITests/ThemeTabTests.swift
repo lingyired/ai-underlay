@@ -45,4 +45,33 @@ final class ThemeTabTests: XCTestCase {
         let host = host(settings: settings, themes: themes)
         XCTAssertGreaterThan(host.fittingSize.height, 0)
     }
+
+    // MARK: - Material softness copy and storage compatibility
+
+    func test_materialSoftnessCopy_describesRenderedGlassNotBackdropSampling() {
+        XCTAssertEqual(ThemeTab.softnessLabel, "材质柔化")
+        let note = ThemeTab.softnessNote
+        XCTAssertTrue(note.contains("原生绘制"), "the slider must say it softens drawn material")
+        XCTAssertFalse(note.contains("背景模糊"), "it must not claim a system backdrop blur")
+        for token in ["0", "17", "32"] {
+            XCTAssertTrue(note.contains(token), "the note should name the \(token) steps")
+        }
+    }
+
+    func test_blurRadiusTarget_keepsItsStoredKeyAndRange() {
+        XCTAssertEqual(GlassDefaults.material.blurRadiusTarget, 17, "the V5 default is still 17")
+        let legacy = Data(#"{"blurRadiusTarget":21}"#.utf8)
+        let overrides = try? JSONDecoder().decode(GlassMaterialOverrides.self, from: legacy)
+        XCTAssertEqual(overrides?.blurRadiusTarget, 21, "existing theme/settings files keep parsing")
+        XCTAssertEqual(GlassMaterialParameters(blurRadiusTarget: 40).clamped.blurRadiusTarget, 32)
+        XCTAssertEqual(GlassMaterialParameters(blurRadiusTarget: -3).clamped.blurRadiusTarget, 0)
+    }
+
+    func test_materialSlider_roundTripsThroughTheSettingsStore() {
+        let settings = SettingsStore(fileURL: directory.appendingPathComponent("settings.json"))
+        settings.update { $0.appearance.material = GlassMaterialOverrides(blurRadiusTarget: 32) }
+        XCTAssertEqual(settings.settings.appearance.material?.blurRadiusTarget, 32)
+        settings.update { $0.appearance.material = nil }
+        XCTAssertNil(settings.settings.appearance.material, "reset falls back to the built-in 17")
+    }
 }

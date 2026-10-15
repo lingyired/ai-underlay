@@ -15,7 +15,7 @@ final class GlassPreviewTests: XCTestCase {
 
     // MARK: - Composition
 
-    private func lane(_ content: LaneContent, height: CGFloat) -> CALayer {
+    private func lane(_ content: LaneContent, height: CGFloat, scale: CGFloat = 2, phase: Double? = nil) -> CALayer {
         let geometry = GaugeGeometry(
             trackRect: CGRect(x: 0, y: 0, width: laneWidth, height: height),
             fillBounds: CGRect(x: 0, y: 0, width: laneWidth, height: height),
@@ -25,12 +25,15 @@ final class GlassPreviewTests: XCTestCase {
         let lane = CALayer()
         lane.frame = spec.geometry.trackRect
         lane.masksToBounds = true
+        lane.contentsScale = scale
 
         GlassQuotaRenderer.update(into: lane, spec: spec)
         let running = spec.signal?.isRunning == true
         GlassSpectrumRenderer.update(
             into: lane, spec: spec, running: running,
-            cycle: SpectrumRhythm.cycleDuration(outputTPS: spec.signal?.observedOutputTPS),
+            cycle: SpectrumRhythm.cycleDuration(
+                outputTPS: spec.signal?.observedOutputTPS, floorHz: spec.spectrumFloorHz
+            ),
             restart: true
         )
         AttentionLightRenderer.update(
@@ -39,6 +42,14 @@ final class GlassPreviewTests: XCTestCase {
             restartSweep: true
         )
         LayerSlot.reconcileLane(lane)
+        if let phase {
+            GlassSpectrumRenderer.applySampledPhase(
+                into: lane, spec: spec,
+                cycle: SpectrumRhythm.cycleDuration(
+                    outputTPS: spec.signal?.observedOutputTPS, floorHz: spec.spectrumFloorHz
+                ), phase: phase
+            )
+        }
         return lane
     }
 
@@ -100,6 +111,41 @@ final class GlassPreviewTests: XCTestCase {
 
     // MARK: - The pixels a structure test cannot see
 
+    func test_movingPeakChangesTheRenderedBrightRayLocation() throws {
+        let running = content("glassV5", signal: AgentSignals(activeCount: 1))
+        func profile(at phase: Double) throws -> [Double] {
+            let frame = lane(running, height: 32, phase: phase)
+            let spectrum = try XCTUnwrap(frame.sublayers?.first { $0.name == "spectrum" })
+            // Isolate rays: quota end caps and a travelling gradient alone
+            // must not be able to satisfy this regression check.
+            frame.sublayers?.filter { $0 !== spectrum }.forEach { $0.isHidden = true }
+            spectrum.sublayers?.filter { $0.name?.hasPrefix("field") == true }.forEach { $0.isHidden = true }
+            let pixels = try rasterise(frame)
+            var energy = Array(repeating: 0.0, count: 32)
+            for x in 0..<pixels.pixelsWide {
+                for y in 6..<(pixels.pixelsHigh - 6) {
+                    let color = try XCTUnwrap(pixels.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+                    func linear(_ channel: CGFloat) -> Double {
+                        let value = Double(channel * color.alphaComponent)
+                        return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+                    }
+                    energy[min(31, x * 32 / pixels.pixelsWide)] +=
+                        0.2126 * linear(color.redComponent) + 0.7152 * linear(color.greenComponent)
+                        + 0.0722 * linear(color.blueComponent)
+                }
+            }
+            return energy
+        }
+        let first = try profile(at: 0.2)
+        let second = try profile(at: 0.6)
+        let a = try XCTUnwrap(first.indices.max { first[$0] < first[$1] })
+        let b = try XCTUnwrap(second.indices.max { second[$0] < second[$1] })
+        XCTAssertGreaterThanOrEqual(abs(a - b), 5,
+                                    "ray pixels, with wide light fields hidden, must move their brightest region")
+        XCTAssertGreaterThan(first[a], first[(a + 16) % 32] * 2)
+        XCTAssertGreaterThan(second[b], second[(b + 16) % 32] * 2)
+    }
+
     func test_exhaustedBedRasterisesBlack_andTheTintStopsAtTheOuterFill() throws {
         let running = AgentSignals(activeCount: 1)
         let teal = try rasterise(lane(content("glassV5", signal: running), height: 30))
@@ -135,14 +181,39 @@ final class GlassPreviewTests: XCTestCase {
         XCTAssertGreaterThan(Double(filled.greenComponent), Double(usedUp.greenComponent) + 0.1)
     }
 
+    func test_runningPeakNeverRepaintsTheKnownExhaustedRegion() throws {
+        for phase in [0.2, 0.6, 0.9] {
+            let rep = try rasterise(lane(content("glassV5", signal: AgentSignals(activeCount: 1)),
+                                          height: 32, phase: phase))
+            // Stay away from the end cap: the outer quota ends at 82%.
+            for index in 84..<100 {
+                let pixel = colour(rep, atRelativeX: Double(index) / 100)
+                XCTAssertLessThan(Double(pixel.redComponent), 0.06, "phase \(phase), x=\(index)%")
+                XCTAssertLessThan(Double(pixel.greenComponent), 0.06, "phase \(phase), x=\(index)%")
+                XCTAssertLessThan(Double(pixel.blueComponent), 0.06, "phase \(phase), x=\(index)%")
+            }
+        }
+        let exhausted = try rasterise(lane(content("allZero", signal: AgentSignals(activeCount: 1)),
+                                            height: 32, phase: 0.5))
+        let middle = colour(exhausted, atRelativeX: 0.5)
+        XCTAssertLessThan(Double(middle.redComponent), 0.06)
+        XCTAssertLessThan(Double(middle.greenComponent), 0.06)
+        XCTAssertLessThan(Double(middle.blueComponent), 0.06)
+    }
+
     func test_menuBarHeights30to34_allRasteriseTheSameLanguage() throws {
         for height: CGFloat in [30, 32, 34] {
-            let rep = try rasterise(lane(content("glassV5", signal: AgentSignals(activeCount: 1)), height: height))
-            XCTAssertEqual(rep.pixelsHigh, Int(height * 2))
-            let usedUp = colour(rep, atRelativeX: 0.95)
-            XCTAssertLessThan(Double(usedUp.redComponent), 0.06, "\(height)pt keeps the black bed")
-            let filled = colour(rep, atRelativeX: 0.30)
-            XCTAssertGreaterThan(Double(filled.blueComponent), 0.2, "\(height)pt keeps a visible fill")
+            for scale: CGFloat in [1, 2] {
+                let rep = try rasterise(
+                    lane(content("glassV5", signal: AgentSignals(activeCount: 1)), height: height, scale: scale),
+                    scale: scale
+                )
+                XCTAssertEqual(rep.pixelsHigh, Int(height * scale))
+                let usedUp = colour(rep, atRelativeX: 0.95)
+                XCTAssertLessThan(Double(usedUp.redComponent), 0.06, "\(height)pt @\(scale)x keeps the black bed")
+                let filled = colour(rep, atRelativeX: 0.30)
+                XCTAssertGreaterThan(Double(filled.blueComponent), 0.2, "\(height)pt @\(scale)x keeps a visible fill")
+            }
         }
     }
 
@@ -181,17 +252,42 @@ final class GlassPreviewTests: XCTestCase {
              content("glassV5", signal: AgentSignals(activeCount: 1, errorCount: 1), showsAttentionSweep: false)),
         ]
 
-        let output = URL(fileURLWithPath: #filePath)
+        let defaultOutput = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // OverlayTests
             .deletingLastPathComponent()   // AIUnderlayKitTests
             .deletingLastPathComponent()   // repo root
             .appendingPathComponent("docs/preview/glass-spectrum", isDirectory: true)
+        let output = ProcessInfo.processInfo.environment["GLASS_PREVIEW_OUTPUT"].map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        } ?? defaultOutput
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         for item in cases {
-            let rep = try rasterise(lane(item.content, height: 30))
+            for height: CGFloat in [30, 32, 34] {
+                for scale: CGFloat in [1, 2] {
+                    let folder = height == 30 && scale == 2 ? output : output
+                        .appendingPathComponent("\(Int(height))pt-\(Int(scale))x", isDirectory: true)
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    let rep = try rasterise(lane(item.content, height: height, scale: scale, phase: 0.35), scale: scale)
+                    let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+                    try data.write(to: folder.appendingPathComponent("\(item.name).png"))
+                }
+            }
+        }
+        for phase in [0.2, 0.6] {
+            let rep = try rasterise(lane(content("glassV5", signal: AgentSignals(activeCount: 1)),
+                                          height: 32, phase: phase))
             let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
-            try data.write(to: output.appendingPathComponent("\(item.name).png"))
+            try data.write(to: output.appendingPathComponent("codex-running-phase\(Int(phase * 100))-32pt-2x.png"))
+        }
+        for provider in ["codex", "claude"] {
+            for softness: Double in [0, 17, 32] {
+                var material = content("glassV5", provider: provider)
+                material.glass.material.blurRadiusTarget = softness
+                let rep = try rasterise(lane(material, height: 32))
+                let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+                try data.write(to: output.appendingPathComponent("\(provider)-softness\(Int(softness))-32pt-2x.png"))
+            }
         }
         XCTAssertEqual(cases.count, 15)
     }

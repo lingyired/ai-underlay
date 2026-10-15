@@ -82,10 +82,12 @@ public final class GlassLayerHost {
 
     private static func countLayers(_ layer: CALayer) -> Int {
         1 + (layer.sublayers ?? []).reduce(0) { $0 + countLayers($1) }
+            + (layer.mask.map(countLayers) ?? 0)
     }
 
     private static func countAnimatedLayers(_ layer: CALayer) -> Int {
         let self_ = (layer.animationKeys()?.isEmpty == false) ? 1 : 0
         return self_ + (layer.sublayers ?? []).reduce(0) { $0 + countAnimatedLayers($1) }
+            + (layer.mask.map(countAnimatedLayers) ?? 0)
     }
 }

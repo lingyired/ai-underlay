@@ -4,6 +4,10 @@ import AppKit
 /// fills in their tier brightness ladder, the agent-glass tint clipped to the
 /// real outer fill, the progress end caps and the pace baseline.
 ///
+/// The tint carries the user's softness token: `GlassMaterialRenderer` turns
+/// `blurRadiusTarget` into a real pre-blurred halo/reflection texture (rendered
+/// glass, not desktop sampling), and the halo stays inside the outer-fill clip.
+///
 /// This is the ONLY quota renderer. It consumes `LaneRenderSpec` only — no
 /// data sources, no effect enums — and every length comes from
 /// `NestedGauge.nestedLengths`, so the glass can never inflate a value.
@@ -57,7 +61,7 @@ public enum GlassQuotaRenderer {
 
         updateBed(glass, spec: spec, state: state)
         let lengths = updateFills(glass, spec: spec, state: state)
-        updateTint(glass, spec: spec, state: state, outerLength: lengths.first)
+        updateTint(glass, spec: spec, state: state, outerLength: lengths.first, scale: scale)
         updateCaps(glass, spec: spec, state: state, lengths: lengths, scale: scale)
         LayerSlot.reconcile(glass, keeping: ["bed", "fills", "tint", "caps", "envTop", "envBottom"])
 
@@ -148,18 +152,19 @@ public enum GlassQuotaRenderer {
         return lengths
     }
 
-    /// The V5 fill language: a bright top bevel, a saturated middle band, a
-    /// darker base. The innermost tier adds a white top edge so a glance can
-    /// tell the two layers apart.
+    /// The V5 fill language, rebalanced for a dark glass base: a limited top
+    /// bevel, a saturated middle band, and a base that falls away toward the
+    /// bottom. The outer tier stays visibly *darker* than the inner one, so the
+    /// nested length can be read at 30pt without a uniform bright wash.
     static func applyFillGradient(_ layer: CAGradientLayer, color: RGBAColor, rank: Double, isInnermost: Bool) {
         layer.type = .axial
         layer.startPoint = CGPoint(x: 0.5, y: 1)
         layer.endPoint = CGPoint(x: 0.5, y: 0)
         layer.locations = [0, 0.18, 0.55, 1]
-        let topWhite = 0.06 + 0.20 * rank
-        let midAlpha = 0.52 + 0.34 * rank
-        let lowAlpha = 0.40 + 0.45 * rank
-        let bottomAlpha = 0.30 + 0.18 * rank
+        let topWhite = 0.05 + 0.22 * rank
+        let midAlpha = 0.32 + 0.48 * rank
+        let lowAlpha = 0.24 + 0.60 * rank
+        let bottomAlpha = 0.14 + 0.24 * rank
         layer.colors = [
             CGColor(red: 1, green: 1, blue: 1, alpha: min(topWhite, 0.32)),
             color.withAlpha(midAlpha).cgColor,
@@ -177,7 +182,8 @@ public enum GlassQuotaRenderer {
         _ parent: CALayer,
         spec: LaneRenderSpec,
         state: QuotaDisplayState,
-        outerLength: CGFloat?
+        outerLength: CGFloat?,
+        scale: CGFloat
     ) {
         let tint = LayerSlot.named("tint", in: parent)
         let bounds = spec.geometry.fillBounds
@@ -186,9 +192,18 @@ public enum GlassQuotaRenderer {
 
         let color = spec.glass.agentThemeColor
         let material = spec.glass.material
+        // Strength 0 is a real "no glass tint" state: hide the group and skip
+        // the texture work entirely instead of drawing zero-opacity layers.
         let hasTint = state != .unknown && (outerLength ?? 0) > 0
+            && material.agentThemeStrength > 0.001
         tint.isHidden = !hasTint
-        guard hasTint else { return }
+        guard hasTint else {
+            // A hidden tint must not keep animating: dropping the strength to 0
+            // (or losing the quota) has to stop the ambient drift here, or the
+            // lane would hold a continuous animation nobody can see.
+            stopTintAnimations(tint)
+            return
+        }
 
         // Clip to the outer fill's length from the anchor. The clip is a child
         // container whose content keeps full-lane coordinates, so the gradient
@@ -218,7 +233,7 @@ public enum GlassQuotaRenderer {
             color.withAlpha(0.18).cgColor,
             color.withAlpha(0).cgColor,
         ]
-        bloom.opacity = Float(min(1, material.agentThemeStrength * 0.35 * ceiling))
+        bloom.opacity = Float(min(1, material.agentThemeStrength * 0.22 * ceiling))
 
         // A white top bevel + soft tint falloff, V5's linear second layer.
         let linear = LayerSlot.named("tintLinear", in: clip, as: CAGradientLayer.self)
@@ -232,7 +247,27 @@ public enum GlassQuotaRenderer {
             CGColor(red: 1, green: 1, blue: 1, alpha: 0),
             color.withAlpha(0.22).cgColor,
         ]
-        linear.opacity = Float(min(1, material.agentThemeStrength * 0.5 * ceiling))
+        linear.opacity = Float(min(1, material.agentThemeStrength * 0.30 * ceiling))
+
+        // Softness: the stored `blurRadiusTarget` drives a pre-blurred halo
+        // texture whose kernel is computed in device pixels, so 0/17/32 change
+        // the rendered material even when ambient glow and grain are 0. The halo
+        // is a child of `tintClip`, so softening can never bleed past the real
+        // outer fill into the black used-up bed.
+        let halo = LayerSlot.named("tintHalo", in: clip)
+        halo.frame = contentFrame
+        halo.contentsGravity = .resize
+        halo.contentsScale = scale
+        halo.magnificationFilter = .linear
+        halo.minificationFilter = .linear
+        halo.contents = GlassMaterialRenderer.haloImage(
+            tint: color,
+            laneSize: tint.bounds.size,
+            scale: scale,
+            softnessPoints: material.blurRadiusTarget
+        )
+        halo.opacity = Float(min(1, material.agentThemeStrength * 0.5 * ceiling))
+        halo.isHidden = halo.contents == nil
 
         // Ambient glow: the extra diffusion the user set to 0 in V5. Zero here
         // must NOT hide the tint above — that is the V4 bug this guards.
@@ -266,7 +301,18 @@ public enum GlassQuotaRenderer {
         }
 
         LayerSlot.reconcile(tint, keeping: ["tintClip"])
-        LayerSlot.reconcile(clip, keeping: ["tintBloom", "tintLinear", "tintAmbient"])
+        LayerSlot.reconcile(clip, keeping: ["tintBloom", "tintLinear", "tintHalo", "tintAmbient"])
+    }
+
+    /// Stops every animation the tint owns, including the ambient drift. Used
+    /// when the tint group itself goes hidden, so a strength-0 or unknown lane
+    /// never holds an invisible continuous animation.
+    private static func stopTintAnimations(_ tint: CALayer) {
+        func walk(_ layer: CALayer) {
+            layer.removeAnimation(forKey: "ambientDrift")
+            layer.sublayers?.forEach(walk)
+        }
+        walk(tint)
     }
 
     /// A near-white tint (Claude's `#FFFFFF`) is attenuated toward the ceiling

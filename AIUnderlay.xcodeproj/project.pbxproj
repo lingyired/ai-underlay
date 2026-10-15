@@ -26,6 +26,7 @@
 		20C9A838431A6880C62E8A98 /* PanelGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E48A5ACFB73D713B7C5DD84 /* PanelGeometryTests.swift */; };
 		22064241B1030CCF81F1697A /* CodexLocalSessionReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164E55ED7F68B1C5E3766F2A /* CodexLocalSessionReader.swift */; };
 		27EA60F27846F15B924AB9C5 /* ProvidersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19FFC40B9A80CCEEAA6BAA2 /* ProvidersTab.swift */; };
+		2A64158922EB72B9E1AAE8B0 /* GlassMaterialRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D221DA5262B3D75409DEEC /* GlassMaterialRenderer.swift */; };
 		2AF8699B680AAD2E778AE50F /* GlassDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960821CFEA607C5619B5DD36 /* GlassDefaults.swift */; };
 		2BCA783B2D0FD626D0C67D9A /* AgentEventAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A69AF0F5318B8894A471744 /* AgentEventAdapter.swift */; };
 		2D66D0877F78F5CF89272CC2 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D740EC79D606AFA338E8E0C3 /* AppSettings.swift */; };
@@ -294,6 +295,7 @@
 		F26B4D3F0ADD40A6E292A66F /* QuotaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotaEngine.swift; sourceTree = "<group>"; };
 		F405A52DEB8B2A655BB5E9F1 /* ThemeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeResolver.swift; sourceTree = "<group>"; };
 		F4B0976566CB9EC4D648264C /* GlassLayerHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassLayerHost.swift; sourceTree = "<group>"; };
+		F5D221DA5262B3D75409DEEC /* GlassMaterialRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassMaterialRenderer.swift; sourceTree = "<group>"; };
 		F6A3624BE81ED9C3CA8DA4C1 /* GlassLayerHostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassLayerHostTests.swift; sourceTree = "<group>"; };
 		F9919D5611B8C22C179247A7 /* SnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotCache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -339,6 +341,7 @@
 				ACBE5EA6F15A6AC99D468548 /* AttentionLightRenderer.swift */,
 				C75C6FF65167D88935719DDF /* BandWatchdog.swift */,
 				F4B0976566CB9EC4D648264C /* GlassLayerHost.swift */,
+				F5D221DA5262B3D75409DEEC /* GlassMaterialRenderer.swift */,
 				550376738F99A19AF012DBAF /* GlassQuotaRenderer.swift */,
 				83DC96C21D8570582349700F /* GlassSpectrumRenderer.swift */,
 				1A3287BBFB3D55DD8508C63A /* LaneRenderSpec.swift */,
@@ -789,6 +792,7 @@
 				2AF8699B680AAD2E778AE50F /* GlassDefaults.swift in Sources */,
 				42A97B82116DA16C11888186 /* GlassLayerHost.swift in Sources */,
 				70D9A54DAC01DC03117C5436 /* GlassMaterial.swift in Sources */,
+				2A64158922EB72B9E1AAE8B0 /* GlassMaterialRenderer.swift in Sources */,
 				16E690CB505A38EE9D095A5D /* GlassQuotaRenderer.swift in Sources */,
 				CC2CA59E5B3D5D61FB2C908B /* GlassSpectrumRenderer.swift in Sources */,
 				B6385DF6D6C7EAFBAA69BEFE /* HookSetupCoordinator.swift in Sources */,
