@@ -19,8 +19,8 @@ that sits above the desktop icons and below the menu bar.
   quota numbers.
 - One visual engine: **Glass Spectrum** (aurora glass + frosted quota detail).
   A dense fine-ray light curtain travels while an agent works, and the same
-  ribbon/lamp language shows Error > Waiting > Unread. Three Core Animation
-  ray groups + two light fields per lane; no per-frame CPU work.
+  ribbon/lamp language shows Error > Waiting > Unread. Cached ray textures
+  provide a faint bed and moving local peaks; no per-frame CPU painting.
 - Three separate colour roles: **quota colours**, the per-provider **glass
   tint**, and global **signal lights** — a theme can change any of them without
   changing the others.

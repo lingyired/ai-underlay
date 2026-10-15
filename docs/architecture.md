@@ -40,7 +40,7 @@ from three renderers over one stable layer tree:
 ```text
 laneHost
 ├── quotaGlass        bed (used-up black / neutral groove) + nested fills + tint + caps
-├── spectrum          3 ray textures (breathing) + 2 traveling light fields
+├── spectrum          weak static rays + masked bright copies + 2 traveling light fields
 ├── attention         wash + glow + bottom ribbon (+ glint sweep) + 2pt top line
 └── baseline          pace marker, always on top
 ```
@@ -50,8 +50,10 @@ laneHost
   quota refresh, a theme hot-reload, or a repeated identical render never
   rebuilds the tree and never restarts an animation. A 100× repeat keeps layer
   identity and `animationStarts` at 1 (test: `GlassLayerHostTests`).
-- Per-lane animated budget: 6 layers (3 ray groups + 2 fields + glint). Ray
-  *density* is a cached bitmap property (`RayTextureCache`), never a layer count.
+- Per-lane continuous animation budget: at most 10 layers, including mask
+  layers, attention and optional ambient drift. Three cached ray images are
+  shared by a faint static bed and local bright copies; density changes pixels,
+  never the number of ray layers. Diagnostics recurse through masks too.
 - Motion is Core Animation only: `transform.scale.y` keyframes, `position.x`
   travel, and a once-per-state-change ribbon sweep. No per-frame CPU work;
   Reduce Motion keeps the static layout and drops every animation (0 animated
@@ -69,9 +71,11 @@ laneHost
 The default path deliberately does **not** use `NSVisualEffectView` or any
 desktop-backdrop sampling. The V5 look is reproduced with layered gradients,
 pre-rendered ray textures, and the black quota bed — which keeps the overlay
-cheap, screenshot-stable and free of extra permissions. The plan's P0 spike
-(30-minute real-blur/CPU measurement) is still open; until it is run, treat the
-blur-radius token as a *softness target*, not a real backdrop blur.
+cheap, screenshot-stable and free of extra permissions. `blurRadiusTarget`
+controls cached halo softening in device pixels; the UI calls it material
+softness, not desktop blur. Its stored name and 0–32 range remain compatible.
+The limited native-material probe and remaining 30-minute/hardware validation
+are recorded in `visual-reference/glass-fidelity/blur-spike.md`.
 
 Evidence for the rendered look: `docs/preview/glass-spectrum/*.png`, produced by
 `GlassPreviewTests` at the real 30/32/34 pt menu-bar heights.

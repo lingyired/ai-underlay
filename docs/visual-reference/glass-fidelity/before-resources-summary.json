@@ -1,0 +1,24 @@
+{
+  "pid": 33646,
+  "samples": 59,
+  "elapsed": 295.831,
+  "app_cpu_percent": {
+    "average": 0.3615762711864407,
+    "p95": 0.798,
+    "first": 0.399,
+    "last": 0.199
+  },
+  "rss_mib": {
+    "average": 152.81947457627118,
+    "p95": 152.859,
+    "first": 152.828,
+    "last": 152.828
+  },
+  "windowserver_cpu_percent": {
+    "average": 56.98547457627119,
+    "p95": 70.409,
+    "first": 57.653,
+    "last": 71.601
+  },
+  "note": "Live agent workload; WindowServer is system-wide, not attributed GPU usage."
+}

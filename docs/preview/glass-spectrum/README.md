@@ -7,9 +7,15 @@ TEST_RUNNER_GLASS_PREVIEW_DUMP=1 Scripts/test.sh \
   -only-testing:AIUnderlayKitTests/GlassPreviewTests/test_dumpPreviewPNGsWhenRequested
 ```
 
-Each file is one provider lane rasterised at the real menu-bar height (30 pt,
-2x scale) through `GlassQuotaRenderer` + `GlassSpectrumRenderer` +
-`AttentionLightRenderer`, with the selected V5 numbers.
+The root PNGs are one provider lane at 30pt/2x. Dumping also produces
+30/32/34pt at 1x/2x in size-specific subfolders. Running previews explicitly
+sample spectrum phase 0.35; the two `codex-running-phase*-32pt-2x.png` files
+sample 0.2 and 0.6. The provider-softness0/17/32 images isolate the idle glass material. All use the actual renderers and selected V5 parameters.
+These are deterministic offline fixtures, not captures of the CA presentation
+tree or proof of system-menu-bar compositing.
+
+Set `TEST_RUNNER_GLASS_PREVIEW_OUTPUT` to an absolute folder to keep the large
+matrix in `build/glass-fidelity/after/` instead of writing every image here.
 
 | File | What it shows |
 |---|---|
@@ -22,7 +28,7 @@ Each file is one provider lane rasterised at the real menu-bar height (30 pt,
 | `waiting-only.png` / `error-only.png` / `unread-only.png` | One attention channel each |
 | `running-waiting.png` / `running-error.png` / `running-unread.png` | Running + attention: the field keeps moving in the top-priority colour |
 | `reduce-motion-running-error.png` | Reduce Motion: same layout, zero animations |
-| `running-no-traveling-light.png` | 横穿扫光关掉：没有光场，射线幕照常呼吸 |
+| `running-no-traveling-light.png` | 横穿扫光关闭：宽光场隐藏，局部射线仍在固定亮区起伏 |
 | `running-error-no-attention-sweep.png` | 状态灯带扫光关掉：顶线/底带/辉光保留，只去掉亮带 |
 
 **`unread-only.png` and `running-unread.png` are simulated.** Production keeps
