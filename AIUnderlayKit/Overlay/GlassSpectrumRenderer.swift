@@ -30,7 +30,12 @@ public enum GlassSpectrumRenderer {
 
     public static func update(into lane: CALayer, spec: LaneRenderSpec, running: Bool, cycle: Double, restart: Bool) {
         let root = LayerSlot.named("spectrum", in: lane)
-        root.frame = CGRect(origin: .zero, size: spec.geometry.trackRect.size)
+        // The curtain covers this provider's own fill area, never the other
+        // side of a dual layout: one provider's light must not wash over the
+        // neighbour's quota. In single layout the fill is the whole track, so
+        // this is the full-band look.
+        let region = spec.geometry.localFillBounds
+        root.frame = region
         root.masksToBounds = true
 
         guard running else {
@@ -43,11 +48,27 @@ public enum GlassSpectrumRenderer {
         let color = spec.glass.signalLights.light(for: spec.signal?.attention ?? .none)
         let density = spec.glass.material.rayDensity
         let grain = spec.glass.material.grain
-        let size = spec.geometry.trackRect.size
+        let size = region.size
         let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
         let animated = !spec.reduceMotion
 
-        var slots: [String] = []
+        // The curtain needs something dark to stand on. The band window sits
+        // *below* the system menu bar, so everything we draw is seen through
+        // the bar's own material and loses roughly 40% of its contrast; white
+        // rays over a light quota fill then read as a faint texture. This bed
+        // is the V5 dark base and it is static — Reduce Motion keeps it.
+        let scrim = LayerSlot.named("scrim", in: root, as: CAGradientLayer.self)
+        scrim.frame = CGRect(origin: .zero, size: size)
+        scrim.type = .axial
+        scrim.startPoint = CGPoint(x: 0.5, y: 0)
+        scrim.endPoint = CGPoint(x: 0.5, y: 1)
+        scrim.colors = [
+            CGColor(red: 0, green: 0, blue: 0, alpha: 0),
+            CGColor(red: 0, green: 0, blue: 0, alpha: 0.45),
+        ]
+        scrim.locations = [0.18, 1]
+
+        var slots: [String] = ["scrim"]
         for group in 0..<rayGroupCount {
             let name = "rays\(group)"
             slots.append(name)
@@ -59,7 +80,7 @@ public enum GlassSpectrumRenderer {
                 group: group, groupCount: rayGroupCount,
                 color: color, density: density, grain: grain
             )
-            rays.opacity = 0.92
+            rays.opacity = 1
             if animated {
                 ensureRayAnimation(rays, cycle: cycle, group: group, restart: restart)
             } else {
@@ -68,10 +89,23 @@ public enum GlassSpectrumRenderer {
             }
         }
 
-        for (index, field) in LightFieldGeometry.racetrack(size: size, growsTowardRight: spec.geometry.growsTowardRight).enumerated() {
+        let fields = LightFieldGeometry.racetrack(size: size, growsTowardRight: spec.geometry.growsTowardRight)
+        for (index, field) in fields.enumerated() {
             let name = "field\(index)"
             slots.append(name)
             let layer = LayerSlot.named(name, in: root, as: CAGradientLayer.self)
+
+            // The travelling sheen is optional: it is the widest, most visible
+            // motion, so a user who finds it distracting can drop it and keep
+            // the ray curtain. The layer stays in the tree (hidden) so toggling
+            // never rebuilds it.
+            guard spec.showsTravelingLight else {
+                layer.isHidden = true
+                layer.removeAnimation(forKey: "fieldTravel")
+                continue
+            }
+            layer.isHidden = false
+
             layer.frame = field.frame
             layer.type = .axial
             layer.startPoint = CGPoint(x: 0, y: 0.5)
@@ -270,8 +304,11 @@ enum RayTextureCache {
             // comb; the moving field adds the rest of the travelling light.
             let focus = max(exp(-pow((Double(u) - 0.30) / 0.16, 2)),
                             0.6 * exp(-pow((Double(u) - 0.74) / 0.20, 2)))
-            let rayHeight = height * CGFloat(0.20 + 0.50 * crest + 0.30 * focus)
-            let alpha = min(0.96, 0.20 + 0.30 * crest + 0.46 * focus)
+            // Taller and more opaque than the browser lab's canvas pass: the
+            // native band is composited under the system menu bar material,
+            // which costs roughly 40% of the contrast we draw.
+            let rayHeight = height * CGFloat(0.32 + 0.48 * crest + 0.34 * focus)
+            let alpha = min(1, 0.46 + 0.36 * crest + 0.42 * focus)
             // The V5 curtain stands on the strip: every ray's base sits on the
             // bottom edge (Quartz y = 0), so only the tips wave. Starting at
             // `height - rayHeight` instead would hang the curtain from the top
@@ -296,9 +333,9 @@ enum RayTextureCache {
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: [
                 color.withAlpha(0).cgColor,
-                color.withAlpha(alpha * 0.28).cgColor,
-                color.withAlpha(alpha * 0.78).cgColor,
-                color.withAlpha(alpha * 0.92).cgColor,
+                color.withAlpha(alpha * 0.34).cgColor,
+                color.withAlpha(alpha * 0.86).cgColor,
+                color.withAlpha(alpha * 0.98).cgColor,
             ] as CFArray,
             locations: [0, 0.18, 0.64, 1]
         )
@@ -309,13 +346,13 @@ enum RayTextureCache {
             context.restoreGState()
         }
 
-        let coreWidth: CGFloat = 1.16
+        let coreWidth: CGFloat = 1.3
         let core = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: [
                 color.withAlpha(0).cgColor,
-                color.withAlpha(alpha * 0.42).cgColor,
-                CGColor(red: 1, green: 1, blue: 1, alpha: min(0.90, alpha * 0.76)),
+                color.withAlpha(min(1, alpha * 0.5)).cgColor,
+                CGColor(red: 1, green: 1, blue: 1, alpha: min(1, alpha)),
             ] as CFArray,
             locations: [0, 0.5, 1]
         )

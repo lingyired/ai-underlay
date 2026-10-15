@@ -53,6 +53,58 @@ final class GaugeGeometryTests: XCTestCase {
         XCTAssertEqual(left.fillBounds.width + right.fillBounds.width, screen.width)
     }
 
+    /// The shared track stays continuous (no wallpaper leak at the notch), but
+    /// each side paints only its own half of it. Without this the second lane's
+    /// groove/bed washes over the first lane's fills.
+    func test_dual_trackBoundsSplitAtTheMidline_andStillCoverTheScreen() {
+        for anchor in [AnchorMode.notch, .outerEdge] {
+            let gauges = GaugeLayout.layout(
+                mode: .dual, anchor: anchor, singleDirection: .leadingToTrailing,
+                screenFrame: screen, menuBarHeight: menuBarHeight, notchEdges: notch
+            )
+            let left = gauges.first { $0.side == .left }!.geometry
+            let right = gauges.first { $0.side == .right }!.geometry
+            XCTAssertEqual(left.trackBounds.maxX, right.trackBounds.minX, "\(anchor): halves meet at the midline")
+            XCTAssertEqual(left.trackBounds.minX, screen.minX, "\(anchor)")
+            XCTAssertEqual(right.trackBounds.maxX, screen.maxX, "\(anchor)")
+            XCTAssertEqual(left.trackBounds.width + right.trackBounds.width, screen.width, "\(anchor)")
+            XCTAssertEqual(left.trackBounds.maxX, screen.midX, "\(anchor): the split is the screen midline")
+        }
+    }
+
+    func test_dual_trackBoundsExtendPastTheFill_soTheGrooveStaysContinuous() {
+        let gauges = GaugeLayout.layout(
+            mode: .dual, anchor: .outerEdge, singleDirection: .leadingToTrailing,
+            screenFrame: screen, menuBarHeight: menuBarHeight, notchEdges: notch
+        )
+        // The notch gap lives inside the left lane's groove even though the
+        // fill stops at the notch edge.
+        let left = gauges.first { $0.side == .left }!.geometry
+        XCTAssertGreaterThan(left.trackBounds.maxX, left.fillBounds.maxX)
+    }
+
+    func test_single_trackBoundsStayTheWholeScreen() {
+        let gauges = GaugeLayout.layout(
+            mode: .single, anchor: .notch, singleDirection: .leadingToTrailing,
+            screenFrame: screen, menuBarHeight: menuBarHeight, notchEdges: nil
+        )
+        let g = gauges.first!.geometry
+        XCTAssertEqual(g.trackBounds, g.trackRect)
+        XCTAssertEqual(g.localTrackBounds, CGRect(origin: .zero, size: g.trackRect.size))
+    }
+
+    /// The lane is placed at `trackRect` (the full screen), so renderers that
+    /// crop to one provider need the fill in the lane's own coordinates.
+    func test_localFillBounds_areRelativeToTheTrackOrigin() {
+        let offscreen = CGRect(x: 2048, y: 0, width: 1024, height: 30)
+        let g = GaugeGeometry(
+            trackRect: offscreen, fillBounds: CGRect(x: 2048, y: 0, width: 1024, height: 30),
+            growsTowardRight: true
+        )
+        XCTAssertEqual(g.localFillBounds, CGRect(x: 0, y: 0, width: 1024, height: 30))
+        XCTAssertEqual(g.localTrackBounds, g.localFillBounds)
+    }
+
     func test_single_leadingToTrailing() {
         let gauges = GaugeLayout.layout(
             mode: .single, anchor: .notch, singleDirection: .leadingToTrailing,

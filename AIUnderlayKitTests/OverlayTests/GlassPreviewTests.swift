@@ -46,7 +46,9 @@ final class GlassPreviewTests: XCTestCase {
         _ key: String,
         provider: String = "codex",
         signal: AgentSignals? = nil,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        showsTravelingLight: Bool = true,
+        showsAttentionSweep: Bool = true
     ) -> LaneContent {
         LaneContent(
             providerId: provider,
@@ -54,7 +56,9 @@ final class GlassPreviewTests: XCTestCase {
             palette: ProviderPalette.for(providerId: provider),
             glass: .default(providerId: provider),
             signal: signal?.visualSignal,
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion,
+            showsTravelingLight: showsTravelingLight,
+            showsAttentionSweep: showsAttentionSweep
         )
     }
 
@@ -171,6 +175,10 @@ final class GlassPreviewTests: XCTestCase {
             ("unread-only", content("glassV5", signal: AgentSignals(unreadCount: 1))),
             ("reduce-motion-running-error",
              content("glassV5", signal: AgentSignals(activeCount: 1, errorCount: 1), reduceMotion: true)),
+            ("running-no-traveling-light",
+             content("glassV5", signal: AgentSignals(activeCount: 1), showsTravelingLight: false)),
+            ("running-error-no-attention-sweep",
+             content("glassV5", signal: AgentSignals(activeCount: 1, errorCount: 1), showsAttentionSweep: false)),
         ]
 
         let output = URL(fileURLWithPath: #filePath)
@@ -185,6 +193,6 @@ final class GlassPreviewTests: XCTestCase {
             let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
             try data.write(to: output.appendingPathComponent("\(item.name).png"))
         }
-        XCTAssertEqual(cases.count, 13)
+        XCTAssertEqual(cases.count, 15)
     }
 }

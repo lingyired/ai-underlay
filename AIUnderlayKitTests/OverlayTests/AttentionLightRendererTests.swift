@@ -14,11 +14,13 @@ final class AttentionLightRendererTests: XCTestCase {
 
     private func spec(
         glass: ResolvedGlassTheme = .default(providerId: "codex"),
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        showsAttentionSweep: Bool = true
     ) -> LaneRenderSpec {
         LaneRenderSpec(
             providerId: "codex", geometry: geometry, windows: [], palette: .codex,
-            glass: glass, signal: nil, reduceMotion: reduceMotion
+            glass: glass, signal: nil, reduceMotion: reduceMotion,
+            showsAttentionSweep: showsAttentionSweep
         )
     }
 
@@ -177,6 +179,44 @@ final class AttentionLightRendererTests: XCTestCase {
             .sublayers?.first { $0.name == "glint" })
         XCTAssertTrue(glint.isHidden)
         XCTAssertNil(glint.animation(forKey: "attentionSweep"))
+    }
+
+    /// Turning the sweep off is not the same as hiding the alert: the top line
+    /// and ribbon still have to carry the state.
+    func test_sweepDisabled_keepsTheStaticAlert() throws {
+        let lane = AttentionLightRenderer.render(
+            spec(showsAttentionSweep: false), attention: .error, restartSweep: true
+        )
+        let attention = try XCTUnwrap(root(of: lane))
+        XCTAssertFalse(attention.isHidden)
+        let top = try XCTUnwrap(attention.sublayers?.first { $0.name == "topLine" })
+        XCTAssertEqual(top.frame.height, 2, accuracy: 0.001)
+        let ribbon = try XCTUnwrap(attention.sublayers?.first { $0.name == "ribbon" })
+        XCTAssertEqual(ribbon.frame.height, 5, accuracy: 0.001)
+        let glint = try XCTUnwrap(ribbon.sublayers?.first { $0.name == "glint" })
+        XCTAssertTrue(glint.isHidden)
+        XCTAssertNil(glint.animation(forKey: "attentionSweep"))
+    }
+
+    /// A flipped switch has to take effect on the running animation, and a
+    /// flipped-back switch has to bring the sweep back.
+    func test_sweepToggle_appliesToTheLiveLayer() throws {
+        let lane = AttentionLightRenderer.render(spec(), attention: .waiting, restartSweep: true)
+        let glint = try XCTUnwrap(root(of: lane)?.sublayers?.first { $0.name == "ribbon" }?
+            .sublayers?.first { $0.name == "glint" })
+        XCTAssertNotNil(glint.animation(forKey: "attentionSweep"))
+
+        AttentionLightRenderer.update(
+            into: lane, spec: spec(showsAttentionSweep: false), attention: .waiting, restartSweep: false
+        )
+        XCTAssertTrue(glint.isHidden)
+        XCTAssertNil(glint.animation(forKey: "attentionSweep"))
+
+        AttentionLightRenderer.update(
+            into: lane, spec: spec(showsAttentionSweep: true), attention: .waiting, restartSweep: true
+        )
+        XCTAssertFalse(glint.isHidden)
+        XCTAssertNotNil(glint.animation(forKey: "attentionSweep"))
     }
 
     func test_themeCanResizeTheRibbon() throws {

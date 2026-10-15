@@ -36,7 +36,12 @@ public final class GlassLayerHost {
 
         let running = spec.signal?.isRunning == true
         let attention = spec.signal?.attention ?? .none
-        let cycle = SpectrumRhythm.cycleDuration(outputTPS: spec.signal?.observedOutputTPS)
+        // Speed is normally unmeasured, so the resolved floor is the tempo that
+        // actually runs; a user-picked baseline changes it live.
+        let cycle = SpectrumRhythm.cycleDuration(
+            outputTPS: spec.signal?.observedOutputTPS,
+            floorHz: spec.spectrumFloorHz
+        )
 
         // Restart the light field only when its drivers actually changed:
         // starting/stopping, a new tempo, or Reduce Motion freeing the layers.

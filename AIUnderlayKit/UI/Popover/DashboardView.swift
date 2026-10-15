@@ -37,7 +37,7 @@ public struct DashboardView: View {
         .frame(width: 320)
         .background(.regularMaterial)
         .onAppear(perform: reload)
-        .onReceive(store.$settings) { _ in reload() }
+        .onReceive(store.changes) { _ in reload() }
         .onReceive(coordinator.$dataRevision) { _ in reload() }
     }
 

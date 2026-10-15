@@ -22,6 +22,8 @@ Each file is one provider lane rasterised at the real menu-bar height (30 pt,
 | `waiting-only.png` / `error-only.png` / `unread-only.png` | One attention channel each |
 | `running-waiting.png` / `running-error.png` / `running-unread.png` | Running + attention: the field keeps moving in the top-priority colour |
 | `reduce-motion-running-error.png` | Reduce Motion: same layout, zero animations |
+| `running-no-traveling-light.png` | 横穿扫光关掉：没有光场，射线幕照常呼吸 |
+| `running-error-no-attention-sweep.png` | 状态灯带扫光关掉：顶线/底带/辉光保留，只去掉亮带 |
 
 **`unread-only.png` and `running-unread.png` are simulated.** Production keeps
 `AgentSignals.unreadCount` at 0 until the durable completion ledger merges

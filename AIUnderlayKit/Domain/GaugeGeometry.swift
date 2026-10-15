@@ -10,14 +10,41 @@ import CoreGraphics
 public struct GaugeGeometry: Equatable, Sendable {
     public var trackRect: CGRect
     public var fillBounds: CGRect
+    /// The slice of the shared full-width track this lane paints as its groove.
+    ///
+    /// The track is one continuous underlay — it never stops at the notch edge,
+    /// or wallpaper leaks through the notch's rounded corners. But each side
+    /// paints only its own half, so the union still covers the whole screen
+    /// while neither lane can wash over the other side's fills.
+    public var trackBounds: CGRect
     public var growsTowardRight: Bool
     public var fullBleed: Bool
 
-    public init(trackRect: CGRect, fillBounds: CGRect, growsTowardRight: Bool, fullBleed: Bool = true) {
+    public init(
+        trackRect: CGRect,
+        fillBounds: CGRect,
+        growsTowardRight: Bool,
+        fullBleed: Bool = true,
+        trackBounds: CGRect? = nil
+    ) {
         self.trackRect = trackRect
         self.fillBounds = fillBounds
+        self.trackBounds = trackBounds ?? trackRect
         self.growsTowardRight = growsTowardRight
         self.fullBleed = fullBleed
+    }
+
+    /// `fillBounds` in the lane's own coordinate space. The lane is placed at
+    /// `trackRect`, so renderers that clip to one provider's region (the light
+    /// curtain, the attention band) use this instead of the screen-wide size.
+    public var localFillBounds: CGRect {
+        fillBounds.offsetBy(dx: -trackRect.minX, dy: -trackRect.minY)
+    }
+
+    /// `trackBounds` in the lane's own coordinate space, for the groove and its
+    /// machined edges.
+    public var localTrackBounds: CGRect {
+        trackBounds.offsetBy(dx: -trackRect.minX, dy: -trackRect.minY)
     }
 
     /// The anchor X the fill grows from: the leading edge when growing right,
@@ -80,6 +107,14 @@ public enum GaugeLayout {
             let outerLeft = screenFrame.minX
             let outerRight = screenFrame.maxX
 
+            // Each side owns one half of the shared track: the two halves meet
+            // at the midline, so the groove stays continuous through the notch
+            // gap and neither lane paints over the other's fills.
+            let leftTrack = CGRect(x: outerLeft, y: track.minY,
+                                   width: max(0, screenFrame.midX - outerLeft), height: track.height)
+            let rightTrack = CGRect(x: screenFrame.midX, y: track.minY,
+                                    width: max(0, outerRight - screenFrame.midX), height: track.height)
+
             let left: GaugeGeometry
             let right: GaugeGeometry
             switch anchor {
@@ -89,13 +124,15 @@ public enum GaugeLayout {
                     trackRect: track,
                     fillBounds: CGRect(x: outerLeft, y: track.minY,
                                        width: max(0, innerLeft - outerLeft), height: track.height),
-                    growsTowardRight: false
+                    growsTowardRight: false,
+                    trackBounds: leftTrack
                 )
                 right = GaugeGeometry(
                     trackRect: track,
                     fillBounds: CGRect(x: innerRight, y: track.minY,
                                        width: max(0, outerRight - innerRight), height: track.height),
-                    growsTowardRight: true
+                    growsTowardRight: true,
+                    trackBounds: rightTrack
                 )
             case .outerEdge:
                 // Anchor at the screen edge, grow inward toward the notch/midline.
@@ -103,13 +140,15 @@ public enum GaugeLayout {
                     trackRect: track,
                     fillBounds: CGRect(x: outerLeft, y: track.minY,
                                        width: max(0, innerLeft - outerLeft), height: track.height),
-                    growsTowardRight: true
+                    growsTowardRight: true,
+                    trackBounds: leftTrack
                 )
                 right = GaugeGeometry(
                     trackRect: track,
                     fillBounds: CGRect(x: innerRight, y: track.minY,
                                        width: max(0, outerRight - innerRight), height: track.height),
-                    growsTowardRight: false
+                    growsTowardRight: false,
+                    trackBounds: rightTrack
                 )
             }
             return [PlacedGauge(side: .left, geometry: left), PlacedGauge(side: .right, geometry: right)]

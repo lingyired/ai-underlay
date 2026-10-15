@@ -8,7 +8,7 @@
 ```bash
 cd /Users/lingsmbp/.codex/worktrees/glass-spectrum/ai-underlay
 xcodegen generate
-Scripts/test.sh                    # expect: 357 tests, 0 failures, 1 skipped
+Scripts/test.sh                    # expect: 384 tests, 0 failures, 1 skipped
 Scripts/check-domain-purity.sh     # expect: OK
 ```
 
@@ -60,7 +60,7 @@ TEST_RUNNER_GLASS_PREVIEW_DUMP=1 Scripts/test.sh \
   `blurRadiusTarget` 只是柔化目标值，不是真实 backdrop blur。
 - **Unread 实数据**：`AgentSignals.unreadCount` 是输入契约，生产恒为 0；
   真实完成账本在未合并分支 `codex/unread-completion-attention-ribbon`。
-- **真实 TPS**：未接入，光场按最慢节奏运行（不伪造 48%）。
+- **真实 TPS**：未接入，光场按「外观 → Agent 动效节奏」里的基准节奏运行（不伪造 48%）。
 - 多显示器 / 刘海 / macOS 14–15：仅单元测试覆盖，未在硬件验证。
 
 ## 5. 证据

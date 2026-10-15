@@ -36,6 +36,8 @@ public struct AppearanceTab: View {
                 Toggle("显示菜单栏图标", isOn: binding(\.statusItemVisible))
             }
 
+            motionSection
+
             Section("预览（离线样例）") {
                 Picker("样例", selection: binding(\.previewFixture)) {
                     Text("实时数据").tag(String?.none)
@@ -52,6 +54,67 @@ public struct AppearanceTab: View {
         .onChange(of: store.settings.statusItemVisible) { _, visible in
             AppCoordinator.shared?.applyStatusItemVisibility(visible)
         }
+    }
+
+    /// The Glass Spectrum tempo the menu bar actually runs at. Real tokens/s is
+    /// not wired yet, so this floor *is* the visible speed — the slider is the
+    /// fastest way to compare candidates before one is baked in as the default.
+    private var motionSection: some View {
+        Section {
+            LabeledContent("基础节奏") {
+                HStack(spacing: 8) {
+                    Slider(
+                        value: motionFloorBinding,
+                        in: SpectrumRhythm.minimumFloorFrequencyHz...SpectrumRhythm.ceilingFrequencyHz
+                    )
+                    Text(Self.motionReadout(store.settings.motionFloorFrequencyHz))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 112, alignment: .trailing)
+                }
+            }
+            HStack {
+                ForEach(Self.motionPresets, id: \.hz) { preset in
+                    Button(preset.label) {
+                        store.update { $0.motionFloorFrequencyHz = preset.hz }
+                    }
+                    .help("\(String(format: "%.2f", preset.hz)) Hz · \(String(format: "%.1f", 1 / preset.hz)) 秒/圈")
+                }
+            }
+            Button("恢复默认") {
+                store.update { $0.motionFloorFrequencyHz = nil }
+            }
+            Toggle("横穿扫光", isOn: binding(\.showTravelingLight))
+            Toggle("状态灯带扫光", isOn: binding(\.showAttentionSweep))
+        } header: {
+            Text("Agent 动效节奏")
+        } footer: {
+            Text("一个完整循环的时长：\(String(format: "%.2f", 1 / SpectrumRhythm.floorFrequencyHz)) 秒是当前默认，越小越快。天花板上限 \(String(format: "%.2f", SpectrumRhythm.ceilingFrequencyHz)) Hz（\(String(format: "%.1f", 1 / SpectrumRhythm.ceilingFrequencyHz)) 秒/圈）。真实 tok/s 尚未接入，所以这里就是菜单栏的实际速度；接入后它会成为速度曲线的下限。关掉「横穿扫光」只去掉那层横扫过去的高光，射线幕照常呼吸；关掉「状态灯带扫光」保留顶线与底带，只去掉在其中来回的亮带。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private struct MotionPreset {
+        var label: String
+        var hz: Double
+    }
+
+    private static let motionPresets: [MotionPreset] = [
+        MotionPreset(label: "2.9 秒", hz: SpectrumRhythm.floorFrequencyHz),
+        MotionPreset(label: "2.0 秒", hz: 0.50),
+        MotionPreset(label: "1.4 秒", hz: 0.70),
+        MotionPreset(label: "1.1 秒", hz: SpectrumRhythm.ceilingFrequencyHz),
+    ]
+
+    private static func motionReadout(_ hz: Double?) -> String {
+        let resolved = SpectrumRhythm.clampedFloor(hz)
+        return String(format: "%.2f Hz · %.1f 秒/圈", resolved, 1 / resolved)
+    }
+
+    private var motionFloorBinding: Binding<Double> {
+        Binding(
+            get: { SpectrumRhythm.clampedFloor(store.settings.motionFloorFrequencyHz) },
+            set: { hz in store.update { $0.motionFloorFrequencyHz = SpectrumRhythm.clampedFloor(hz) } }
+        )
     }
 
     private func binding<T>(_ keyPath: WritableKeyPath<AppSettings, T>) -> Binding<T> {

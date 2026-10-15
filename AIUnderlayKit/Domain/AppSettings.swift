@@ -20,6 +20,16 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// Quota glass always renders, even when this is off.
     public var showAgentEffects: Bool
     public var reduceMotion: Bool
+    /// The user's baseline Glass Spectrum tempo, in cycles/second: the floor of
+    /// the tokens/s curve, and (while no tokens/s source exists) the tempo the
+    /// menu bar actually runs at. `nil` = the built-in `SpectrumRhythm` floor.
+    public var motionFloorFrequencyHz: Double?
+    /// The two wide light fields that sweep across a *running* lane. The ray
+    /// curtain keeps breathing either way; this is only the travelling sheen.
+    public var showTravelingLight: Bool
+    /// The narrow bright sweep inside the attention ribbon. The static alert
+    /// (top line, ribbon, glow) stays visible either way.
+    public var showAttentionSweep: Bool
     /// The user's own colour and material edits (settings-level overrides).
     public var appearance: GlassAppearance
     /// Id of the active theme, or nil for the built-in default look. Themes live
@@ -44,6 +54,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         showBaseline: Bool = true,
         showAgentEffects: Bool = true,
         reduceMotion: Bool = false,
+        motionFloorFrequencyHz: Double? = nil,
+        showTravelingLight: Bool = true,
+        showAttentionSweep: Bool = true,
         appearance: GlassAppearance = .empty,
         activeThemeId: String? = nil,
         previewFixture: String? = nil,
@@ -59,6 +72,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.showBaseline = showBaseline
         self.showAgentEffects = showAgentEffects
         self.reduceMotion = reduceMotion
+        self.motionFloorFrequencyHz = motionFloorFrequencyHz
+        self.showTravelingLight = showTravelingLight
+        self.showAttentionSweep = showAttentionSweep
         self.appearance = appearance
         self.activeThemeId = activeThemeId
         self.previewFixture = previewFixture
@@ -74,6 +90,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case layout, anchor, singleDirection, overlayEnabled
         case proxyOverride, showBaseline, showAgentEffects, reduceMotion
+        case motionFloorFrequencyHz
+        case showTravelingLight, showAttentionSweep
         case appearance, activeThemeId, previewFixture, statusItemVisible
         case displays, displayedProviders
         // Removed settings (read-only compatibility):
@@ -118,6 +136,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         showBaseline = try c.decodeIfPresent(Bool.self, forKey: .showBaseline) ?? d.showBaseline
         showAgentEffects = try c.decodeIfPresent(Bool.self, forKey: .showAgentEffects) ?? d.showAgentEffects
         reduceMotion = try c.decodeIfPresent(Bool.self, forKey: .reduceMotion) ?? d.reduceMotion
+        motionFloorFrequencyHz = try? c.decodeIfPresent(Double.self, forKey: .motionFloorFrequencyHz)
+        showTravelingLight = try c.decodeIfPresent(Bool.self, forKey: .showTravelingLight) ?? d.showTravelingLight
+        showAttentionSweep = try c.decodeIfPresent(Bool.self, forKey: .showAttentionSweep) ?? d.showAttentionSweep
         appearance = (try? c.decodeIfPresent(GlassAppearance.self, forKey: .appearance)) ?? d.appearance
         activeThemeId = try c.decodeIfPresent(String.self, forKey: .activeThemeId)
         previewFixture = try c.decodeIfPresent(String.self, forKey: .previewFixture)
@@ -160,6 +181,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         try c.encode(showBaseline, forKey: .showBaseline)
         try c.encode(showAgentEffects, forKey: .showAgentEffects)
         try c.encode(reduceMotion, forKey: .reduceMotion)
+        try c.encodeIfPresent(motionFloorFrequencyHz, forKey: .motionFloorFrequencyHz)
+        try c.encode(showTravelingLight, forKey: .showTravelingLight)
+        try c.encode(showAttentionSweep, forKey: .showAttentionSweep)
         try c.encode(appearance, forKey: .appearance)
         try c.encodeIfPresent(activeThemeId, forKey: .activeThemeId)
         try c.encodeIfPresent(previewFixture, forKey: .previewFixture)

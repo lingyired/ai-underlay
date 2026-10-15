@@ -47,6 +47,33 @@ final class SpectrumRhythmTests: XCTestCase {
         XCTAssertLessThanOrEqual(SpectrumRhythm.ceilingFrequencyHz, 1.5)
     }
 
+    func test_userFloor_isTheBaselineTempo() {
+        // Unmeasured speed must follow the user's baseline, which is the only
+        // tempo the menu bar ever shows today.
+        XCTAssertEqual(SpectrumRhythm.frequencyHz(outputTPS: nil, floorHz: 0.5), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(SpectrumRhythm.cycleDuration(outputTPS: nil, floorHz: 0.5), 2.0, accuracy: 0.0001)
+        XCTAssertEqual(SpectrumRhythm.cycleDuration(outputTPS: nil, floorHz: 0.7), 1 / 0.7, accuracy: 0.0001)
+    }
+
+    func test_userFloor_staysTheFloorOfTheCurve() {
+        // Raising the baseline must not push the ceiling past its own bound,
+        // and a measured speed still has to read faster than the floor.
+        XCTAssertEqual(SpectrumRhythm.frequencyHz(outputTPS: 160, floorHz: 0.5),
+                       SpectrumRhythm.ceilingFrequencyHz, accuracy: 0.0001)
+        XCTAssertGreaterThan(SpectrumRhythm.frequencyHz(outputTPS: 40, floorHz: 0.5), 0.5)
+        XCTAssertLessThanOrEqual(SpectrumRhythm.frequencyHz(outputTPS: 40, floorHz: 1.1),
+                                 SpectrumRhythm.ceilingFrequencyHz)
+    }
+
+    func test_userFloor_isClampedInsteadOfTrusted() {
+        // A hand-edited settings file must not produce a strobe or a freeze.
+        XCTAssertEqual(SpectrumRhythm.clampedFloor(nil), SpectrumRhythm.floorFrequencyHz)
+        XCTAssertEqual(SpectrumRhythm.clampedFloor(.nan), SpectrumRhythm.floorFrequencyHz)
+        XCTAssertEqual(SpectrumRhythm.clampedFloor(0), SpectrumRhythm.minimumFloorFrequencyHz)
+        XCTAssertEqual(SpectrumRhythm.clampedFloor(-3), SpectrumRhythm.minimumFloorFrequencyHz)
+        XCTAssertEqual(SpectrumRhythm.clampedFloor(99), SpectrumRhythm.ceilingFrequencyHz)
+    }
+
     func test_wave_isDeterministicAndBounded() {
         for index in 0..<32 {
             let wave = SpectrumRhythm.wave(index: index)

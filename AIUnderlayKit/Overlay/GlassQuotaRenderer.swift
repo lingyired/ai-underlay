@@ -68,7 +68,11 @@ public enum GlassQuotaRenderer {
 
     private static func updateBed(_ parent: CALayer, spec: LaneRenderSpec, state: QuotaDisplayState) {
         let bed = LayerSlot.named("bed", in: parent, as: CAGradientLayer.self)
-        bed.frame = CGRect(origin: .zero, size: spec.geometry.trackRect.size)
+        // The groove is one continuous strip, but each lane paints only its own
+        // slice of it: a lane that knows nothing about a provider must not dim
+        // the neighbour's fill with its own neutral (or exhausted) bed.
+        let groove = spec.geometry.localTrackBounds
+        bed.frame = groove
         bed.type = .axial
         bed.startPoint = CGPoint(x: 0.5, y: 1)
         bed.endPoint = CGPoint(x: 0.5, y: 0)
@@ -100,11 +104,12 @@ public enum GlassQuotaRenderer {
         // Fine machined edges: a 1pt top highlight and a dark bottom rim, like
         // an inset slot. They stay inside the bed so nothing leaks at 2x/3x.
         let top = LayerSlot.named("envTop", in: parent)
-        top.frame = CGRect(x: 0, y: spec.geometry.trackRect.height - 1, width: spec.geometry.trackRect.width, height: 1)
+        top.frame = CGRect(x: groove.minX, y: groove.maxY - 1,
+                           width: groove.width, height: 1)
         top.backgroundColor = CGColor(red: 1, green: 1, blue: 1, alpha: state == .unknown ? 0.04 : 0.06)
 
         let bottom = LayerSlot.named("envBottom", in: parent)
-        bottom.frame = CGRect(x: 0, y: 0, width: spec.geometry.trackRect.width, height: 1)
+        bottom.frame = CGRect(x: groove.minX, y: groove.minY, width: groove.width, height: 1)
         bottom.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: state == .unknown ? 0.35 : 0.7)
     }
 

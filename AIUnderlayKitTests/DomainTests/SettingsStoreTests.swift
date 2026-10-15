@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import AIUnderlayKit
 
 @MainActor
@@ -110,5 +111,117 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.settings.appearance.quotaBaseColors["codex"], "#00FF00")
         XCTAssertEqual(reloaded.settings.appearance.signalColors["error"], "#FF0000")
         XCTAssertEqual(reloaded.settings.appearance.material?.grain, 0.4)
+    }
+
+    // MARK: - Baseline motion tempo
+
+    func test_motionFloor_survivesARoundTrip_andDefaultsToNil() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = SettingsStore(fileURL: url)
+        XCTAssertNil(store.settings.motionFloorFrequencyHz, "unset means the built-in floor")
+
+        store.update { $0.motionFloorFrequencyHz = 0.5 }
+        XCTAssertEqual(SettingsStore(fileURL: url).settings.motionFloorFrequencyHz, 0.5)
+
+        // Clearing the setting must remove the key, not pin the old value.
+        store.update { $0.motionFloorFrequencyHz = nil }
+        let saved = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        XCTAssertFalse(saved.contains("motionFloorFrequencyHz"))
+        XCTAssertNil(SettingsStore(fileURL: url).settings.motionFloorFrequencyHz)
+    }
+
+    func test_motionFloor_olderFilesDecodeWithoutIt() throws {
+        let json = #"{"layout":"single","reduceMotion":true}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertNil(settings.motionFloorFrequencyHz)
+        XCTAssertTrue(settings.reduceMotion, "an unrelated field must survive")
+    }
+
+    func test_sweepToggles_defaultToOnAndSurviveARoundTrip() throws {
+        // The sweeps are opt-out: an older file (or a fresh install) must keep
+        // the full V5 look rather than silently turning motion off.
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self, from: Data(#"{"layout":"single"}"#.utf8)
+        )
+        XCTAssertTrue(legacy.showTravelingLight)
+        XCTAssertTrue(legacy.showAttentionSweep)
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = SettingsStore(fileURL: url)
+        store.update {
+            $0.showTravelingLight = false
+            $0.showAttentionSweep = false
+        }
+        let reloaded = SettingsStore(fileURL: url).settings
+        XCTAssertFalse(reloaded.showTravelingLight)
+        XCTAssertFalse(reloaded.showAttentionSweep)
+    }
+
+    func test_sweepToggles_changeEmitsTheSettledValue() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = SettingsStore(fileURL: url)
+
+        var seen: [Bool] = []
+        let cancellable = store.changes.sink { seen.append($0.showTravelingLight) }
+        defer { cancellable.cancel() }
+
+        store.update { $0.showTravelingLight = false }
+        store.update { $0.showTravelingLight = true }
+
+        XCTAssertEqual(seen, [false, true], "the overlay must hear the new value, not the old one")
+    }
+
+    // MARK: - Change notifications must carry the settled value
+
+    func test_changesPublisher_emitsTheValueThatWasJustApplied() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = SettingsStore(fileURL: url)
+
+        var seen: [LayoutMode] = []
+        let cancellable = store.changes.sink { seen.append($0.layout) }
+        defer { cancellable.cancel() }
+
+        store.update { $0.layout = .dual }
+        store.update { $0.layout = .single }
+
+        XCTAssertEqual(seen, [.dual, .single],
+                       "each toggle must report itself, not the previous value")
+    }
+
+    /// The regression behind the "settings feel delayed" report: a sink that
+    /// re-read `store.settings` while subscribed to `$settings` saw the *old*
+    /// value, because `@Published` fires from `willSet`. The effect only showed
+    /// on the next unrelated render — so a mode switch looked like it lagged.
+    func test_changesPublisher_reportsWhatAReReadingSinkWouldSee() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = SettingsStore(fileURL: url)
+
+        var layoutWhenNotified: LayoutMode?
+        let cancellable = store.changes.sink { _ in layoutWhenNotified = store.settings.layout }
+        defer { cancellable.cancel() }
+
+        store.update { $0.layout = .dual }
+        XCTAssertEqual(layoutWhenNotified, .dual)
+    }
+
+    func test_updatePersistsBeforeNotifying() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = SettingsStore(fileURL: url)
+
+        var onDiskWhenNotified: LayoutMode?
+        let cancellable = store.changes.sink { _ in
+            onDiskWhenNotified = SettingsStore(fileURL: url).settings.layout
+        }
+        defer { cancellable.cancel() }
+
+        store.update { $0.layout = .dual }
+        XCTAssertEqual(onDiskWhenNotified, .dual, "a theme-style hot reload reads the file, so it must be written first")
     }
 }

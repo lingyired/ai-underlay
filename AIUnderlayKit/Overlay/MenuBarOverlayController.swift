@@ -95,7 +95,11 @@ public final class MenuBarOverlayController {
             // glass groove rather than nothing at all.
             let content = side ?? LaneContent.empty(
                 providerId: "neutral",
-                reduceMotion: presentation.left?.reduceMotion ?? false
+                reduceMotion: presentation.left?.reduceMotion ?? false,
+                spectrumFloorHz: presentation.left?.spectrumFloorHz
+                    ?? SpectrumRhythm.floorFrequencyHz,
+                showsTravelingLight: presentation.left?.showsTravelingLight ?? true,
+                showsAttentionSweep: presentation.left?.showsAttentionSweep ?? true
             )
             let spec = content.spec(geometry: gauge.geometry)
             let host = hosts[gauge.side] ?? {

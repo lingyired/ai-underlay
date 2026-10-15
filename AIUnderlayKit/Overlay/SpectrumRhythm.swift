@@ -16,17 +16,38 @@ public enum SpectrumRhythm {
     public static let ceilingFrequencyHz: Double = 1.10
     /// Output speed that saturates the curve, in tokens/s.
     public static let referenceTPS: Double = 160
+    /// The slowest rhythm the settings slider may pick. Below this the curtain
+    /// stops reading as motion, so the floor is clamped rather than trusted.
+    public static let minimumFloorFrequencyHz: Double = 0.15
+
+    /// Clamps a user-picked floor; `nil`/non-finite means "use the built-in
+    /// floor". Slower than `minimumFloorFrequencyHz` or faster than the ceiling
+    /// is clamped, never rejected — a bad settings file must still animate.
+    public static func clampedFloor(_ hz: Double?) -> Double {
+        guard let hz, hz.isFinite else { return floorFrequencyHz }
+        return min(max(hz, minimumFloorFrequencyHz), ceilingFrequencyHz)
+    }
 
     /// Cycles per second for a measured output speed.
-    public static func frequencyHz(outputTPS: Double?) -> Double {
+    ///
+    /// `floorHz` is the user's baseline tempo. It stays the floor of the curve,
+    /// so picking a faster baseline speeds up every speed reading at once —
+    /// including the unmeasured case, which is the one actually on screen.
+    public static func frequencyHz(
+        outputTPS: Double?,
+        floorHz: Double = SpectrumRhythm.floorFrequencyHz
+    ) -> Double {
+        let floor = clampedFloor(floorHz)
         let capped = min(max(outputTPS ?? 0, 0), referenceTPS)
-        return floorFrequencyHz
-            + (ceilingFrequencyHz - floorFrequencyHz) * (capped / referenceTPS).squareRoot()
+        return floor + (ceilingFrequencyHz - floor) * (capped / referenceTPS).squareRoot()
     }
 
     /// Seconds for one full cycle.
-    public static func cycleDuration(outputTPS: Double?) -> Double {
-        1 / frequencyHz(outputTPS: outputTPS)
+    public static func cycleDuration(
+        outputTPS: Double?,
+        floorHz: Double = SpectrumRhythm.floorFrequencyHz
+    ) -> Double {
+        1 / frequencyHz(outputTPS: outputTPS, floorHz: floorHz)
     }
 
     /// One ray group's wave parameters: a phase so neighbouring rays travel,

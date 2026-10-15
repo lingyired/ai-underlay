@@ -8,10 +8,26 @@ public final class SettingsStore: ObservableObject {
     @Published public private(set) var settings: AppSettings
 
     private let fileURL: URL
+    private let changesSubject = PassthroughSubject<AppSettings, Never>()
+    /// A stable publisher instance, so `onReceive(store.changes)` does not
+    /// resubscribe on every view update.
+    private let changesPublisher: AnyPublisher<AppSettings, Never>
+
+    /// Emits *after* a mutation has been applied and persisted.
+    ///
+    /// `@Published` publishes from `willSet`, so a subscriber that reacts to
+    /// `$settings` and re-reads `settings` still sees the previous value. A
+    /// renderer driven by that would draw one change behind and only catch up
+    /// on the next unrelated refresh. Renderers subscribe here instead: the
+    /// value is settled by the time this fires.
+    public var changes: AnyPublisher<AppSettings, Never> {
+        changesPublisher
+    }
 
     public init(fileURL: URL? = nil) {
         let url = fileURL ?? Self.defaultURL()
         self.fileURL = url
+        self.changesPublisher = changesSubject.eraseToAnyPublisher()
         self.settings = Self.load(from: url) ?? .default
     }
 
@@ -29,6 +45,7 @@ public final class SettingsStore: ObservableObject {
         mutate(&copy)
         settings = copy
         save()
+        changesSubject.send(copy)
     }
 
     public func save() {

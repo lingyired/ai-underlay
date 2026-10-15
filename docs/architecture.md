@@ -56,6 +56,11 @@ laneHost
   travel, and a once-per-state-change ribbon sweep. No per-frame CPU work;
   Reduce Motion keeps the static layout and drops every animation (0 animated
   layers).
+- Tempo is part of the spec, not a global: `LaneRenderSpec.spectrumFloorHz`
+  carries the user's baseline (settings → coordinator → spec) into
+  `SpectrumRhythm.cycleDuration(outputTPS:floorHz:)`. The floor is clamped to
+  0.15–1.10 Hz, and a change re-times the running curtain on the next render
+  instead of waiting for the old cycle to finish.
 - Priority is a code constant, `Error > Waiting > Unread > none`; Running is an
   independent boolean. A running lane wears the highest attention colour.
 

@@ -86,7 +86,7 @@ Evidence: `docs/preview/p4-settings.png`. Total tests: 122 passing.
 | Task | Status | Notes |
 |---|---|---|
 | P5-1 频谱柱动效 | DONE | `RunningEffect.spectrum` 为**新增**第 5 个选项；既有 4 个动效与默认值不变。柱从菜单栏下边缘向上生长，全量 Core Animation |
-| P5-2 速度→节奏 | DONE | `SpectrumRhythm` 纯函数 0.18–0.62 Hz；`nil` 测速 = 最慢节奏。真实 TPS 数据源尚未接入 |
+| P5-2 速度→节奏 | DONE | `SpectrumRhythm` 纯函数 0.34–1.10 Hz；`nil` 测速 = 下限（真实 TPS 数据源未接入）。下限可由「外观 → Agent 动效节奏」调整，见 P6-13 |
 | P5-3 等待/故障边框 | DONE | waiting 黄、error 红的上下列细边框；原呼吸蒙层/脉冲保留 |
 | P5-4 预览与文档 | DONE | 新增 `agentError` 样例；`docs/superpowers/specs/2026-10-13-agent-dynamic-effects-design.md` |
 | P5-5 主题 JSON 引擎 | DONE | 版本化 JSON + schema + 示例；`ThemeStore` 载入/校验/热重载（目录 + 每文件 vnode 双层监听，300ms 防抖）；坏文件跳过并保留上一个正常主题；设置新增「主题」页 |
@@ -114,11 +114,17 @@ Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`�
 | P6-8 NSVisualEffectView 尖刺 | TODO | 默认路径为"渲染玻璃"（不采样桌面）；30 分钟真机模糊/CPU 尖刺未执行 |
 | P6-9 光幕基线 | DONE | 射线立在轨道下边缘（Quartz `y = 0`），所有柱底共线、只有波峰起伏；修正首版把幕帘挂在上边缘的问题，`test_rayCurtain_standsOnTheBottomEdge` 逐像素守卫 |
 | P6-10 Attention 三段渐变方向 | DONE | V5 的 `.hint` / `.edge-bottom` / 上向阴影都是**底部最强**：wash `to top`、ribbon `180deg transparent→alert`、glow 贴 ribbon 向上衰减。首版三条渐变 y 方向全部写反，下半条出现硬边"厚板"，现已翻正并有结构测试守卫 |
+| P6-11 双侧各自裁剪 | DONE | 底槽仍是整屏一条（不露壁纸），但每条 lane 只画自己那半：`GaugeGeometry.trackBounds` 在中线切分，bed/顶底描边按 `trackBounds` 画，光幕与 attention 带按 `fillBounds` 画。此前只配一个 Provider 时，另一侧的空 lane 与运行中光幕会盖满整条菜单栏，也有逐像素守卫（`test_dualLanes_*HalfPixelIdentical`、`test_emptyNeighbourLane_*`） |
+| P6-12 设置生效延迟 | DONE | 根因是 `@Published` 在 `willSet` 发布：订阅 `$settings` 又回读 `store.settings` 的 sink 拿到的是**旧值**，于是每次切换都晚一拍、要等下一次无关刷新才补上。`SettingsStore.changes` 在赋值并落盘之后发布，coordinator 与弹窗改用它；守卫：`test_changesPublisher_*`、`test_updatePersistsBeforeNotifying` |
+| P6-13 基准节奏可调 | DONE | 原先把基准写死在代码里，只能改代码再编译。现在 `AppSettings.motionFloorFrequencyHz` 经 coordinator 落到 `LaneRenderSpec.spectrumFloorHz`，「外观 → Agent 动效节奏」用滑杆 + 4 个预设（2.9/2.0/1.4/1.1 秒一圈）实时对比；`SpectrumRhythm.clampedFloor` 把越界值夹到 0.15–1.10 Hz，坏设置也不会变成频闪或静止。守卫：`test_userFloor_*`、`test_baselineTempo_*`、`test_motionFloor_*` |
+| P6-14 光幕画面对比度 | DONE | 离屏预览有 80 级明暗差，真机菜单栏只有 24 级：band 窗口在菜单栏之下，系统菜单栏材质吃掉约 40% 对比度。射线幕新增静态深色底（自下而上 45%→透明、不参与动画、Reduce Motion 保留），射线基准波高 0.20→0.32、不透明度 0.46 起、白核 1.16→1.3pt。真机实测明暗差 24→约 50。守卫：`test_curtainStandsOnAStaticDarkScrim` |
+| P6-15 两处扫光可关 | DONE | 「横穿扫光」（`showTravelingLight`）关掉只隐藏两条宽光场，射线幕照常呼吸；「状态灯带扫光」（`showAttentionSweep`）关掉保留顶线/底带/辉光，只去掉来回的亮带。开关走 `LaneRenderSpec` 且**不重建图层**，切换即时生效（图层保留、只切 hidden 与动画）。守卫：`test_travelingLightDisabled_*`、`test_sweepDisabled_keepsTheStaticAlert`、`test_*Toggle_appliesToTheLiveLayer(s)`、`test_sweepToggles_*` |
 
-Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x）。Total tests: 359 passing
+Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x，含关闭扫光的对照图）。Total tests: 384 passing
 (1 skipped = the opt-in PNG dump), `Scripts/check-domain-purity.sh` OK。
 
-Known limits: 真实 TPS 未接入（光场始终最慢节奏）；Unread 仅 fixtures；
+Known limits: 真实 TPS 未接入（光场始终跑设置里的基准节奏）；
+Unread 仅 fixtures；
 真机 30/32/34pt 与多显示器仍需人工确认。
 
 ## Hardware verification ledger

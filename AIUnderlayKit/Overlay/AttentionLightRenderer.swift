@@ -23,8 +23,12 @@ public enum AttentionLightRenderer {
 
     public static func update(into lane: CALayer, spec: LaneRenderSpec, attention: AttentionKind, restartSweep: Bool) {
         let root = LayerSlot.named("attention", in: lane)
-        let size = spec.geometry.trackRect.size
-        root.frame = CGRect(origin: .zero, size: size)
+        // The attention band belongs to one provider: it hugs that provider's
+        // own fill area. Drawing it across the full track would light up the
+        // neighbour's half of a dual layout for a state it does not have.
+        let region = spec.geometry.localFillBounds
+        let size = region.size
+        root.frame = region
         root.masksToBounds = true
 
         guard attention != .none else {
@@ -85,7 +89,14 @@ public enum AttentionLightRenderer {
         topLine.shadowRadius = 3
         topLine.shadowOffset = .zero
 
-        _ = updateGlint(ribbon, color: color, animated: animated, restart: restartSweep, sweepSeconds: sweepSeconds)
+        // The sweep is optional: the static alert (top line, ribbon, glow)
+        // carries the state on its own, and some users read the moving band as
+        // a flash rather than a signal.
+        _ = updateGlint(
+            ribbon, color: color,
+            animated: animated && spec.showsAttentionSweep,
+            restart: restartSweep, sweepSeconds: sweepSeconds
+        )
 
         LayerSlot.reconcile(root, keeping: ["wash", "glow", "ribbon", "topLine"])
         LayerSlot.reconcile(ribbon, keeping: ["glint"])

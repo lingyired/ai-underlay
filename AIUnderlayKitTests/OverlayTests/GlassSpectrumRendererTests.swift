@@ -17,7 +17,8 @@ final class GlassSpectrumRendererTests: XCTestCase {
         glass: ResolvedGlassTheme = .default(providerId: "codex"),
         signal: ProviderVisualSignal?,
         reduceMotion: Bool = false,
-        growsTowardRight: Bool = true
+        growsTowardRight: Bool = true,
+        showsTravelingLight: Bool = true
     ) -> LaneRenderSpec {
         let geometry = GaugeGeometry(
             trackRect: self.geometry.trackRect,
@@ -26,7 +27,8 @@ final class GlassSpectrumRendererTests: XCTestCase {
         )
         return LaneRenderSpec(
             providerId: "codex", geometry: geometry, windows: windows, palette: .codex,
-            glass: glass, signal: signal, reduceMotion: reduceMotion
+            glass: glass, signal: signal, reduceMotion: reduceMotion,
+            showsTravelingLight: showsTravelingLight
         )
     }
 
@@ -247,9 +249,75 @@ final class GlassSpectrumRendererTests: XCTestCase {
         }
         let spectrum = try XCTUnwrap(root(of: lane))
         XCTAssertEqual(spectrum.sublayers?.filter { $0.name?.hasPrefix("rays") == true }.count, 3)
-        for layer in spectrum.sublayers ?? [] {
+        for layer in spectrum.sublayers ?? [] where layer.name != "scrim" {
             XCTAssertNotNil(layer.animation(forKey: layer.name?.hasPrefix("rays") == true ? "rayBreath" : "fieldTravel"))
         }
+    }
+
+    /// The curtain stands on a static dark bed. It is what makes the rays read
+    /// through the system menu bar material, so it must stay *below* the rays
+    /// and must never animate.
+    func test_curtainStandsOnAStaticDarkScrim() throws {
+        let lane = CALayer()
+        lane.frame = geometry.trackRect
+        GlassSpectrumRenderer.update(
+            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true)),
+            running: true, cycle: SpectrumRhythm.cycleDuration(outputTPS: nil), restart: true
+        )
+        let spectrum = try XCTUnwrap(root(of: lane))
+        let scrim = try XCTUnwrap(spectrum.sublayers?.first as? CAGradientLayer, "the bed is the bottom layer")
+        XCTAssertEqual(scrim.name, "scrim")
+        XCTAssertNil(scrim.animation(forKey: "rayBreath"))
+        XCTAssertNil(scrim.animation(forKey: "fieldTravel"))
+        let alphas = (scrim.colors as? [CGColor])?.map { $0.alpha } ?? []
+        XCTAssertEqual(alphas.first, 0, "the bed fades out upward")
+        XCTAssertGreaterThan(alphas.last ?? 0, 0.2, "the bed has to be dark enough to hold the light")
+    }
+
+    /// Turning the travelling sheen off must leave the ray curtain running:
+    /// the two light fields are the widest motion and the first thing a user
+    /// turns off, but the breathing rays are the effect itself.
+    func test_travelingLightDisabled_keepsTheCurtainAndHidesTheFields() throws {
+        let lane = GlassSpectrumRenderer.render(
+            spec(signal: ProviderVisualSignal(isRunning: true), showsTravelingLight: false),
+            running: true, cycle: SpectrumRhythm.cycleDuration(outputTPS: nil), restart: true
+        )
+        let spectrum = try XCTUnwrap(root(of: lane))
+        for index in 0..<2 {
+            let field = try XCTUnwrap(spectrum.sublayers?.first { $0.name == "field\(index)" })
+            XCTAssertTrue(field.isHidden, "field\(index)")
+            XCTAssertNil(field.animation(forKey: "fieldTravel"))
+        }
+        for group in 0..<3 {
+            let rays = try XCTUnwrap(spectrum.sublayers?.first { $0.name == "rays\(group)" })
+            XCTAssertFalse(rays.isHidden)
+            XCTAssertNotNil(rays.animation(forKey: "rayBreath"))
+        }
+    }
+
+    /// The switch has to act on the live layer tree, both ways.
+    func test_travelingLightToggle_appliesToTheLiveLayers() throws {
+        let lane = GlassSpectrumRenderer.render(
+            spec(signal: ProviderVisualSignal(isRunning: true)),
+            running: true, cycle: 2.0, restart: true
+        )
+        let spectrum = try XCTUnwrap(root(of: lane))
+        let field = try XCTUnwrap(spectrum.sublayers?.first { $0.name == "field0" })
+        XCTAssertNotNil(field.animation(forKey: "fieldTravel"))
+
+        GlassSpectrumRenderer.update(
+            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true), showsTravelingLight: false),
+            running: true, cycle: 2.0, restart: false
+        )
+        XCTAssertTrue(field.isHidden)
+        XCTAssertNil(field.animation(forKey: "fieldTravel"))
+
+        GlassSpectrumRenderer.update(
+            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true)),
+            running: true, cycle: 2.0, restart: true
+        )
+        XCTAssertFalse(field.isHidden)
+        XCTAssertNotNil(field.animation(forKey: "fieldTravel"))
     }
 }
 

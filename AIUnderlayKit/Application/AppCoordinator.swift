@@ -93,12 +93,15 @@ public final class AppCoordinator: ObservableObject {
             ))
         )
 
-        settings.$settings
-            .sink { [weak self] settings in
+        // `changes`, not `$settings`: `@Published` fires from `willSet`, so a
+        // sink that re-read the store would render the *previous* value and
+        // every toggle would visibly lag by one change.
+        settings.changes
+            .sink { [weak self] updated in
                 guard let self else { return }
-                if self.themes.selectedThemeId != settings.activeThemeId {
+                if self.themes.selectedThemeId != updated.activeThemeId {
                     // setActive publishes `revision`, which renders for us.
-                    self.themes.setActive(id: settings.activeThemeId)
+                    self.themes.setActive(id: updated.activeThemeId)
                 } else {
                     self.render()
                 }
@@ -441,7 +444,10 @@ public final class AppCoordinator: ObservableObject {
                     : nil,
                 glass: glass,
                 signal: s.showAgentEffects ? fixtureSignals(for: key)?.visualSignal : nil,
-                reduceMotion: s.reduceMotion
+                reduceMotion: s.reduceMotion,
+                spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
+                showsTravelingLight: s.showTravelingLight,
+                showsAttentionSweep: s.showAttentionSweep
             )
         }
         apply(left: content(for: "codex", windows: FixtureSnapshots.windows(for: key, providerId: "codex")),
@@ -462,7 +468,10 @@ public final class AppCoordinator: ObservableObject {
                 baseline: s.showBaseline && glass.showsBaseline ? baselineSpec(for: windows) : nil,
                 glass: glass,
                 signal: s.showAgentEffects ? agentSignals(for: provider)?.visualSignal : nil,
-                reduceMotion: s.reduceMotion
+                reduceMotion: s.reduceMotion,
+                spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
+                showsTravelingLight: s.showTravelingLight,
+                showsAttentionSweep: s.showAttentionSweep
             )
         }
 

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
-[![Tests: 359 passing](https://img.shields.io/badge/Tests-359%20passing-brightgreen.svg)](Scripts/test.sh)
+[![Tests: 384 passing](https://img.shields.io/badge/Tests-384%20passing-brightgreen.svg)](Scripts/test.sh)
 [![No telemetry](https://img.shields.io/badge/Telemetry-none-lightgrey.svg)](docs/privacy-and-permissions.md)
 
 Draws an AI quota and agent-activity bar **into the macOS menu bar background**.
