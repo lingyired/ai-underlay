@@ -63,7 +63,7 @@ public enum GlassQuotaRenderer {
         let lengths = updateFills(glass, spec: spec, state: state)
         updateTint(glass, spec: spec, state: state, outerLength: lengths.first, scale: scale)
         updateCaps(glass, spec: spec, state: state, lengths: lengths, scale: scale)
-        LayerSlot.reconcile(glass, keeping: ["bed", "fills", "tint", "caps", "envTop", "envBottom"])
+        LayerSlot.reconcile(glass, keeping: ["bed", "fills", "tint", "caps", "envBottom"])
 
         updateBaseline(lane, spec: spec)
     }
@@ -105,13 +105,9 @@ public enum GlassQuotaRenderer {
             base.withAlpha(base.alpha * alphaScale * 0.98).cgColor,
         ]
 
-        // Fine machined edges: a 1pt top highlight and a dark bottom rim, like
-        // an inset slot. They stay inside the bed so nothing leaks at 2x/3x.
-        let top = LayerSlot.named("envTop", in: parent)
-        top.frame = CGRect(x: groove.minX, y: groove.maxY - 1,
-                           width: groove.width, height: 1)
-        top.backgroundColor = CGColor(red: 1, green: 1, blue: 1, alpha: state == .unknown ? 0.04 : 0.06)
-
+        // A dark bottom rim only. The 1pt white top highlight that used to sit
+        // here read as a second inner shadow under the fill's own top edge, so
+        // the bed now keeps a single machined edge at the bottom.
         let bottom = LayerSlot.named("envBottom", in: parent)
         bottom.frame = CGRect(x: groove.minX, y: groove.minY, width: groove.width, height: 1)
         bottom.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: state == .unknown ? 0.35 : 0.7)
@@ -152,22 +148,24 @@ public enum GlassQuotaRenderer {
         return lengths
     }
 
-    /// The V5 fill language, rebalanced for a dark glass base: a limited top
-    /// bevel, a saturated middle band, and a base that falls away toward the
-    /// bottom. The outer tier stays visibly *darker* than the inner one, so the
-    /// nested length can be read at 30pt without a uniform bright wash.
+    /// The V5 fill language, rebalanced for a dark glass base: a saturated body
+    /// that falls away toward the bottom. The outer tier stays visibly *darker*
+    /// than the inner one, so the nested length can be read at 30pt without a
+    /// uniform bright wash.
+    ///
+    /// There is deliberately no white top stop. Layer coordinates are
+    /// unflipped, so index 0 is the *top* edge; a white top stop there made the
+    /// first ~18% of every fill read as an inner shadow over the black bed.
     static func applyFillGradient(_ layer: CAGradientLayer, color: RGBAColor, rank: Double, isInnermost: Bool) {
         layer.type = .axial
         layer.startPoint = CGPoint(x: 0.5, y: 1)
         layer.endPoint = CGPoint(x: 0.5, y: 0)
-        layer.locations = [0, 0.18, 0.55, 1]
-        let topWhite = 0.05 + 0.22 * rank
-        let midAlpha = 0.32 + 0.48 * rank
-        let lowAlpha = 0.24 + 0.60 * rank
-        let bottomAlpha = 0.14 + 0.24 * rank
+        layer.locations = [0, 0.55, 1]
+        let topAlpha = 0.48 + 0.34 * rank
+        let lowAlpha = 0.34 + 0.46 * rank
+        let bottomAlpha = 0.18 + 0.26 * rank
         layer.colors = [
-            CGColor(red: 1, green: 1, blue: 1, alpha: min(topWhite, 0.32)),
-            color.withAlpha(midAlpha).cgColor,
+            color.withAlpha(topAlpha).cgColor,
             color.withAlpha(lowAlpha).cgColor,
             color.scaled(by: 0.55).withAlpha(bottomAlpha).cgColor,
         ]

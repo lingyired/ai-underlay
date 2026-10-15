@@ -216,13 +216,22 @@ final class GlassQuotaRendererTests: XCTestCase {
         XCTAssertEqual(QuotaTierPalette.factors(count: 1), [1.0])
     }
 
-    func test_fillGradient_hasABrightTopAndDarkerBase() {
+    func test_fillGradient_startsInTheQuotaColour_andFallsOffTowardTheBase() {
         let layer = CAGradientLayer()
         GlassQuotaRenderer.applyFillGradient(layer, color: ProviderPalette.codex.inner, rank: 1, isInnermost: true)
         let colors = layer.colors as? [CGColor] ?? []
-        XCTAssertEqual(colors.count, 4)
-        let topAlpha = colors[0].alpha
-        XCTAssertGreaterThan(topAlpha, 0.2, "the inner tier gets a visible white bevel")
+        XCTAssertEqual(colors.count, 3)
+        // Index 0 is the top edge (unflipped coordinates). It must be the quota
+        // colour itself: a white stop there renders as an inner shadow.
+        let top = colors[0]
+        let channels = top.components ?? []
+        let expected = ProviderPalette.codex.inner
+        XCTAssertEqual(Double(channels[0]), expected.red, accuracy: 0.01)
+        XCTAssertEqual(Double(channels[1]), expected.green, accuracy: 0.01)
+        XCTAssertEqual(Double(channels[2]), expected.blue, accuracy: 0.01)
+        XCTAssertGreaterThan(top.alpha, 0.6, "the top edge keeps a solid fill, not a wash")
+        XCTAssertLessThan(colors[1].alpha, top.alpha, "the body eases off toward the base")
+        XCTAssertLessThan(colors[2].alpha, colors[1].alpha)
     }
 
     // MARK: - End caps
@@ -508,14 +517,12 @@ final class GlassQuotaRendererTests: XCTestCase {
         GlassQuotaRenderer.applyFillGradient(inner, color: ProviderPalette.codex.inner, rank: 1, isInnermost: true)
         let outerColors = outer.colors as? [CGColor] ?? []
         let innerColors = inner.colors as? [CGColor] ?? []
-        XCTAssertEqual(outerColors.count, 4)
-        XCTAssertEqual(innerColors.count, 4)
-        XCTAssertLessThan(outerColors[1].alpha, innerColors[1].alpha - 0.2,
+        XCTAssertEqual(outerColors.count, 3)
+        XCTAssertEqual(innerColors.count, 3)
+        XCTAssertLessThan(outerColors[0].alpha, innerColors[0].alpha - 0.2,
                           "the outer window must read as a darker glass tier")
+        XCTAssertLessThan(outerColors[1].alpha, innerColors[1].alpha)
         XCTAssertLessThan(outerColors[2].alpha, innerColors[2].alpha)
-        XCTAssertLessThan(outerColors[3].alpha, innerColors[3].alpha)
-        XCTAssertLessThan(outerColors[0].alpha, innerColors[0].alpha)
-        XCTAssertLessThanOrEqual(innerColors[0].alpha, 0.32, "the top bevel stays a limited highlight")
     }
 
     func test_tintStaysALocalReflectionNotAUniformWash() throws {
