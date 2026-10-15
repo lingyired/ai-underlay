@@ -129,18 +129,37 @@ strip_geometry() {
   if [ ! -x "$helper" ]; then
     cat > "$helper.swift" <<'SWIFT'
 import AppKit
-let screen = NSScreen.screens.first!
+guard let screen = NSScreen.screens.first else {
+    FileHandle.standardError.write(Data("no screen is available (locked display?)\n".utf8))
+    exit(2)
+}
 let scale = screen.backingScaleFactor
 let strip = screen.frame.height - screen.visibleFrame.height
 print("\(Int((screen.frame.width * scale).rounded())) \(Int((strip * scale).rounded())) \(Int(scale))")
 SWIFT
-    swiftc -O "$helper.swift" -o "$helper" >/dev/null
+    swiftc -O "$helper.swift" -o "$helper" >/dev/null || {
+      echo "could not build the strip-geometry helper" >&2
+      return 1
+    }
   fi
   "$helper"
 }
 
 # The avfoundation device index of the main display ("Capture screen 0").
 screen_device_index() {
-  ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 \
-    | awk '/Capture screen/{ if (match($0, /\[[0-9]+\]/)) { print substr($0, RSTART+1, RLENGTH-2); exit } }'
+  local index
+  index="$(ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 \
+    | awk '/Capture screen/{ if (match($0, /\[[0-9]+\]/)) { print substr($0, RSTART+1, RLENGTH-2); exit } }')"
+  if [ -z "$index" ]; then
+    cat >&2 <<'MSG'
+No screen-capture device. macOS withdraws "Capture screen 0" while the display
+is locked, and it stays hidden until the terminal has Screen Recording
+permission (System Settings → Privacy & Security → Screen & System Audio
+Recording). Unlock the Mac and re-check:
+
+  ffmpeg -hide_banner -f avfoundation -list_devices true -i ""
+MSG
+    return 1
+  fi
+  echo "$index"
 }

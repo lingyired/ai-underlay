@@ -33,3 +33,16 @@ Not yet measured: matched-fixture CPU/RSS/GPU/WindowServer deltas against the
 fidelity-fix build, and long-run cache behaviour on a real multi-display setup.
 The capture machine was locked, so no live menu-bar recording accompanies this
 pass yet.
+
+## Timeline correctness (a cadence fact, not a performance number)
+
+`timeline-probe.swift` measures how long each phase of the discrete `contents`
+animation is actually presented. Before the fix the last of 24 phases was never
+shown and the phase before the seam held for two steps; after it the full
+sequence plays. Reproduce with:
+
+```bash
+swiftc -O docs/visual-reference/glass-motion-visibility/timeline-probe.swift -o /tmp/timeline-probe
+/tmp/timeline-probe legacy 24 1.42857   # missing: [4, 12, 23]
+/tmp/timeline-probe closed 24 1.42857   # full sequence
+```

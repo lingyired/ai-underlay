@@ -63,6 +63,27 @@ varies by 15–20 px across the lane at a single phase, and rays at the same
 x change height between phases — with the traveller off as well. That is the
 per-ray wave, not a uniform scale.
 
+## Timeline defect found and fixed during this pass
+
+The first version of the frame sequence used key times `0/n … (n-1)/n`. A
+`contents` keyframe animation whose last key time is below `1.0` falls back to
+the layer's *model* value for the rest of the cycle, so the final phase was
+never presented and the phase before the seam held for two steps — a hitch
+every 1.4 s. `timeline-probe.swift` (offscreen `presentation()` sampling, same
+macOS build as the app) reproduces it:
+
+```
+scheme=legacy frames=24 cycle=1.43s step=59.5ms
+  distinct phases presented: 21/24  missing: [4, 12, 23]
+```
+
+The last phase is missing at every frame count tried (3/4, 5/6, 7/8, 10/12,
+21/24), so it is systematic, not sampling luck. The timeline now closes at
+`1.0` with the first phase repeated as the final value
+(`GlassSpectrumRenderer.curtainKeyframeTimeline`); regression test
+`test_curtainKeyframes_closeTheLoopWithEveryFrameShownOnce`. Hold jitter that
+remains in the probe output is ~10 ms polling noise, not a second defect.
+
 ## Still open (needs an unlocked screen)
 
 Every live check below renders the production path (`AppCoordinator` →
