@@ -63,18 +63,42 @@ varies by 15–20 px across the lane at a single phase, and rays at the same
 x change height between phases — with the traveller off as well. That is the
 per-ray wave, not a uniform scale.
 
-## Still open (needs the user)
+## Still open (needs an unlocked screen)
 
-- Real menu-bar recording with a running fixture: the machine was locked at
-  capture time, so no honest live video exists yet. Script:
-  `docs/visual-reference/glass-motion-visibility/capture.sh <dir> <seconds>`
-  grabs full screens and crops 2048x60 px (menu bar at 2x) per frame.
-- Offline timeline evidence is in `build/glass-motion/traveling-on/Frames/`
-  (42 full-screen grabs at ~4.6 fps, taken during the locked attempt; they
-  capture the lock screen, not the menu bar).
-- Tempo A/B (0.50 → 0.70 → 0.90 Hz) and the traveller on/off comparison on the
-  real display.
+Every live check below renders the production path (`AppCoordinator` →
+`LaneRenderSpec` → renderer) with a deterministic preview fixture. Two
+attempts were made during this pass and both hit a locked machine
+(`CGSSessionScreenIsLocked=Yes`), where the menu bar is not composited at all —
+the 42 full-screen grabs in `build/glass-motion/traveling-on/Frames/` are the
+lock screen, not the menu bar, and are not evidence.
+
+One command does the whole live matrix — it writes a fixture settings file,
+relaunches the app, records the real menu-bar strip at 30 fps, and always puts
+the user's own `settings.json` back:
+
+```bash
+docs/visual-reference/glass-motion-visibility/live-capture.sh \
+  build/glass-motion/live 10 \
+  traveling-on traveling-off tempo-050 tempo-090 \
+  agent-waiting agent-error agent-running-waiting agent-running-error \
+  agent-running-unread agent-all-signals
+```
+
+- `live-capture.sh` refuses to run while the screen is locked, measures the
+  strip from the current display (4096x60 px here, 30 pt at 2x), and also
+  writes three stills per clip.
+- `capture.sh` is the dependency-light fallback: full-screen `screencapture`
+  grabs (~3-4 fps) with a manual crop.
+- `bench.sh` is the matched-fixture CPU/RSS probe for the fidelity-fix
+  baseline (`AIUNDERLAY_APP=… bench.sh out 60 bench-running`).
+
+Remaining rows that still need a person at the Mac:
+
+- Tempo A/B playback review (0.50 → 0.70 → 0.90 → 1.10 Hz) and the traveller
+  on/off comparison at real menu-bar scale.
+- Matched CPU/RSS run and an attributed GPU/WindowServer sample on the same
+  fixture.
 - Notch hardware, external displays, macOS 14/15, Spaces, lock/unlock,
-  click-through, and matched CPU/GPU/WindowServer measurements.
+  click-through.
 
 No push, merge or release was performed.
