@@ -67,8 +67,11 @@ per-ray wave, not a uniform scale.
 
 - Real menu-bar recording with a running fixture: the machine was locked at
   capture time, so no honest live video exists yet. Script:
-  `build/glass-motion/capture.sh <dir> <seconds>` (full-screen grab, menu-bar
-  crop).
+  `docs/visual-reference/glass-motion-visibility/capture.sh <dir> <seconds>`
+  grabs full screens and crops 2048x60 px (menu bar at 2x) per frame.
+- Offline timeline evidence is in `build/glass-motion/traveling-on/Frames/`
+  (42 full-screen grabs at ~4.6 fps, taken during the locked attempt; they
+  capture the lock screen, not the menu bar).
 - Tempo A/B (0.50 → 0.70 → 0.90 Hz) and the traveller on/off comparison on the
   real display.
 - Notch hardware, external displays, macOS 14/15, Spaces, lock/unlock,
