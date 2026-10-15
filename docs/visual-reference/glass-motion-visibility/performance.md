@@ -9,11 +9,13 @@ path (macOS 27.0.1, Apple silicon, 30 pt lane, 2x):
 |---:|---:|---:|---:|
 | 512 pt (half of a dual lane) | 24 | 58 ms | 5.6 MiB |
 | 1024 pt | 24 | 88 ms | 11.2 MiB |
-| 2048 pt (single-bar) | 17 | 127 ms | 15.9 MiB |
+| 2048 pt (single-bar) | 16 | 120 ms | 15.0 MiB |
 
-Because the byte budget is fixed, a wider lane trades frame count (17) against
-bytes (15.9 MiB); the rendered cadence stays at 0.70 Hz → 12 fps for a full
-width bar and ~17 fps for a half-width lane.
+Because the byte budget is fixed, a wider lane trades frame count (16) against
+bytes (15.0 MiB); at 0.70 Hz that is ~11 fps for a full-width bar and ~17 fps
+for a half-width lane. The frame count is also rounded to a step of four and
+capped at a nominal 18 fps, so dragging the tempo slider rarely rebuilds the
+sequence (test: `test_frameCount_roundsToTheStep_soSliderDragsRarelyRebuild`).
 
 The sequence is rebuilt only when size, scale, light colour, density, intensity
 or travel mode changes — not on quota or session polls (test:

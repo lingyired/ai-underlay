@@ -32,6 +32,13 @@ public enum GlassSpectrumRenderer {
     public static let minimumFramesPerCycle = 12
     /// The most frames a single cycle ever holds, even on a tiny lane.
     public static let maximumFramesPerCycle = 24
+    /// The cadence the frame count aims for. A faster tempo gets fewer frames
+    /// rather than more refreshes: the wave reads as motion well below 60 fps,
+    /// and the render server should not be asked for a new frame every 16 ms.
+    public static let referenceFramesPerSecond = 18
+    /// Frame counts are rounded to this step, so dragging the tempo slider
+    /// does not rebuild the sequence for every in-between value.
+    public static let frameCountStep = 4
     /// One sequence's bitmap budget. A wide single-bar lane is ~983 KiB per
     /// frame, so a 2048 pt lane lands on 16 frames and a half-width lane on 24.
     public static let maxSequenceBytes = 16 * 1024 * 1024
@@ -44,11 +51,17 @@ public enum GlassSpectrumRenderer {
 
     // MARK: - Sizing
 
-    public static func framesPerCycle(width: CGFloat, height: CGFloat, scale: CGFloat) -> Int {
+    public static func framesPerCycle(
+        width: CGFloat, height: CGFloat, scale: CGFloat, cycle: Double = 1 / SpectrumRhythm.floorFrequencyHz
+    ) -> Int {
         let bytes = pixelByteCount(width: width, height: height, scale: scale)
-        guard bytes > 0 else { return nominalFramesPerCycle }
-        let affordable = maxSequenceBytes / bytes
-        return min(maximumFramesPerCycle, max(minimumFramesPerCycle, affordable))
+        let affordable = bytes > 0 ? maxSequenceBytes / bytes : nominalFramesPerCycle
+        let cadence = cycle.isFinite && cycle > 0
+            ? Int((cycle * Double(referenceFramesPerSecond)).rounded())
+            : nominalFramesPerCycle
+        let ceiling = min(maximumFramesPerCycle, max(minimumFramesPerCycle, min(affordable, cadence)))
+        let rounded = Int((Double(ceiling) / Double(frameCountStep)).rounded()) * frameCountStep
+        return min(ceiling, max(minimumFramesPerCycle, rounded))
     }
 
     static func pixelByteCount(width: CGFloat, height: CGFloat, scale: CGFloat) -> Int {
@@ -154,7 +167,7 @@ public enum GlassSpectrumRenderer {
         curtain.masksToBounds = true
 
         let frames = SpectrumFrameCache.sequence(
-            width: size.width, height: size.height, scale: scale,
+            width: size.width, height: size.height, scale: scale, cycle: cycle,
             color: color, density: density, intensity: spec.waveIntensity,
             travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight
         )
@@ -175,12 +188,15 @@ public enum GlassSpectrumRenderer {
         guard let root = LayerSlot.root(named: "spectrum", in: lane) else { return false }
         stopAnimations(lane)
         guard spec.signal?.isRunning == true, !spec.reduceMotion else { return false }
+        let cycle = SpectrumRhythm.cycleDuration(
+            outputTPS: spec.signal?.observedOutputTPS, floorHz: spec.spectrumFloorHz
+        )
         let region = spec.geometry.localFillBounds
         let size = region.size
         let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
         let curtain = LayerSlot.named("curtain", in: root)
         let frames = SpectrumFrameCache.sequence(
-            width: size.width, height: size.height, scale: scale,
+            width: size.width, height: size.height, scale: scale, cycle: cycle,
             color: spec.glass.signalLights.light(for: spec.signal?.attention ?? .none),
             density: spec.glass.material.rayDensity, intensity: spec.waveIntensity,
             travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight
@@ -313,6 +329,7 @@ enum SpectrumFrameCache {
         width: CGFloat,
         height: CGFloat,
         scale: CGFloat,
+        cycle: Double,
         color: RGBAColor,
         density: Double,
         intensity: Double,
@@ -320,7 +337,9 @@ enum SpectrumFrameCache {
         growsTowardRight: Bool
     ) -> [CGImage] {
         guard width > 0, height > 0 else { return [] }
-        let frameCount = GlassSpectrumRenderer.framesPerCycle(width: width, height: height, scale: scale)
+        let frameCount = GlassSpectrumRenderer.framesPerCycle(
+            width: width, height: height, scale: scale, cycle: cycle
+        )
         let key = Key(
             width: Int(width.rounded()),
             height: Int(height.rounded()),

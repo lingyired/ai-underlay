@@ -315,6 +315,24 @@ final class GlassSpectrumRendererTests: XCTestCase {
         XCTAssertLessThanOrEqual(bytes, GlassSpectrumRenderer.maxSequenceBytes)
     }
 
+    func test_frameCount_roundsToTheStep_soSliderDragsRarelyRebuild() {
+        // 0.5 -> 0.7 -> 0.9 Hz must all resolve to the same frame count, so a
+        // slider drag does not rebuild the sequence at every in-between value.
+        func frames(_ hz: Double) -> Int {
+            GlassSpectrumRenderer.framesPerCycle(width: 320, height: 30, scale: 2, cycle: 1.0 / hz)
+        }
+        // A one-percent tempo nudge must not rebuild the sequence...
+        XCTAssertEqual(frames(0.70), frames(0.71))
+        // ...the count only moves in whole steps...
+        for hz in [0.50, 0.70, 0.90, 1.10] {
+            XCTAssertEqual(frames(hz) % GlassSpectrumRenderer.frameCountStep, 0)
+            XCTAssertGreaterThanOrEqual(frames(hz), GlassSpectrumRenderer.minimumFramesPerCycle)
+            XCTAssertLessThanOrEqual(frames(hz), GlassSpectrumRenderer.maximumFramesPerCycle)
+        }
+        // ...and a faster tempo never asks for more refreshes than a slower one.
+        XCTAssertGreaterThanOrEqual(frames(0.50), frames(1.10))
+    }
+
     func test_frameIndex_mapsThePhaseOntoTheSequence() {
         XCTAssertEqual(GlassSpectrumRenderer.frameIndex(forPhase: 0, frameCount: 16), 0)
         XCTAssertEqual(GlassSpectrumRenderer.frameIndex(forPhase: 0.5, frameCount: 16), 8)
