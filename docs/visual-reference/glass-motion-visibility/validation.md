@@ -84,18 +84,13 @@ The last phase is missing at every frame count tried (3/4, 5/6, 7/8, 10/12,
 `test_curtainKeyframes_closeTheLoopWithEveryFrameShownOnce`. Hold jitter that
 remains in the probe output is ~10 ms polling noise, not a second defect.
 
-## Still open (needs an unlocked screen)
+## Live menu-bar acceptance (2026-10-15, 22:02–22:33, screen unlocked)
 
-Every live check below renders the production path (`AppCoordinator` →
-`LaneRenderSpec` → renderer) with a deterministic preview fixture. Two
-attempts were made during this pass and both hit a locked machine
-(`CGSSessionScreenIsLocked=Yes`), where the menu bar is not composited at all —
-the 42 full-screen grabs in `build/glass-motion/traveling-on/Frames/` are the
-lock screen, not the menu bar, and are not evidence.
-
-One command does the whole live matrix — it writes a fixture settings file,
-relaunches the app, records the real menu-bar strip at 30 fps, and always puts
-the user's own `settings.json` back:
+Recorded on the real menu bar (2048×1152 pt, 2x, no notch on this display) with
+the production path — `AppCoordinator` → `LaneRenderSpec` → renderer — driven
+by a deterministic preview fixture. One command does the whole matrix: it
+writes a fixture settings file, relaunches the app, records the strip at 30 fps
+and always puts the user's own `settings.json` back.
 
 ```bash
 docs/visual-reference/glass-motion-visibility/live-capture.sh \
@@ -105,21 +100,44 @@ docs/visual-reference/glass-motion-visibility/live-capture.sh \
   agent-running-unread agent-all-signals
 ```
 
-- `live-capture.sh` refuses to run while the screen is locked, measures the
-  strip from the current display (4096x60 px here, 30 pt at 2x), and also
-  writes three stills per clip.
-- `capture.sh` is the dependency-light fallback: full-screen `screencapture`
-  grabs (~3-4 fps) with a manual crop.
-- `bench.sh` is the matched-fixture CPU/RSS probe for the fidelity-fix
-  baseline (`AIUNDERLAY_APP=… bench.sh out 60 bench-running`).
+Clips (gitignored, ~370 KiB each):
 
-Remaining rows that still need a person at the Mac:
+| Clip | Length | What it shows |
+|---|---|---|
+| `build/glass-motion/live/traveling-on.mp4` | 10 s | crest sweeps the lane, 0.70 Hz |
+| `build/glass-motion/live/traveling-off.mp4` | 10 s | crest parked, rays still wave, 0.70 Hz |
+| `build/glass-motion/live/tempo-050.mp4` | 10 s | the same fixture at 0.50 Hz |
+| `build/glass-motion/live/tempo-090.mp4` | 10 s | the same fixture at 0.90 Hz |
+| `build/glass-motion/attention/*.mp4` | 5 s each | Waiting / Error / Running+Waiting / Running+Error / Running+Unread / all signals |
 
-- Tempo A/B playback review (0.50 → 0.70 → 0.90 → 1.10 Hz) and the traveller
-  on/off comparison at real menu-bar scale.
-- Matched CPU/RSS run and an attributed GPU/WindowServer sample on the same
-  fixture.
+### Measured from those recordings (30 fps, lane = 960 px at 2x)
+
+- **Tempo is real, and matches the setting.** Dominant frequency of the lane's
+  brightness over 10 s (autocorrelation, 30 fps): `0.50 → 0.500 Hz`,
+  `0.70 → 0.697 Hz`, `0.90 → 0.905 Hz`. No frame drops in the clips.
+- **Travelling light on**: the height crest sweeps 774 px — **81 % of the lane**
+  in 10 s, ~8 sweeps.
+- **Travelling light off**: the crest stays inside 174 px (**18 %** of the lane,
+  parked), while **68 % of columns change ray height by >2 px** over the same
+  10 s (p95 = 13 px of the 34 px band). The wave still propagates.
+- **Not a fence:** adjacent-column height correlation is 0.94–0.96 at 1 px but
+  falls to **0.00 at 100 px** (traveler off) — neighbouring parts of the curtain
+  move independently. The old design moved in three lockstep groups.
+- **Colour priority on the live menu bar**: waiting = yellow band with parked
+  curtain; error = red; running+waiting = yellow band **and** the running
+  curtain; running+error = red; running+unread = green.
+- **Text stays readable:** in every frame the system items over the curtain
+  (`Sensor 17W`, `25 KB/s`, the `!` badge) keep full contrast.
+
+Committed stills of the same recordings: `live/live-traveling-on-cycle.png`,
+`live/live-traveling-off-cycle.png` (8 samples across one 1.43 s cycle), and
+`live/live-agent-{waiting,running-waiting,running-error}.png`.
+
+## Still open
+
+- Matched CPU/RSS/GPU/WindowServer deltas against the fidelity-fix build, and
+  long-run cache behaviour under display changes.
 - Notch hardware, external displays, macOS 14/15, Spaces, lock/unlock,
-  click-through.
+  click-through, active menu (open menu bar) and light-appearance desktops.
 
 No push, merge or release was performed.
