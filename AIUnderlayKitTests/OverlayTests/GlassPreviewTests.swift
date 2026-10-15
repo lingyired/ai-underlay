@@ -43,12 +43,7 @@ final class GlassPreviewTests: XCTestCase {
         )
         LayerSlot.reconcileLane(lane)
         if let phase {
-            GlassSpectrumRenderer.applySampledPhase(
-                into: lane, spec: spec,
-                cycle: SpectrumRhythm.cycleDuration(
-                    outputTPS: spec.signal?.observedOutputTPS, floorHz: spec.spectrumFloorHz
-                ), phase: phase
-            )
+            GlassSpectrumRenderer.applySampledPhase(into: lane, spec: spec, phase: phase)
         }
         return lane
     }
@@ -116,10 +111,10 @@ final class GlassPreviewTests: XCTestCase {
         func profile(at phase: Double) throws -> [Double] {
             let frame = lane(running, height: 32, phase: phase)
             let spectrum = try XCTUnwrap(frame.sublayers?.first { $0.name == "spectrum" })
-            // Isolate rays: quota end caps and a travelling gradient alone
+            // Isolate the curtain: quota end caps and the attention band alone
             // must not be able to satisfy this regression check.
             frame.sublayers?.filter { $0 !== spectrum }.forEach { $0.isHidden = true }
-            spectrum.sublayers?.filter { $0.name?.hasPrefix("field") == true }.forEach { $0.isHidden = true }
+            spectrum.sublayers?.filter { $0.name != "curtain" }.forEach { $0.isHidden = true }
             let pixels = try rasterise(frame)
             var energy = Array(repeating: 0.0, count: 32)
             for x in 0..<pixels.pixelsWide {
@@ -141,7 +136,7 @@ final class GlassPreviewTests: XCTestCase {
         let a = try XCTUnwrap(first.indices.max { first[$0] < first[$1] })
         let b = try XCTUnwrap(second.indices.max { second[$0] < second[$1] })
         XCTAssertGreaterThanOrEqual(abs(a - b), 5,
-                                    "ray pixels, with wide light fields hidden, must move their brightest region")
+                                    "ray pixels alone must move their brightest region between phases")
         XCTAssertGreaterThan(first[a], first[(a + 16) % 32] * 2)
         XCTAssertGreaterThan(second[b], second[(b + 16) % 32] * 2)
     }
@@ -274,9 +269,35 @@ final class GlassPreviewTests: XCTestCase {
                 }
             }
         }
+        // The mandated phase matrix: Running at four phases of the cycle, at
+        // each menu-bar height and backing scale, with the traveller both on
+        // and off. These are the frames a reviewer compares against the V5 lab.
+        let phaseMatrix: [(name: String, phase: Double)] = [
+            ("phase00", 0.0), ("phase25", 0.25), ("phase50", 0.50), ("phase75", 0.75),
+        ]
+        let runningContent = content("glassV5", signal: AgentSignals(activeCount: 1))
+        let parkedContent = content("glassV5", signal: AgentSignals(activeCount: 1),
+                                    showsTravelingLight: false)
+        for height: CGFloat in [30, 32, 34] {
+            for scale: CGFloat in [1, 2] {
+                let folder = output.appendingPathComponent("running-\(Int(height))pt-\(Int(scale))x", isDirectory: true)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let parkedFolder = output.appendingPathComponent("parked-\(Int(height))pt-\(Int(scale))x", isDirectory: true)
+                try FileManager.default.createDirectory(at: parkedFolder, withIntermediateDirectories: true)
+                for item in phaseMatrix {
+                    let travelling = try rasterise(
+                        lane(runningContent, height: height, scale: scale, phase: item.phase), scale: scale)
+                    try XCTUnwrap(travelling.representation(using: .png, properties: [:]))
+                        .write(to: folder.appendingPathComponent("\(item.name).png"))
+                    let parked = try rasterise(
+                        lane(parkedContent, height: height, scale: scale, phase: item.phase), scale: scale)
+                    try XCTUnwrap(parked.representation(using: .png, properties: [:]))
+                        .write(to: parkedFolder.appendingPathComponent("\(item.name).png"))
+                }
+            }
+        }
         for phase in [0.2, 0.6] {
-            let rep = try rasterise(lane(content("glassV5", signal: AgentSignals(activeCount: 1)),
-                                          height: 32, phase: phase))
+            let rep = try rasterise(lane(runningContent, height: 32, phase: phase))
             let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
             try data.write(to: output.appendingPathComponent("codex-running-phase\(Int(phase * 100))-32pt-2x.png"))
         }

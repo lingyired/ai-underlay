@@ -23,13 +23,15 @@ final class GlassLayerHostTests: XCTestCase {
         glass: ResolvedGlassTheme = .default(providerId: "codex"),
         signal: ProviderVisualSignal? = ProviderVisualSignal(isRunning: true),
         reduceMotion: Bool = false,
-        spectrumFloorHz: Double = SpectrumRhythm.floorFrequencyHz
+        spectrumFloorHz: Double = SpectrumRhythm.floorFrequencyHz,
+        waveIntensity: Double = SpectrumRhythm.motionIntensityDefault
     ) -> LaneRenderSpec {
         LaneRenderSpec(
             providerId: "codex", geometry: geometry,
             windows: [window("w", remaining: quota), window("s", remaining: 0.5)],
             palette: .codex, baseline: nil, glass: glass, signal: signal,
-            reduceMotion: reduceMotion, spectrumFloorHz: spectrumFloorHz
+            reduceMotion: reduceMotion, spectrumFloorHz: spectrumFloorHz,
+            waveIntensity: waveIntensity
         )
     }
 
@@ -37,16 +39,16 @@ final class GlassLayerHostTests: XCTestCase {
         let host = GlassLayerHost()
         host.update(spec(spectrumFloorHz: 0.5))
 
-        let rays = host.root.sublayers?.first { $0.name == "spectrum" }?
-            .sublayers?.first { $0.name == "peak0" }
-        let breath = try XCTUnwrap(rays?.animation(forKey: "peakBreath") as? CAKeyframeAnimation)
-        XCTAssertEqual(breath.duration, 2.0, accuracy: 0.0001,
+        let curtain = host.root.sublayers?.first { $0.name == "spectrum" }?
+            .sublayers?.first { $0.name == "curtain" }
+        let frames = try XCTUnwrap(curtain?.animation(forKey: "curtainFrames") as? CAKeyframeAnimation)
+        XCTAssertEqual(frames.duration, 2.0, accuracy: 0.0001,
                        "0.5 Hz is a two-second cycle, whatever the engine default is")
 
         // Picking a new baseline re-times the running animation instead of
         // waiting for the old cycle to end.
         host.update(spec(spectrumFloorHz: 0.7))
-        let retimed = try XCTUnwrap(rays?.animation(forKey: "peakBreath") as? CAKeyframeAnimation)
+        let retimed = try XCTUnwrap(curtain?.animation(forKey: "curtainFrames") as? CAKeyframeAnimation)
         XCTAssertEqual(retimed.duration, 1 / 0.7, accuracy: 0.0001)
     }
 
@@ -110,14 +112,14 @@ final class GlassLayerHostTests: XCTestCase {
         let host = GlassLayerHost()
         host.update(spec(quota: 0.8))
         let rays = host.root.sublayers?.first { $0.name == "spectrum" }?
-            .sublayers?.first { $0.name == "peak0" }
-        let first = rays?.animation(forKey: "peakBreath")
+            .sublayers?.first { $0.name == "curtain" }
+        let first = rays?.animation(forKey: "curtainFrames")
         XCTAssertNotNil(first)
 
         // The new quota snapshot arrives; nothing about motion changed.
         host.update(spec(quota: 0.4))
 
-        let second = rays?.animation(forKey: "peakBreath")
+        let second = rays?.animation(forKey: "curtainFrames")
         XCTAssertTrue(first === second, "a quota refresh must not restart the light field")
         XCTAssertEqual(host.diagnostics.animationStarts, 1)
     }
@@ -140,15 +142,15 @@ final class GlassLayerHostTests: XCTestCase {
         let host = GlassLayerHost()
         host.update(spec())
         let spectrum = host.root.sublayers?.first { $0.name == "spectrum" }
-        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "peak0" }?.animation(forKey: "peakBreath"))
+        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "curtain" }?.animation(forKey: "curtainFrames"))
 
         host.update(spec(signal: ProviderVisualSignal(isRunning: false)))
         XCTAssertEqual(spectrum?.isHidden, true)
-        XCTAssertNil(spectrum?.sublayers?.first { $0.name == "peak0" }?.animation(forKey: "peakBreath"))
+        XCTAssertNil(spectrum?.sublayers?.first { $0.name == "curtain" }?.animation(forKey: "curtainFrames"))
 
         host.update(spec())
         XCTAssertEqual(spectrum?.isHidden, false)
-        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "peak0" }?.animation(forKey: "peakBreath"))
+        XCTAssertNotNil(spectrum?.sublayers?.first { $0.name == "curtain" }?.animation(forKey: "curtainFrames"))
     }
 
     func test_attentionKindChangeRestartsTheSweep_butRepeatDoesNot() {
@@ -173,11 +175,14 @@ final class GlassLayerHostTests: XCTestCase {
         let attention = host.root.sublayers?.first { $0.name == "attention" }
         XCTAssertEqual(spectrum?.isHidden, false, "work continues while waiting")
         XCTAssertEqual(attention?.isHidden, false)
-        let light = spectrum?.sublayers?.first { $0.name == "field0" } as? CAGradientLayer
-        let tint = (light?.colors as? [CGColor])?[safeColor: 3]
-        let components = tint?.components ?? []
-        XCTAssertEqual(Double(components[0]), GlassDefaults.signalLights.waiting.red, accuracy: 0.02,
+        let contents = spectrum?.sublayers?.first { $0.name == "curtain" }?.contents
+        let frame = try? XCTUnwrap(contents as! CGImage)
+        let rep = try? XCTUnwrap(frame.map(NSBitmapImageRep.init(cgImage:)))
+        let pixel = rep?.colorAt(x: (rep?.pixelsWide ?? 2) / 2, y: (rep?.pixelsHigh ?? 2) / 2)
+        let rgb = pixel?.usingColorSpace(.deviceRGB)
+        XCTAssertEqual(Double(rgb?.redComponent ?? 0), GlassDefaults.signalLights.waiting.red, accuracy: 0.10,
                        "a running light wears the highest attention colour")
+        XCTAssertGreaterThan(Double(rgb?.redComponent ?? 0), Double(rgb?.blueComponent ?? 0))
     }
 
     func test_reduceMotionStopsEverythingButKeepsTheStaticLayout() {

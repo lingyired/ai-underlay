@@ -2,9 +2,9 @@ import XCTest
 import AppKit
 @testable import AIUnderlayKit
 
-/// Phase B contract: a weak static bed, a bright copy windowed by a moving
-/// mask, shared field/peak geometry, quota-length clipping and the two
-/// travelling-light switch semantics.
+/// Glass Spectrum contract: a real per-ray travelling wave (not a static
+/// texture that scales), one animated layer per lane, quota-length clipping,
+/// the attention colour priority and the two switch semantics.
 @MainActor
 final class GlassSpectrumRendererTests: XCTestCase {
     private let geometry = GaugeGeometry(
@@ -22,6 +22,7 @@ final class GlassSpectrumRendererTests: XCTestCase {
         reduceMotion: Bool = false,
         growsTowardRight: Bool = true,
         showsTravelingLight: Bool = true,
+        waveIntensity: Double = SpectrumRhythm.motionIntensityDefault,
         trackWidth: CGFloat = 1000
     ) -> LaneRenderSpec {
         let geometry = GaugeGeometry(
@@ -32,6 +33,7 @@ final class GlassSpectrumRendererTests: XCTestCase {
         return LaneRenderSpec(
             providerId: "codex", geometry: geometry, windows: windows, palette: .codex,
             glass: glass, signal: signal, reduceMotion: reduceMotion,
+            waveIntensity: waveIntensity,
             showsTravelingLight: showsTravelingLight
         )
     }
@@ -40,98 +42,54 @@ final class GlassSpectrumRendererTests: XCTestCase {
         lane.sublayers?.first { $0.name == "spectrum" }
     }
 
-    private func peakLayers(in spectrum: CALayer) -> [CALayer] {
-        (spectrum.sublayers ?? []).filter { $0.name?.hasPrefix("peak") == true }
-            .filter { $0.name?.hasPrefix("peakmask") != true }
-    }
-
-    private func bedLayers(in spectrum: CALayer) -> [CALayer] {
-        (spectrum.sublayers ?? []).filter { $0.name?.hasPrefix("rays") == true }
-    }
-
-    private func fieldLayers(in spectrum: CALayer) -> [CALayer] {
-        (spectrum.sublayers ?? []).filter { $0.name?.hasPrefix("field") == true }
+    private func curtain(in spectrum: CALayer) -> CALayer? {
+        spectrum.sublayers?.first { $0.name == "curtain" }
     }
 
     private let cycle = SpectrumRhythm.cycleDuration(outputTPS: nil)
 
-    // MARK: - Structure
+    // MARK: - Structure and lifecycle
 
-    func test_running_drawsThreeBedsThreeMaskedPeaksAndTwoFields() throws {
+    func test_running_drawsScrimAndOneAnimatedCurtainLayer() throws {
         let lane = GlassSpectrumRenderer.render(
             spec(signal: ProviderVisualSignal(isRunning: true)),
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        XCTAssertEqual(bedLayers(in: spectrum).count, 3)
-        XCTAssertEqual(peakLayers(in: spectrum).count, 3)
-        XCTAssertEqual(fieldLayers(in: spectrum).count, 2)
-        for peaks in peakLayers(in: spectrum) {
-            XCTAssertNotNil(peaks.mask, "the bright copy must use a real mask, not an overlay")
-            XCTAssertTrue((peaks.sublayers ?? []).isEmpty)
-        }
+        XCTAssertNotNil(spectrum.sublayers?.first { $0.name == "scrim" })
+        let layer = try XCTUnwrap(curtain(in: spectrum))
+        XCTAssertTrue((layer.sublayers ?? []).isEmpty, "the curtain is one animated layer, not a layer per ray")
+        let animation = try XCTUnwrap(layer.animation(forKey: "curtainFrames") as? CAKeyframeAnimation)
+        XCTAssertEqual(animation.keyPath, "contents")
+        XCTAssertEqual(animation.calculationMode, .discrete)
+        XCTAssertEqual(animation.repeatCount, .infinity)
+        XCTAssertEqual(animation.duration, cycle, accuracy: 0.0001)
     }
 
-    func test_staticBedIsWeak_andDensityEscalatesOnlyThePeakWindow() throws {
+    func test_animatedLayerBudget_isSmall() throws {
         let lane = GlassSpectrumRenderer.render(
             spec(signal: ProviderVisualSignal(isRunning: true)),
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        let bed = try XCTUnwrap(bedLayers(in: spectrum).first)
-        let peaks = try XCTUnwrap(peakLayers(in: spectrum).first)
-        XCTAssertEqual(bed.opacity, GlassSpectrumRenderer.bedOpacity, accuracy: 0.0001)
-        XCTAssertEqual(peaks.opacity, GlassSpectrumRenderer.peakOpacity, accuracy: 0.0001)
-        XCTAssertGreaterThan(peaks.opacity, bed.opacity * 3,
-                             "brightness must come from the local peak, not the whole curtain")
-    }
-
-    func test_rayGroups_areTexturesNotOneLayerPerRay() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true)),
-            running: true, cycle: cycle, restart: true
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        for layer in (bedLayers(in: spectrum) + peakLayers(in: spectrum)) {
-            XCTAssertNotNil(layer.contents, "the density lives in one cached bitmap per group")
-            XCTAssertTrue((layer.sublayers ?? []).isEmpty)
+        var animated = 0
+        var stack: [CALayer] = [spectrum]
+        while let layer = stack.popLast() {
+            if layer.animationKeys()?.isEmpty == false { animated += 1 }
+            stack.append(contentsOf: layer.sublayers ?? [])
+            if let mask = layer.mask { stack.append(mask) }
         }
+        XCTAssertLessThanOrEqual(animated, GlassSpectrumRenderer.maxAnimatedLayers)
     }
 
-    func test_density_changesTheRenderedTexture_butReusesItForBedAndPeak() throws {
-        var dense = ResolvedGlassTheme.default(providerId: "codex")
-        dense.material.rayDensity = 1.0
-        var sparse = dense
-        sparse.material.rayDensity = 0.1
-        func textures(_ glass: ResolvedGlassTheme) throws -> (CGImage, CGImage) {
-            let lane = GlassSpectrumRenderer.render(
-                spec(glass: glass, signal: ProviderVisualSignal(isRunning: true)),
-                running: true, cycle: cycle, restart: true
-            )
-            let spectrum = try XCTUnwrap(root(of: lane))
-            let bed = try XCTUnwrap(bedLayers(in: spectrum).first)
-            let peaks = try XCTUnwrap(peakLayers(in: spectrum).first)
-            return (try XCTUnwrap(bed.contents) as! CGImage, try XCTUnwrap(peaks.contents) as! CGImage)
-        }
-        let (denseBed, densePeak) = try textures(dense)
-        let (sparseBed, _) = try textures(sparse)
-        XCTAssertFalse(denseBed === sparseBed, "ray density must change the texture, not be a no-op")
-        XCTAssertTrue(denseBed === densePeak, "the bright copy reuses the cached texture")
-        let (againBed, _) = try textures(dense)
-        XCTAssertTrue(denseBed === againBed, "the same settings must reuse the cached texture")
-    }
-
-    /// The V5 curtain stands on the strip: every ray's base is flush with the
-    /// bottom edge and only the tips wave.
     func test_rayCurtain_standsOnTheBottomEdge() throws {
         let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true)),
+            spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        let layer = try XCTUnwrap(bedLayers(in: spectrum).first)
-        let texture = try XCTUnwrap(layer.contents) as! CGImage
-        let rep = NSBitmapImageRep(cgImage: texture)
+        let frame = try XCTUnwrap(curtain(in: spectrum)?.contents) as! CGImage
+        let rep = NSBitmapImageRep(cgImage: frame)
         let pixelWidth = rep.pixelsWide
         let pixelHeight = rep.pixelsHigh
 
@@ -140,187 +98,301 @@ final class GlassSpectrumRendererTests: XCTestCase {
         }
 
         let density = ResolvedGlassTheme.default(providerId: "codex").material.rayDensity
-        let rayCount = max(24, Int((geometry.trackRect.width / 8.5 * (0.55 + density * 1.25)).rounded()))
+        let rayCount = SpectrumWaveModel.rayCount(width: 320, density: density)
+        // One in three rays: this test is about the curtain's baseline, not
+        // the wave's stride, so it tolerates neighbours bleeding into a sample.
         let centres = stride(from: 0, to: rayCount, by: 3).map { index in
-            Int(((CGFloat(index) + 0.5) / CGFloat(rayCount)) * CGFloat(pixelWidth))
+            Int(((Double(index) + 0.5) / Double(rayCount)) * Double(pixelWidth))
         }
         XCTAssertGreaterThan(centres.count, 20)
 
-        let litAtBottom = centres.filter { alpha(nearCentre: $0, row: pixelHeight - 1) > 0.08 }
+        let litAtBottom = centres.filter { alpha(nearCentre: $0, row: pixelHeight - 1) > 0.02 }
         XCTAssertEqual(litAtBottom.count, centres.count,
                        "every ray's base is flush with the bottom edge")
 
         let tips = centres.compactMap { centre in
-            (0..<pixelHeight).first { alpha(nearCentre: centre, row: $0) > 0.08 }
+            (0..<pixelHeight).first { alpha(nearCentre: centre, row: $0) > 0.02 }
         }
         XCTAssertEqual(tips.count, centres.count, "every ray is drawn")
         let spread = (tips.max() ?? 0) - (tips.min() ?? 0)
-        XCTAssertGreaterThan(Double(spread), Double(pixelHeight) * 0.15,
+        XCTAssertGreaterThan(Double(spread), Double(pixelHeight) * 0.2,
                              "the wave lives in the tips, not in a flat block")
     }
 
-    func test_peakMask_isAContinuousWindow_notAFlatPlatform() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true)),
+    func test_repeatedIdenticalRender_doesNotRestartTheSequence() throws {
+        let lane = CALayer()
+        lane.frame = geometry.trackRect
+        let renderSpec = spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320)
+        GlassSpectrumRenderer.update(into: lane, spec: renderSpec, running: true, cycle: cycle, restart: true)
+        let layer = try XCTUnwrap(curtain(in: try XCTUnwrap(root(of: lane))))
+        let production = try XCTUnwrap(layer.animation(forKey: "curtainFrames"))
+
+        GlassSpectrumRenderer.update(into: lane, spec: renderSpec, running: true, cycle: cycle, restart: false)
+        XCTAssertTrue(layer.animation(forKey: "curtainFrames") === production,
+                      "a quota or theme poll must not restart the wave")
+    }
+
+    func test_notRunning_hidesTheCurtainAndStopsEverything() throws {
+        let lane = CALayer()
+        lane.frame = geometry.trackRect
+        GlassSpectrumRenderer.update(
+            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true)),
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        let peaks = try XCTUnwrap(peakLayers(in: spectrum).first)
-        let mask = try XCTUnwrap(peaks.mask as? CAGradientLayer)
-        let alphas = (mask.colors as? [CGColor])?.map(\.alpha) ?? []
-        XCTAssertEqual(alphas, [0, 0.15, 1, 0.15, 0], "only the local core reaches full energy")
-        let locations = (mask.locations ?? []).map(\.doubleValue)
-        XCTAssertEqual(locations.first, 0)
-        XCTAssertEqual(locations.last, 1)
-        XCTAssertGreaterThan(locations[1], 0.02, "the shoulder must have real width")
+        GlassSpectrumRenderer.update(
+            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: false)),
+            running: false, cycle: cycle, restart: true
+        )
+        XCTAssertTrue(spectrum.isHidden)
+        XCTAssertNil(try XCTUnwrap(curtain(in: spectrum)).animation(forKey: "curtainFrames"))
     }
 
-    // MARK: - Shared geometry and deterministic phase sampling
-
-    func test_phaseSampler_matchesTheLightFieldTrajectory() throws {
-        let laneWidth: CGFloat = 320
+    func test_reduceMotion_drawsAStaticCurtain() throws {
         let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: laneWidth),
+            spec(signal: ProviderVisualSignal(isRunning: true), reduceMotion: true),
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        let fields = fieldLayers(in: spectrum)
-        XCTAssertEqual(fields.count, 2)
-        let travels = fields.compactMap { $0.animation(forKey: "fieldTravel") as? CABasicAnimation }
-        XCTAssertEqual(travels.count, 2)
-
-        // The same endpoints the Core Animation timeline interpolates are the
-        // ones the phase sampler reports, so mask and field cannot diverge.
-        let fieldsModel = GlassSpectrumRenderer.LightFieldGeometry.racetrack(
-            size: CGSize(width: laneWidth, height: 30), growsTowardRight: true
-        )
-        let model = SpectrumPhaseGeometry(
-            size: CGSize(width: laneWidth, height: 30), fields: fieldsModel,
-            cycle: cycle, growsTowardRight: true
-        )
-        XCTAssertEqual(travels[0].fromValue as? CGFloat, fieldsModel[0].fromX)
-        XCTAssertEqual(travels[0].toValue as? CGFloat, fieldsModel[0].toX)
-        XCTAssertEqual(travels[1].fromValue as? CGFloat, fieldsModel[1].fromX)
-        XCTAssertEqual(model.primary.cycleFactor, fieldsModel[0].cycleFactor)
-        XCTAssertEqual(model.secondary.cycleFactor, fieldsModel[1].cycleFactor,
-                       "the secondary peak must keep its own period")
-        let sample = model.sample(at: 0.3)
-        XCTAssertEqual(sample.lightFieldOffsets[0], model.primary.offset(at: 0.3))
-        XCTAssertEqual(sample.lightFieldOffsets[1], model.secondary.offset(at: 0.3 / model.secondary.cycleFactor))
+        let layer = try XCTUnwrap(curtain(in: spectrum))
+        XCTAssertNil(layer.animation(forKey: "curtainFrames"))
+        XCTAssertNotNil(layer.contents, "Reduce Motion keeps a still frame of the wave")
+        XCTAssertFalse(spectrum.isHidden)
     }
 
-    func test_phaseSampler_peakWindowIsDarkOffCentre_andBrightAtCentre() {
-        let size = CGSize(width: 320, height: 30)
-        let fields = GlassSpectrumRenderer.LightFieldGeometry.racetrack(size: size, growsTowardRight: true)
-        let model = SpectrumPhaseGeometry(
-            size: size, fields: fields, cycle: cycle, growsTowardRight: true
-        )
-        let sample = model.sample(at: 0.25)
-        let half = sample.primary.window / 2 + 4
-        let alpha = { (x: CGFloat, phase: Double) -> Double in
-            SpectrumPhaseGeometry.rampAlpha(
-                x, sample: model.primary.sample(at: phase)
+    // MARK: - The wave itself
+
+    func test_perRayWave_movesWithThePhase_insteadOfScalingOneTexture() {
+        func profile(at phase: Double, travels: Bool) -> [Double] {
+            let center = SpectrumWaveModel.primaryCrestCenter(
+                at: phase, travels: travels, travelsTowardRight: true
             )
+            return SpectrumWaveModel.rays(width: 320, density: 1).map {
+                SpectrumWaveModel.sample(
+                    normalizedX: $0.normalizedX, rayIndex: $0.index,
+                    phase: phase, primaryCenter: center,
+                    intensity: SpectrumRhythm.motionIntensityDefault
+                ).heightFraction
+            }
         }
-        XCTAssertGreaterThan(alpha(sample.primary.offset, 0.25), 0.95)
-        XCTAssertLessThan(alpha(sample.primary.offset + half, 0.25), 0.02,
-                          "just outside the window the peak is dark")
-        XCTAssertLessThan(alpha(sample.primary.offset, 0.7),
-                          alpha(sample.primary.offset, 0.25) - 0.5,
-                          "the window must keep travelling")
-    }
-
-    func test_phaseSampler_mirrorsForLeftwardLanes() {
-        let size = CGSize(width: 320, height: 30)
-        let right = SpectrumPhaseGeometry(
-            size: size,
-            fields: GlassSpectrumRenderer.LightFieldGeometry.racetrack(size: size, growsTowardRight: true),
-            cycle: cycle, growsTowardRight: true
-        )
-        let left = SpectrumPhaseGeometry(
-            size: size,
-            fields: GlassSpectrumRenderer.LightFieldGeometry.racetrack(size: size, growsTowardRight: false),
-            cycle: cycle, growsTowardRight: false
-        )
-        XCTAssertTrue(right.primary.travelsTowardLeadingEdge)
-        XCTAssertFalse(left.primary.travelsTowardLeadingEdge)
-        XCTAssertGreaterThan(left.primary.offset(at: 0.2), left.primary.offset(at: 0.8),
-                             "leftward lanes travel the other way")
-        XCTAssertLessThan(right.primary.offset(at: 0.2), right.primary.offset(at: 0.8))
-    }
-
-    func test_applySampledPhase_movesTheBrightWindowWithoutRestartingProduction() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
-            running: true, cycle: cycle, restart: true
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        let mask = try XCTUnwrap(try XCTUnwrap(peakLayers(in: spectrum).first).mask as? CAGradientLayer)
-        let production = try XCTUnwrap(mask.animation(forKey: "peakTravel") as? CABasicAnimation)
-        XCTAssertEqual(production.keyPath, "transform.translation.x")
-        XCTAssertEqual(production.duration, cycle, accuracy: 0.0001)
-
-        GlassSpectrumRenderer.applySampledPhase(into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
-                                                cycle: cycle, phase: 0.2)
-        let left = mask.transform.m41
-        GlassSpectrumRenderer.applySampledPhase(into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
-                                                cycle: cycle, phase: 0.6)
-        let right = mask.transform.m41
-        XCTAssertGreaterThanOrEqual(abs(left - right), 320 * 0.15,
-                                    "phase 0.2 and 0.6 must land at least 15% of the lane apart")
-        XCTAssertNil(mask.animation(forKey: "peakTravel"),
-                     "freezing a sampled phase must not leave the production timeline attached")
-    }
-
-    // MARK: - Travelling-light switch
-
-    /// User setting `showsTravelingLight = false`: hide the wide sheen, keep a
-    /// fixed local energy window, and never let a mask cross the lane.
-    func test_travelingLightDisabled_hidesFieldsAndFreezesTheLocalWindow() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true), showsTravelingLight: false, trackWidth: 320),
-            running: true, cycle: cycle, restart: true
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        for field in fieldLayers(in: spectrum) {
-            XCTAssertTrue(field.isHidden, "the full-width sheen must disappear")
-            XCTAssertNil(field.animation(forKey: "fieldTravel"))
-        }
-        for peaks in peakLayers(in: spectrum) {
-            XCTAssertFalse(peaks.isHidden)
-            let mask = try XCTUnwrap(peaks.mask as? CAGradientLayer)
-            XCTAssertNil(mask.animation(forKey: "peakTravel"), "no horizontal travel")
-            XCTAssertEqual(mask.transform.m41, 160, accuracy: 0.5,
-                           "the local window parks on the lane centre")
+        for travels in [true, false] {
+            let early = profile(at: 0, travels: travels)
+            let late = profile(at: 0.5, travels: travels)
+            // A per-ray wave: a handful of rays keep their height and most
+            // change, so the shape moves instead of the whole block scaling.
+            let unchanged = zip(early, late).filter { abs($0 - $1) < 0.01 }.count
+            let changed = zip(early, late).filter { abs($0 - $1) > 0.08 }.count
+            XCTAssertGreaterThan(changed, early.count / 4,
+                                 "a travelling wave must move most rays (travels: \(travels))")
+            XCTAssertGreaterThan(unchanged, 0,
+                                 "rays must not move in lockstep (travels: \(travels))")
         }
     }
 
-    func test_travelingLightToggle_appliesToTheLiveLayersBothWays() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
-            running: true, cycle: cycle, restart: true
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        let field = try XCTUnwrap(fieldLayers(in: spectrum).first)
-        let mask = try XCTUnwrap(try XCTUnwrap(peakLayers(in: spectrum).first).mask as? CAGradientLayer)
-        XCTAssertNotNil(field.animation(forKey: "fieldTravel"))
-        XCTAssertNotNil(mask.animation(forKey: "peakTravel"))
+    func test_neighbouringRays_areNotInLockstep_atAStandingPhase() {
+        // Independent of phase: the deterministic per-ray offsets alone must
+        // break the "one group, one shape" look.
+        let phase = 0.37
+        let center = SpectrumWaveModel.primaryCrestCenter(at: phase, travels: false, travelsTowardRight: true)
+        let heights = SpectrumWaveModel.rays(width: 320, density: 1).map {
+            SpectrumWaveModel.sample(
+                normalizedX: $0.normalizedX, rayIndex: $0.index, phase: phase,
+                primaryCenter: center, intensity: SpectrumRhythm.motionIntensityDefault
+            ).heightFraction
+        }
+        let neighbours = zip(heights, heights.dropFirst()).map { abs($0 - $1) }
+        XCTAssertGreaterThan(neighbours.filter { $0 > 0.02 }.count, neighbours.count / 3,
+                             "neighbouring rays must carry different heights at one instant")
+    }
 
-        GlassSpectrumRenderer.update(
-            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true), showsTravelingLight: false, trackWidth: 320),
-            running: true, cycle: cycle, restart: false
-        )
-        XCTAssertTrue(field.isHidden)
-        XCTAssertNil(field.animation(forKey: "fieldTravel"))
-        XCTAssertNil(mask.animation(forKey: "peakTravel"))
+    func test_travelingDisabled_stillMovesTheWave() {
+        let standsStill = SpectrumWaveModel.primaryCrestCenter(at: 0.25, travels: false, travelsTowardRight: true)
+        XCTAssertEqual(standsStill, 0.5, "the parked crest sits on the lane centre")
+        func shape(at phase: Double) -> [Double] {
+            SpectrumWaveModel.rays(width: 320, density: 1).map {
+                SpectrumWaveModel.sample(
+                    normalizedX: $0.normalizedX, rayIndex: $0.index, phase: phase,
+                    primaryCenter: standsStill, intensity: SpectrumRhythm.motionIntensityDefault
+                ).heightFraction
+            }
+        }
+        let early = shape(at: 0)
+        let late = shape(at: 0.5)
+        let moved = zip(early, late).filter { abs($0 - $1) > 0.05 }.count
+        XCTAssertGreaterThan(moved, early.count / 3,
+                             "with the traveller off, the ray wave itself must still be visible")
+    }
 
-        GlassSpectrumRenderer.update(
-            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
-            running: true, cycle: cycle, restart: false
+    func test_crestTravelsAcrossTheLane_andWrapsWithoutAJump() {
+        let start = SpectrumWaveModel.primaryCrestCenter(at: 0, travels: true, travelsTowardRight: true)
+        let middle = SpectrumWaveModel.primaryCrestCenter(at: 0.5, travels: true, travelsTowardRight: true)
+        let end = SpectrumWaveModel.primaryCrestCenter(at: 0.999, travels: true, travelsTowardRight: true)
+        XCTAssertLessThan(start, 0, "the crest starts off the leading edge")
+        XCTAssertGreaterThan(end, 1, "the crest leaves the trailing edge")
+        XCTAssertEqual(middle, 0.5, accuracy: 0.02)
+        XCTAssertLessThan(abs(end - start), 1.6, "the loop closes without a wrap jump")
+    }
+
+    func test_leftwardLane_mirrorsTheTravel() {
+        // At t=0 the primary crest is parked off the leading edge of the lane
+        // (off-screen), at t=0.5 it is exactly at the lane centre and at t=1 it
+        // has run off the trailing edge — for both growth directions.
+        for forward in [true, false] {
+            let start = SpectrumWaveModel.primaryCrestCenter(at: 0.001, travels: true, travelsTowardRight: forward)
+            let middle = SpectrumWaveModel.primaryCrestCenter(at: 0.5, travels: true, travelsTowardRight: forward)
+            let end = SpectrumWaveModel.primaryCrestCenter(at: 0.999, travels: true, travelsTowardRight: forward)
+            XCTAssertEqual(middle, 0.5, accuracy: 0.001, "forward: \(forward)")
+            XCTAssertEqual(abs(start - middle), abs(end - middle), accuracy: 0.02,
+                           "the crest sweeps symmetric distances on both sides")
+            XCTAssertEqual((end - start) > 0, forward,
+                           "a rightward lane travels right; a leftward lane travels left")
+        }
+    }
+
+    func test_crestKernel_isWideAndFadesSmoothly() {
+        let centre = SpectrumWaveModel.focus(normalizedX: 0.5, crestCenter: 0.5)
+        XCTAssertEqual(centre, 1, accuracy: 0.0001)
+        let shoulder = SpectrumWaveModel.focus(normalizedX: 0.5, crestCenter: 0.5 + SpectrumWaveModel.focusSigmaFraction)
+        XCTAssertEqual(shoulder, exp(-1), accuracy: 0.001)
+        let far = SpectrumWaveModel.focus(normalizedX: 0.5, crestCenter: 0.9)
+        XCTAssertLessThan(far, 0.02, "the light must not wash the whole lane")
+    }
+
+    func test_intensity_scalesTheWaveNotTheBase() {
+        let phase = 0.3
+        let centre = SpectrumWaveModel.primaryCrestCenter(at: phase, travels: true, travelsTowardRight: true)
+        let low = SpectrumWaveModel.sample(normalizedX: 0.2, rayIndex: 4, phase: phase,
+                                           primaryCenter: centre, intensity: 0.30)
+        let high = SpectrumWaveModel.sample(normalizedX: 0.2, rayIndex: 4, phase: phase,
+                                           primaryCenter: centre, intensity: 1.0)
+        XCTAssertGreaterThan(high.heightFraction, low.heightFraction)
+        XCTAssertGreaterThan(high.alpha, low.alpha)
+        XCTAssertGreaterThanOrEqual(low.alpha, SpectrumWaveModel.baseAlpha)
+        XCTAssertLessThanOrEqual(high.alpha, SpectrumWaveModel.alphaCeiling,
+                                 "even full strength must not wash the curtain to white")
+        XCTAssertLessThanOrEqual(high.heightFraction, SpectrumWaveModel.tallestHeightFraction)
+    }
+
+    func test_heightStaysBounded_soTheWaveNeverInverts() {
+        for index in 0..<64 {
+            for phase in stride(from: 0.0, to: 1.0, by: 0.05) {
+                let sample = SpectrumWaveModel.sample(
+                    normalizedX: Double(index) / 64, rayIndex: index, phase: phase,
+                    primaryCenter: phase, intensity: SpectrumRhythm.motionIntensityDefault
+                )
+                XCTAssertGreaterThanOrEqual(sample.heightFraction, SpectrumWaveModel.shortestHeightFraction)
+                XCTAssertLessThanOrEqual(sample.heightFraction, SpectrumWaveModel.tallestHeightFraction)
+                XCTAssertGreaterThan(sample.alpha, 0)
+                XCTAssertLessThan(sample.alpha, 1)
+            }
+        }
+    }
+
+    func test_phaseLoopsSeamlessly() {
+        // The wave is periodic over one turn, so the last frame of a sequence
+        // joins the first without a jump.
+        for rayIndex in 0..<12 {
+            let start = SpectrumWaveModel.waveValue(normalizedX: Double(rayIndex) / 12, rayIndex: rayIndex, phase: 0)
+            let end = SpectrumWaveModel.waveValue(normalizedX: Double(rayIndex) / 12, rayIndex: rayIndex, phase: 1)
+            XCTAssertEqual(start, end, accuracy: 0.0001)
+        }
+    }
+
+    // MARK: - Frames and caching
+
+    func test_frameSequence_hasEnoughFrames_atTheReferenceCadence() {
+        XCTAssertGreaterThanOrEqual(
+            GlassSpectrumRenderer.framesPerCycle(width: 320, height: 30, scale: 2),
+            GlassSpectrumRenderer.minimumFramesPerCycle
         )
-        XCTAssertFalse(field.isHidden)
-        XCTAssertNotNil(field.animation(forKey: "fieldTravel"))
-        XCTAssertNotNil(mask.animation(forKey: "peakTravel"), "re-enabling restores the shared timeline")
+        // A half-width, half-height lane can afford the full frame count.
+        XCTAssertEqual(GlassSpectrumRenderer.framesPerCycle(width: 320, height: 30, scale: 2),
+                       GlassSpectrumRenderer.maximumFramesPerCycle)
+        let wide = GlassSpectrumRenderer.framesPerCycle(width: 2048, height: 30, scale: 2)
+        XCTAssertGreaterThanOrEqual(wide, GlassSpectrumRenderer.minimumFramesPerCycle)
+        XCTAssertLessThanOrEqual(wide, GlassSpectrumRenderer.nominalFramesPerCycle)
+        let bytes = wide * GlassSpectrumRenderer.pixelByteCount(width: 2048, height: 30, scale: 2)
+        XCTAssertLessThanOrEqual(bytes, GlassSpectrumRenderer.maxSequenceBytes)
+    }
+
+    func test_frameIndex_mapsThePhaseOntoTheSequence() {
+        XCTAssertEqual(GlassSpectrumRenderer.frameIndex(forPhase: 0, frameCount: 16), 0)
+        XCTAssertEqual(GlassSpectrumRenderer.frameIndex(forPhase: 0.5, frameCount: 16), 8)
+        XCTAssertEqual(GlassSpectrumRenderer.frameIndex(forPhase: 0.999, frameCount: 16), 15)
+        XCTAssertEqual(GlassSpectrumRenderer.frameIndex(forPhase: -0.25, frameCount: 16), 12)
+    }
+
+    func test_sequenceIsCached_andRegeneratedOnlyWhenThePictureChanges() throws {
+        SpectrumFrameCache.reset()
+        defer { SpectrumFrameCache.reset() }
+        let renderSpec = spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320)
+        let lane = CALayer()
+        lane.frame = geometry.trackRect
+        lane.contentsScale = 2
+        GlassSpectrumRenderer.update(into: lane, spec: renderSpec, running: true, cycle: cycle, restart: true)
+        let first = try XCTUnwrap(curtain(in: try XCTUnwrap(root(of: lane))))
+        let firstImage = try XCTUnwrap(first.contents) as! CGImage
+
+        GlassSpectrumRenderer.update(into: lane, spec: renderSpec, running: true, cycle: cycle, restart: false)
+        XCTAssertTrue(try XCTUnwrap(first.contents) as! CGImage === firstImage,
+                      "the same spec must reuse the cached sequence")
+        XCTAssertEqual(SpectrumFrameCache.cachedSequenceCount, 1)
+
+        var other = renderSpec
+        other.waveIntensity = 0.9
+        GlassSpectrumRenderer.update(into: lane, spec: other, running: true, cycle: cycle, restart: true)
+        XCTAssertEqual(SpectrumFrameCache.cachedSequenceCount, 2,
+                       "a visual change must build a new sequence instead of staling")
+    }
+
+    func test_cacheBudget_isBoundedInBytes() throws {
+        SpectrumFrameCache.reset()
+        defer { SpectrumFrameCache.reset() }
+        var spec = spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 1024)
+        for step in 0..<40 {
+            spec.waveIntensity = 0.30 + Double(step % 20) * 0.03
+            let lane = CALayer()
+            lane.frame = spec.geometry.trackRect
+            lane.contentsScale = 2
+            GlassSpectrumRenderer.update(into: lane, spec: spec, running: true, cycle: cycle, restart: true)
+        }
+        XCTAssertLessThanOrEqual(SpectrumFrameCache.cachedByteCount, SpectrumFrameCache.byteLimit,
+                                 "the frame cache must stay inside its byte budget")
+        XCTAssertGreaterThan(SpectrumFrameCache.cachedSequenceCount, 0)
+    }
+
+    // MARK: - Offline phase frames
+
+    func test_phaseFrames_differAcrossPhases() throws {
+        let renderSpec = spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 320)
+        let frames: [CGImage] = try stride(from: 0.0, through: 0.75, by: 0.25).map { phase in
+            try XCTUnwrap(GlassSpectrumRenderer.frameImage(for: renderSpec, phase: phase))
+        }
+        XCTAssertEqual(frames.count, 4)
+        for (index, frame) in frames.enumerated() where index > 0 {
+            XCTAssertFalse(frames[index - 1] === frame)
+        }
+        // Phase 0 and phase 0.5 must differ by more than a stray pixel: compare
+        // the per-ray tip height of the frozen frames.
+        let tips = frames.map { rayTipHeights($0, rayCount: SpectrumWaveModel.rayCount(width: 320, density: 1)) }
+        let moved = zip(tips[0], tips[2]).filter { abs($0 - $1) > 2 }.count
+        XCTAssertGreaterThan(moved, tips[0].count / 3,
+                             "four phases must produce visibly different ray shapes")
+    }
+
+    /// Where each ray's ink starts, in pixels from the top of the frame.
+    private func rayTipHeights(_ image: CGImage, rayCount: Int) -> [Int] {
+        let rep = NSBitmapImageRep(cgImage: image)
+        return (0..<rayCount).map { index in
+            let x = Int((Double(index) + 0.5) / Double(rayCount) * Double(rep.pixelsWide))
+            for row in 0..<rep.pixelsHigh {
+                let lit = ((-1)...1).contains { offset in
+                    (rep.colorAt(x: min(rep.pixelsWide - 1, max(0, x + offset)), y: row)?.alphaComponent ?? 0) > 0.02
+                }
+                if lit { return row }
+            }
+            return rep.pixelsHigh
+        }
     }
 
     // MARK: - Quota clip at the real remaining length
@@ -340,7 +412,7 @@ final class GlassSpectrumRendererTests: XCTestCase {
         let clip = try XCTUnwrap(spectrum.mask)
         XCTAssertTrue(spectrum.mask === clip)
         XCTAssertEqual(clip.frame.width, 200, accuracy: 0.5,
-                       "a 50% outer window clips the peak material to half the lane")
+                       "a 50% outer window clips the curtain to half the lane")
         XCTAssertEqual(clip.frame.minX, 0, accuracy: 0.5)
         XCTAssertFalse(spectrum.sublayers?.contains { $0 === clip } ?? false)
     }
@@ -368,158 +440,78 @@ final class GlassSpectrumRendererTests: XCTestCase {
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        XCTAssertEqual(spectrum.mask?.frame, spectrum.bounds,
-                       "unknown keeps full neutral coverage instead of an exhausted zero mask")
+        XCTAssertEqual(try XCTUnwrap(spectrum.mask).frame.width, 400, accuracy: 0.5)
     }
 
     func test_quotaClipIdentity_isReusedAcrossUnknownAndValid() throws {
         let lane = CALayer()
-        lane.name = "lane"
         lane.frame = geometry.trackRect
-        let valid = spec(windows: [QuotaWindow(id: "w", label: "w", kind: .weekly, durationSeconds: 604800,
-                       remainingFraction: 0.82, resetAt: nil, expectedRemainingFraction: nil,
-                       updatedAt: nil, availability: .valid)],
-                         signal: ProviderVisualSignal(isRunning: true), trackWidth: 400)
-        var unknown = valid
-        unknown.windows = [QuotaWindow(id: "w", label: "w", kind: .weekly, durationSeconds: 604800,
-                        remainingFraction: nil, resetAt: nil, expectedRemainingFraction: nil,
-                        updatedAt: nil, availability: .unavailable)]
-        GlassSpectrumRenderer.update(into: lane, spec: valid, running: true, cycle: cycle, restart: true)
-        let spectrum = try XCTUnwrap(root(of: lane))
-        let firstClip = try XCTUnwrap(spectrum.mask)
-        GlassSpectrumRenderer.update(into: lane, spec: unknown, running: true, cycle: cycle, restart: false)
-        XCTAssertTrue(spectrum.mask === firstClip)
-        XCTAssertEqual(firstClip.frame, spectrum.bounds)
-        GlassSpectrumRenderer.update(into: lane, spec: valid, running: true, cycle: cycle, restart: false)
-        XCTAssertTrue(spectrum.mask === firstClip, "the mask layer is reused, not rebuilt")
-        XCTAssertFalse(spectrum.sublayers?.contains { $0 === firstClip } ?? false)
+        let unknown = spec(windows: [QuotaWindow(id: "w", label: "w", kind: .weekly, durationSeconds: 604800,
+                              remainingFraction: nil, resetAt: nil, expectedRemainingFraction: nil,
+                              updatedAt: nil, availability: .unavailable)],
+                           signal: ProviderVisualSignal(isRunning: true), trackWidth: 400)
+        GlassSpectrumRenderer.update(into: lane, spec: unknown, running: true, cycle: cycle, restart: true)
+        let clip = try XCTUnwrap(try XCTUnwrap(root(of: lane)).mask)
+        GlassSpectrumRenderer.update(
+            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true), trackWidth: 400),
+            running: true, cycle: cycle, restart: false
+        )
+        XCTAssertTrue(try XCTUnwrap(root(of: lane)).mask === clip,
+                      "a quota refresh must not rebuild (and flash) the clip")
     }
 
-    // MARK: - Colour still follows the signal
+    // MARK: - Colour priority and independence
 
-    func test_rayColour_followsTheAttentionPriority() throws {
-        func firstRayColor(_ attention: AttentionKind) throws -> RGBAColor {
+    func test_curtainColour_followsTheAttentionPriority() throws {
+        func components(_ kind: AttentionKind) throws -> [CGFloat] {
             let lane = GlassSpectrumRenderer.render(
-                spec(signal: ProviderVisualSignal(isRunning: true, attention: attention)),
+                spec(signal: ProviderVisualSignal(isRunning: true, attention: kind), trackWidth: 320),
                 running: true, cycle: cycle, restart: true
             )
             let spectrum = try XCTUnwrap(root(of: lane))
-            let field = try XCTUnwrap(fieldLayers(in: spectrum).first as? CAGradientLayer)
-            let colors = try XCTUnwrap(field.colors as? [CGColor])
-            let tint = try XCTUnwrap(colors.dropFirst().first { $0.alpha > 0 })
-            let components = tint.components ?? []
-            return RGBAColor(red: Double(components[0]), green: Double(components[1]),
-                             blue: Double(components[2]), alpha: Double(components[3]))
+            let frame = try XCTUnwrap(curtain(in: spectrum)?.contents) as! CGImage
+            let rep = NSBitmapImageRep(cgImage: frame)
+            let pixel = try XCTUnwrap(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2))
+            let rgb = pixel.usingColorSpace(.deviceRGB) ?? .clear
+            return [rgb.redComponent, rgb.greenComponent, rgb.blueComponent]
         }
-        let running = try firstRayColor(.none)
-        let error = try firstRayColor(.error)
-        let waiting = try firstRayColor(.waiting)
-        let unread = try firstRayColor(.unread)
-        XCTAssertNotEqual(running, error)
-        XCTAssertEqual(error.red, GlassDefaults.signalLights.error.red, accuracy: 0.01)
-        XCTAssertEqual(waiting.red, GlassDefaults.signalLights.waiting.red, accuracy: 0.01)
-        XCTAssertEqual(unread.green, GlassDefaults.signalLights.unread.green, accuracy: 0.01)
+        let waiting = try components(.waiting)
+        let error = try components(.error)
+        XCTAssertGreaterThan(error[0], error[1], "error wears the red light")
+        XCTAssertGreaterThan(waiting[0], waiting[2], "waiting wears the amber light")
+        XCTAssertNotEqual(error, waiting)
     }
 
-    func test_providerAgentTheme_doesNotColourTheRunningLight() throws {
-        var purple = ResolvedGlassTheme.default(providerId: "codex")
-        purple.agentThemeColor = RGBAColor(red: 0.6, green: 0.3, blue: 1.0)
+    func test_providerAgentTheme_doesNotColourTheCurtain() throws {
+        var themed = ResolvedGlassTheme.default(providerId: "codex")
+        themed.agentThemeColor = RGBAColor(red: 1, green: 0, blue: 1)
         let lane = GlassSpectrumRenderer.render(
-            spec(glass: purple, signal: ProviderVisualSignal(isRunning: true)),
+            spec(glass: themed, signal: ProviderVisualSignal(isRunning: true), trackWidth: 320),
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        let field = try XCTUnwrap(fieldLayers(in: spectrum).first as? CAGradientLayer)
-        let colors = try XCTUnwrap(field.colors as? [CGColor])
-        let tint = try XCTUnwrap(colors.dropFirst().first { $0.alpha > 0 })
-        let components = tint.components ?? []
-        XCTAssertEqual(Double(components[2]), GlassDefaults.signalLights.running.blue, accuracy: 0.02)
+        let frame = try XCTUnwrap(curtain(in: spectrum)?.contents) as! CGImage
+        let rep = NSBitmapImageRep(cgImage: frame)
+        let pixel = try XCTUnwrap(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2))
+        let rgb = pixel.usingColorSpace(.deviceRGB) ?? .clear
+        XCTAssertGreaterThan(rgb.blueComponent, rgb.greenComponent,
+                             "the curtain keeps the running signal light, not the provider glow")
+        XCTAssertGreaterThan(rgb.blueComponent, rgb.redComponent)
     }
 
-    // MARK: - Stop / Reduce Motion
+    // MARK: - Phase carry
 
-    func test_notRunning_hidesTheCurtainAndStopsEverything() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: false)),
-            running: false, cycle: cycle, restart: false
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        XCTAssertTrue(spectrum.isHidden)
-        for layer in spectrum.sublayers ?? [] {
-            XCTAssertNil(layer.animation(forKey: "rayBreath"))
-            XCTAssertNil(layer.animation(forKey: "peakBreath"))
-            XCTAssertNil(layer.animation(forKey: "peakTravel"))
-            XCTAssertNil(layer.animation(forKey: "fieldTravel"))
-            XCTAssertNil(layer.mask?.animation(forKey: "peakTravel"))
-        }
+    func test_phaseCarry_survivesADurationChange() {
+        let animation = CABasicAnimation(keyPath: "contents")
+        animation.duration = 2
+        animation.beginTime = 100
+        animation.timeOffset = 0.5
+        let carry = GlassSpectrumRenderer.phaseCarry(from: animation, now: 100.5)
+        XCTAssertEqual(carry, 0.5, accuracy: 0.001,
+                       "re-timing a live slider drag must continue from the current phase")
     }
 
-    func test_reduceMotion_drawsAStaticCurtain() throws {
-        let lane = GlassSpectrumRenderer.render(
-            spec(signal: ProviderVisualSignal(isRunning: true), reduceMotion: true),
-            running: true, cycle: cycle, restart: true
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        XCTAssertFalse(spectrum.isHidden, "the state stays visible, only the motion goes")
-        for layer in spectrum.sublayers ?? [] {
-            XCTAssertNil(layer.animation(forKey: "rayBreath"))
-            XCTAssertNil(layer.animation(forKey: "peakBreath"))
-            XCTAssertNil(layer.animation(forKey: "peakTravel"))
-            XCTAssertNil(layer.animation(forKey: "fieldTravel"))
-            XCTAssertNil(layer.mask?.animation(forKey: "peakTravel"))
-        }
-    }
-
-    func test_repeatedIdenticalRender_doesNotRestartAnimations() throws {
-        let lane = CALayer()
-        lane.frame = geometry.trackRect
-        let spec = spec(signal: ProviderVisualSignal(isRunning: true))
-        for _ in 0..<5 {
-            GlassSpectrumRenderer.update(into: lane, spec: spec, running: true, cycle: cycle, restart: false)
-        }
-        let spectrum = try XCTUnwrap(root(of: lane))
-        XCTAssertEqual(bedLayers(in: spectrum).count, 3)
-        XCTAssertEqual(peakLayers(in: spectrum).count, 3)
-        for peak in peakLayers(in: spectrum) {
-            XCTAssertNotNil(peak.animation(forKey: "peakBreath"))
-            let mask = try XCTUnwrap(peak.mask as? CAGradientLayer)
-            XCTAssertNotNil(mask.animation(forKey: "peakTravel"))
-        }
-    }
-
-    func test_continuousIds_modelPreservesLayerIdentity_andReusesMasks() throws {
-        let lane = CALayer()
-        lane.frame = geometry.trackRect
-        let spec = spec(signal: ProviderVisualSignal(isRunning: true))
-        GlassSpectrumRenderer.update(into: lane, spec: spec, running: true, cycle: cycle, restart: true)
-        let spectrum = try XCTUnwrap(root(of: lane))
-        let peak = try XCTUnwrap(peakLayers(in: spectrum).first)
-        let mask = try XCTUnwrap(peak.mask)
-        GlassSpectrumRenderer.update(into: lane, spec: spec, running: true, cycle: cycle, restart: true)
-        XCTAssertTrue(peakLayers(in: spectrum).first === peak)
-        XCTAssertTrue(peakLayers(in: spectrum).first?.mask === mask)
-    }
-
-    func test_curtainStandsOnAStaticDarkScrim() throws {
-        let lane = CALayer()
-        lane.frame = geometry.trackRect
-        GlassSpectrumRenderer.update(
-            into: lane, spec: spec(signal: ProviderVisualSignal(isRunning: true)),
-            running: true, cycle: cycle, restart: true
-        )
-        let spectrum = try XCTUnwrap(root(of: lane))
-        let scrim = try XCTUnwrap(spectrum.sublayers?.first as? CAGradientLayer, "the bed is the bottom layer")
-        XCTAssertEqual(scrim.name, "scrim")
-        XCTAssertNil(scrim.animation(forKey: "rayBreath"))
-        XCTAssertNil(scrim.animation(forKey: "fieldTravel"))
-        let alphas = (scrim.colors as? [CGColor])?.map { $0.alpha } ?? []
-        XCTAssertEqual(alphas.first, 0, "the bed fades out upward")
-        XCTAssertGreaterThan(alphas.last ?? 0, 0.2, "the bed has to be dark enough to hold the light")
-    }
-}
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
+    func test_phaseCarry_isZeroWithoutAPreviousTimeline() {
+        XCTAssertEqual(GlassSpectrumRenderer.phaseCarry(from: nil, now: 100), 0)
     }
 }
