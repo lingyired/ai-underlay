@@ -36,15 +36,43 @@ public enum SpectrumWaveModel {
     /// in V5's terms.
     public static let focusRadiusFraction: Double = 0.28
     public static let focusSigmaFraction: Double = focusRadiusFraction * 0.56
+    /// V5 caps the crest radius in *points*: `radius = min(w * 0.28, 205)`.
+    /// Without the cap a 960 pt lane spreads its light over 269 pt, so the
+    /// "local" crest stopped being local — and it dimmed as the lane grew,
+    /// because the same energy was spread further. The cap restores the lab's
+    /// picture: on wide lanes the crest keeps a constant physical width.
+    public static let maximumFocusRadius: Double = 205
+
+    /// The crest radius a lane actually uses, in points.
+    public static func focusRadius(forWidth width: Double) -> Double {
+        min(width * focusRadiusFraction, maximumFocusRadius)
+    }
+
+    /// The same radius as a fraction of the lane, for the normalised kernel.
+    public static func focusSigmaFraction(forWidth width: Double) -> Double {
+        guard width > 0 else { return focusSigmaFraction }
+        return (focusRadius(forWidth: width) / width) * 0.56
+    }
 
     /// The two waves travel in opposite directions and at different spatial
     /// frequencies, so neighbouring rays never move as one block.
     public static let waveASpatialCycles: Double = 2.05
     public static let waveBSpatialCycles: Double = 1.20
-    /// Wave B runs twice per turn, wave A once; both are integers so the frame
-    /// sequence closes without a seam.
+    /// Turns per loop. Both are integers so the frame sequence closes without
+    /// a seam.
+    ///
+    /// The V5 lab runs wave A at `1.25` and wave B at `0.82` turns per cycle,
+    /// which is *not* integer — its two waves drift across the lane at 0.61
+    /// and 0.68 lane-widths per cycle (one right, one left). The earlier
+    /// integer choice here (`1` and `2`) sent wave B at 1.67 lane-widths per
+    /// cycle: 2.4× the lab, and the reason the curtain read as "too fast /
+    /// flickering" rather than as a slow travelling wave. `1` and `1` with the
+    /// lab's spatial frequencies gives drifts of 0.49 and 0.83 — a total
+    /// relative drift of 1.32 against the lab's 1.29, the closest a
+    /// single-loop-closing integer pair can get. Drift, not the raw turn
+    /// count, is what the eye reads as wave speed.
     public static let waveATurnsPerLoop: Double = 1
-    public static let waveBTurnsPerLoop: Double = 2
+    public static let waveBTurnsPerLoop: Double = 1
     public static let waveAMix: Double = 0.61
     public static let waveBMix: Double = 0.39
     /// Deterministic per-ray phase offsets — the reason a whole group is never
@@ -53,22 +81,43 @@ public enum SpectrumWaveModel {
     public static let rayPhaseB: Double = 0.27
 
     /// Height budget: every ray keeps a visible base, the wave adds the rest.
-    public static let baseHeightFraction: Double = 0.20
-    public static let crestHeight: Double = 0.46
-    public static let focusHeight: Double = 0.30
+    /// V5's Aurora numbers are `0.22 + 0.52·crest + 0.28·focused`.
+    public static let baseHeightFraction: Double = 0.22
+    public static let crestHeight: Double = 0.52
+    public static let focusHeight: Double = 0.28
     public static let shortestHeightFraction: Double = 0.10
     public static let tallestHeightFraction: Double = 0.96
 
     /// Visibility budget: a dark ray stays readable but never becomes a fence.
-    public static let baseAlpha: Double = 0.14
+    ///
+    /// V5's Aurora base is `0.22`; we hold it at `0.17`. The lab draws over
+    /// its own dark wallpaper, while our lane sits over the *system* menu bar's
+    /// bright material, where a 0.22 wash across every ray is what the earlier
+    /// "发光栅栏" complaint was about. The deliberate −0.05 keeps the crest
+    /// contrast of the lab without re-introducing that fence.
+    public static let baseAlpha: Double = 0.17
     public static let crestAlpha: Double = 0.28
-    public static let focusAlpha: Double = 0.45
-    public static let alphaCeiling: Double = 0.88
+    public static let focusAlpha: Double = 0.42
+    public static let alphaCeiling: Double = 0.94
 
     /// How far past each edge the travelling crest runs before it re-enters,
-    /// as a fraction of the lane. Wide enough that the light is fully off-lane
-    /// at the loop seam.
-    public static let travelLeadFraction: Double = 0.25
+    /// as a fraction of the lane.
+    ///
+    /// Zero: the crest advances exactly **one lap per cycle** and re-enters
+    /// through the same edge it left, because `focus` measures distance around
+    /// the lane rather than across it — the light field is periodic in cursor
+    /// position, so passing the edge is continuous, not a jump.
+    ///
+    /// V5 moves its cursor 0.78 lane-widths per cycle, ours now moves 1.00.
+    /// The old value (`0.25`, i.e. 1.5 laps per cycle) was 1.9× the lab *and*
+    /// it left the lane entirely at both ends: measured on the 24-frame
+    /// sequence, the last step changed the picture 2.25× more than a normal
+    /// step — a visible hitch once per cycle. A one-lap span removes that
+    /// spike, halves the per-frame travel (0.042 vs 0.063 lane), and is the
+    /// closest a loop-closing span can get to the lab's 0.78. Matching 0.78
+    /// exactly would need a 4-cycle supercycle (4.4–5.8 fps at the frame
+    /// budget), which reads as stepping rather than flowing.
+    public static let travelLeadFraction: Double = 0
     /// V5's secondary reflection is weaker and narrower than the main crest.
     public static let secondaryWeight: Double = 0.29
     public static let secondaryRadiusFraction: Double = focusRadiusFraction * 0.66
@@ -140,10 +189,11 @@ public enum SpectrumWaveModel {
         rayIndex: Int,
         phase: Double,
         primaryCenter: Double,
-        intensity: Double
+        intensity: Double,
+        width: Double = 0
     ) -> SpectrumWaveSample {
         let wave = waveValue(normalizedX: normalizedX, rayIndex: rayIndex, phase: phase)
-        let focus = focus(normalizedX: normalizedX, crestCenter: primaryCenter)
+        let focus = focus(normalizedX: normalizedX, crestCenter: primaryCenter, width: width)
         let scale = SpectrumRhythm.waveAmplitudeScale(intensity)
 
         let height = baseHeightFraction + scale * (crestHeight * wave + focusHeight * focus)
@@ -172,10 +222,14 @@ public enum SpectrumWaveModel {
 
     /// The local crest kernel, 0…1. Distances wrap around the lane so the
     /// light re-entering one edge matches the light leaving the other.
-    public static func focus(normalizedX: Double, crestCenter: Double) -> Double {
+    ///
+    /// `width` is the lane width in points and enables V5's `min(w·0.28, 205)`
+    /// radius cap. Passing `0` keeps the un-capped fraction, which is what the
+    /// pure-math tests use.
+    public static func focus(normalizedX: Double, crestCenter: Double, width: Double = 0) -> Double {
         let distance = abs(normalizedX - crestCenter)
         let wrapped = min(distance, 1 - distance)
-        let sigma = focusSigmaFraction
+        let sigma = width > 0 ? focusSigmaFraction(forWidth: width) : focusSigmaFraction
         guard sigma > 0 else { return 0 }
         return exp(-pow(wrapped / sigma, 2))
     }

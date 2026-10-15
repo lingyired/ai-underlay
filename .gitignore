@@ -22,3 +22,6 @@ fastlane/screenshots/**/*.png
 
 # xcodegen output
 AIUnderlay.xcodeproj/xcuserdata/
+
+# Local tool caches
+__pycache__/

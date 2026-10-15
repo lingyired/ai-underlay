@@ -227,16 +227,24 @@ final class GlassSpectrumRendererTests: XCTestCase {
         let start = SpectrumWaveModel.primaryCrestCenter(at: 0, travels: true, travelsTowardRight: true)
         let middle = SpectrumWaveModel.primaryCrestCenter(at: 0.5, travels: true, travelsTowardRight: true)
         let end = SpectrumWaveModel.primaryCrestCenter(at: 0.999, travels: true, travelsTowardRight: true)
-        XCTAssertLessThan(start, 0, "the crest starts off the leading edge")
-        XCTAssertGreaterThan(end, 1, "the crest leaves the trailing edge")
+        XCTAssertEqual(start, 0, accuracy: 0.001, "one lap per cycle starts at the leading edge")
+        XCTAssertGreaterThan(end, 0.99, "the crest reaches the trailing edge")
         XCTAssertEqual(middle, 0.5, accuracy: 0.02)
-        XCTAssertLessThan(abs(end - start), 1.6, "the loop closes without a wrap jump")
+        // The focus kernel measures distance *around* the lane, so the light
+        // field is periodic: leaving one edge is the same picture as entering
+        // it. The span is exactly one lap, which is what removes the seam, and
+        // the wrap itself is continuous because phase 1 terminates at 0.
+        let lapEnd = SpectrumWaveModel.primaryCrestCenter(at: 0.9999, travels: true, travelsTowardRight: true)
+        XCTAssertEqual(lapEnd, 0.9999, accuracy: 0.001, "one lap per cycle, no off-lane lead")
+        XCTAssertEqual(SpectrumWaveModel.primaryCrestCenter(at: 1, travels: true, travelsTowardRight: true),
+                       start, accuracy: 0.001, "the lap closes exactly on the start")
+        XCTAssertEqual(SpectrumWaveModel.travelLeadFraction, 0, accuracy: 0.0001)
     }
 
     func test_leftwardLane_mirrorsTheTravel() {
-        // At t=0 the primary crest is parked off the leading edge of the lane
-        // (off-screen), at t=0.5 it is exactly at the lane centre and at t=1 it
-        // has run off the trailing edge — for both growth directions.
+        // At t=0 the primary crest enters at the leading edge, at t=0.5 it is
+        // exactly at the lane centre and at t=1 it has reached the trailing
+        // edge — for both growth directions.
         for forward in [true, false] {
             let start = SpectrumWaveModel.primaryCrestCenter(at: 0.001, travels: true, travelsTowardRight: forward)
             let middle = SpectrumWaveModel.primaryCrestCenter(at: 0.5, travels: true, travelsTowardRight: forward)
@@ -244,6 +252,13 @@ final class GlassSpectrumRendererTests: XCTestCase {
             XCTAssertEqual(middle, 0.5, accuracy: 0.001, "forward: \(forward)")
             XCTAssertEqual(abs(start - middle), abs(end - middle), accuracy: 0.02,
                            "the crest sweeps symmetric distances on both sides")
+            if forward {
+                XCTAssertLessThan(start, middle, "a rightward lane starts behind the centre")
+                XCTAssertGreaterThan(end, middle, "a rightward lane ends beyond the centre")
+            } else {
+                XCTAssertGreaterThan(start, middle, "a leftward lane starts past the centre")
+                XCTAssertLessThan(end, middle, "a leftward lane ends before the centre")
+            }
             XCTAssertEqual((end - start) > 0, forward,
                            "a rightward lane travels right; a leftward lane travels left")
         }
@@ -256,6 +271,44 @@ final class GlassSpectrumRendererTests: XCTestCase {
         XCTAssertEqual(shoulder, exp(-1), accuracy: 0.001)
         let far = SpectrumWaveModel.focus(normalizedX: 0.5, crestCenter: 0.9)
         XCTAssertLessThan(far, 0.02, "the light must not wash the whole lane")
+    }
+
+    /// V5 caps the crest radius at 205 pt (`radius = min(w·0.28, 205)`). The
+    /// cap is what keeps the bright crest *local* on a wide single-bar lane:
+    /// without it the kernel grows with the lane and the light spreads until
+    /// there is no focus left.
+    func test_crestRadius_isCappedAtV5sMaximum_onWideLanes() {
+        XCTAssertEqual(SpectrumWaveModel.focusRadius(forWidth: 480), 134.4, accuracy: 0.01)
+        XCTAssertEqual(SpectrumWaveModel.focusRadius(forWidth: 1000), 205, accuracy: 0.01,
+                       "a wide lane must not spread its crest past V5's 205 pt cap")
+        XCTAssertEqual(SpectrumWaveModel.focusRadius(forWidth: 4000), 205, accuracy: 0.01)
+
+        // The capped kernel must still peak at the crest and fade at the lane
+        // edges — a cap that flattened the kernel would be worse than none.
+        let atCrest = SpectrumWaveModel.focus(normalizedX: 0.5, crestCenter: 0.5, width: 1000)
+        XCTAssertEqual(atCrest, 1, accuracy: 0.0001)
+        let quarterLaneAway = SpectrumWaveModel.focus(normalizedX: 0.75, crestCenter: 0.5, width: 1000)
+        XCTAssertLessThan(quarterLaneAway, 0.05, "205 pt on a 1000 pt lane is still a local crest")
+    }
+
+    /// The lab's two waves drift across the lane at 0.61 and 0.68 lane-widths
+    /// per cycle. Drift — turns divided by spatial frequency — is what the eye
+    /// reads as wave speed, and the earlier `waveBTurnsPerLoop = 2` sent wave B
+    /// at 1.67 lane-widths per cycle: 2.4× the lab, which is the "too fast"
+    /// artefact this pass fixes. Both turns must stay integers so the cached
+    /// frame sequence still closes without a seam.
+    func test_waveDrift_matchesTheV5Lab_withoutBreakingTheLoop() {
+        let driftA = SpectrumWaveModel.waveATurnsPerLoop / SpectrumWaveModel.waveASpatialCycles
+        let driftB = SpectrumWaveModel.waveBTurnsPerLoop / SpectrumWaveModel.waveBSpatialCycles
+        XCTAssertEqual(driftA, 0.49, accuracy: 0.02)
+        XCTAssertEqual(driftB, 0.83, accuracy: 0.03)
+        // V5's own relative drift is 0.61 + 0.68 = 1.29.
+        XCTAssertEqual(driftA + driftB, 1.29, accuracy: 0.12,
+                       "the combined wave speed is what the eye reads; it must stay near the lab")
+        for turns in [SpectrumWaveModel.waveATurnsPerLoop, SpectrumWaveModel.waveBTurnsPerLoop] {
+            XCTAssertEqual(turns, turns.rounded(), accuracy: 0.0001,
+                           "a non-integer turn count would leave a seam in the frame loop")
+        }
     }
 
     func test_intensity_scalesTheWaveNotTheBase() {

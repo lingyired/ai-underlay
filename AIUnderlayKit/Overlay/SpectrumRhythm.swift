@@ -12,9 +12,16 @@ public enum SpectrumRhythm {
     /// and since speed is usually unmeasured, this floor is the tempo the
     /// spectrum actually shows.
     ///
-    /// 0.70 Hz ≈ 1.4 s per cycle. The V5 lab's own cadence is roughly 1.4 s,
-    /// and the previous 0.34 Hz (2.9 s) read as "almost static" in the menu
-    /// bar: a first glance could not tell a running agent from an idle one.
+    /// 0.70 Hz ≈ 1.4 s per cycle. The previous 0.34 Hz (2.9 s) read as "almost
+    /// static" in the menu bar: a first glance could not tell a running agent
+    /// from an idle one, so the tempo became user-tunable.
+    ///
+    /// The lab does not run at 1.4 s: its speed slider feeds
+    /// `hz = .18 + .44 * sqrt(speed/100)`, so the selected speed 48 is
+    /// `0.485 Hz` (2.06 s) and even speed 100 is only `0.62 Hz`. An earlier
+    /// comment here claimed the lab's cadence was roughly 1.4 s; that number
+    /// is not in the source. Shape fidelity is matched against the lab at
+    /// normalised phases, while the tempo stays a user setting.
     public static let floorFrequencyHz: Double = 0.70
     /// Fastest rhythm, reached at `referenceTPS` and above.
     public static let ceilingFrequencyHz: Double = 1.10

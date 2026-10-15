@@ -463,7 +463,7 @@ enum SpectrumFrameRasteriser {
         let secondary = SpectrumWaveModel.secondaryCrestCenter(
             at: phase, travels: travels, travelsTowardRight: growsTowardRight
         )
-        let radius = SpectrumWaveModel.focusRadiusFraction * Double(width)
+        let radius = SpectrumWaveModel.focusRadius(forWidth: Double(width))
 
         // The travelling light field caught by the frosted panel. Drawn
         // additively, like the lab's `screen` pass, so it lifts the glass
@@ -484,7 +484,7 @@ enum SpectrumFrameRasteriser {
         for ray in SpectrumWaveModel.rays(width: Double(width), density: density) {
             let sample = SpectrumWaveModel.sample(
                 normalizedX: ray.normalizedX, rayIndex: ray.index, phase: phase,
-                primaryCenter: primary, intensity: intensity
+                primaryCenter: primary, intensity: intensity, width: Double(width)
             )
             let rayHeight = height * CGFloat(sample.heightFraction)
             let x = CGFloat(ray.normalizedX) * width
@@ -506,8 +506,13 @@ enum SpectrumFrameRasteriser {
         let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: [
-                color.withAlpha(0.22 * weight).cgColor,
-                color.withAlpha(0.10 * weight).cgColor,
+                // V5 Aurora's stops. The Acrylic scene uses 0.22 / 0.10; the
+                // selected material is Aurora, whose light field is brighter
+                // (0.28 / 0.14) because its whole panel is meant to catch the
+                // crest. Using the Acrylic pair here is why the travelling
+                // field looked weak next to the lab.
+                color.withAlpha(0.28 * weight).cgColor,
+                color.withAlpha(0.14 * weight).cgColor,
                 color.withAlpha(0).cgColor,
             ] as CFArray,
             locations: [0, 0.34, 1]
@@ -601,13 +606,23 @@ enum RaySpriteCache {
                 locations: [0, 0.18, 0.64, 1]
             )
         case .core:
-            // Tip → base: a white-hot centre that whitens where it meets the strip.
+            // Tip → base: a white-hot centre that whitens where it meets the
+            // strip. V5's stops are `rgba(255,255,255,0)` → `rgba(tint,.42)`
+            // → `rgba(#f5faff, min(.90, alpha·.76))`; because the whole sprite
+            // is stamped at `setAlpha(sample.alpha)`, the native stops below
+            // are already that same effective ramp — the base is a fixed
+            // near-white whose *coverage* is what scales with the sample.
+            //
+            // The "glowing white column" look the fidelity pass set out to fix
+            // is therefore not a wrong base colour: it is the halo being too
+            // dim around a correct core. Raise the curtain's body (see
+            // `SpectrumWaveModel.baseAlpha`) rather than tinting the core.
             gradient = CGGradient(
                 colorsSpace: CGColorSpaceCreateDeviceRGB(),
                 colors: [
                     CGColor(red: 1, green: 1, blue: 1, alpha: 0),
                     color.withAlpha(0.42).cgColor,
-                    CGColor(red: 0.96, green: 0.98, blue: 1, alpha: 0.76),
+                    CGColor(red: 0xf5 / 255, green: 0xfa / 255, blue: 1, alpha: 0.76),
                 ] as CFArray,
                 locations: [0, 0.5, 1]
             )
