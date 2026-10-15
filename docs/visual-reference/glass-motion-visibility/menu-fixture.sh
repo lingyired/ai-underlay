@@ -87,8 +87,11 @@ with open(dst, "w") as fh:
 PY
 }
 
+# Any running copy has to go, not just this bundle: the app refuses to start
+# when another instance of the same bundle identifier is already running, which
+# would silently make a benchmark measure nothing (or the wrong build).
 kill_app() {
-  pkill -f "$APP/Contents/MacOS/AIUnderlay" >/dev/null 2>&1 || true
+  pkill -f "AIUnderlay.app/Contents/MacOS/AIUnderlay" >/dev/null 2>&1 || true
   sleep 1
 }
 

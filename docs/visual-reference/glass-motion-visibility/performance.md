@@ -29,10 +29,33 @@ lane; Core Animation swaps frames in the render server, so the app performs no
 per-frame CPU work and runs no timer. The previous design kept 8–10 animated
 transform/mask layers per lane.
 
-Not yet measured: matched-fixture CPU/RSS/GPU/WindowServer deltas against the
-fidelity-fix build, and long-run cache behaviour on a real multi-display setup.
-The capture machine was locked, so no live menu-bar recording accompanies this
-pass yet.
+## Matched-fixture CPU/RSS against the fidelity-fix baseline
+
+Same machine, same display, same fixture (`bench-running` = `agentRunning`,
+travelling light on, 0.70 Hz for the new build / 0.34 Hz floor for the old one),
+45 one-second samples of the app process via `ps`, run through
+`bench.sh`:
+
+```bash
+docs/visual-reference/glass-motion-visibility/bench.sh build/glass-motion/bench-new 45 bench-running
+AIUNDERLAY_APP=/Users/lingsmbp/.codex/worktrees/glass-motion-baseline/ai-underlay/build/DerivedData/Build/Products/Debug/AIUnderlay.app \
+  docs/visual-reference/glass-motion-visibility/bench.sh build/glass-motion/bench-baseline 45 bench-running
+```
+
+| Build | CPU mean | CPU p95 | CPU max | RSS mean | RSS max |
+|---|---:|---:|---:|---:|---:|
+| fidelity-fix baseline (`5040f53`) | 0.09 % | 0.70 % | 1.10 % | 129.8 MiB | 130.0 MiB |
+| this branch (`2828899`) | 0.13 % | 0.60 % | 2.60 % | 158.1 MiB | 158.2 MiB |
+
+Reading: steady-state CPU is unchanged in practice (both designs let the render
+server play the animation; the app does no per-frame work). RSS is **+28 MiB**,
+which is the price of the phase-sequence bitmaps — the new design caches 24
+frames per lane instead of three static textures. The cache is capped at 16 MiB
+of bitmap bytes by test (`test_cacheBudget_isBoundedInBytes`), so the delta is
+bounded, not open-ended.
+
+Not measured: attributed GPU/WindowServer cost, long-run cache behaviour on a
+real multi-display setup, and wakeups.
 
 ## Timeline correctness (a cadence fact, not a performance number)
 
