@@ -198,6 +198,55 @@ would be ≥250.
 | White theme (`#ffffff`, Claude) | the legibility ceiling resolves to 0.55 before the tint layers are multiplied, so a white theme cannot wash the menu text: measured inner 133,108,95 at softness 17 with the copper palette underneath |
 | Stacked-layer order | bed → fills → tint clip → caps; the tint is clipped to the real outer fill length, so a 0 % lane keeps black and an unknown lane keeps its neutral groove |
 
+
+## Phase D: live menu-bar capture (finally taken)
+
+The display unlocked at 15:08 on 2026-10-16, so the missing capture exists
+after all. The running app was PID 28292, launched at 14:50 from
+`build/DerivedData/Build/Products/Debug/AIUnderlay.app` — the `c662038` build.
+Capture method is `screencapture -x -D1 -v` (real WindowServer compositing, no
+`CALayer.render(in:)` involved).
+
+| Evidence | Path |
+| --- | --- |
+| Full 2048pt bar, 2x, 60 device rows | `live/live-c662038-full-bar.png` |
+| Four frames 0.45 s apart, left 600 pt | `live/live-c662038-motion-contact.png` |
+| 6.81 s recording, 57.3 fps, 390 frames | `live/live-menubar-c662038.mp4` |
+| Live bar over the web Aurora zone | `contact-live-vs-web.png` |
+
+Measurements from the recording (left provider region, device x 1149…2074,
+rows 6…30, a text-free strip):
+
+| Metric | Value |
+| --- | --- |
+| dominant temporal frequency | **0.734 Hz** |
+| configured floor | 0.729 Hz |
+| temporal std of the fill | mean 1.7 / p90 4.1 / max 13.1 (8-bit) |
+| spatial std across the fill (curtain contrast) | 14.4 |
+
+The 0.5 % agreement between the measured 0.734 Hz and the configured 0.729 Hz
+floor is the useful number here: the curtain really is playing at the user's
+saved tempo in the composited menu bar, not merely in the offline renderer.
+
+### Before / after, same region, real bar
+
+The user's 11:14 screenshot (`3e51f0f` build) and this 15:08 capture
+(`c662038`) share one text-free interval, device x 1149…1994. Row means there:
+
+| row (device px) | before `3e51f0f` | after `c662038` |
+| --- | --- | --- |
+| 0 | 59.6, 106.4, 134.6 | 69.9, 124.8, 172.6 |
+| 16 | 65.2, 120.8, 154.9 | 67.4, 124.4, 171.9 |
+| 28 | 66.3, 127.8, 164.2 | 67.6, 122.3, 167.6 |
+| 48 | 77.8, 114.6, 139.1 | 72.5, 100.0, 124.5 |
+| 56 | 73.4, 96.4, 112.2 | 64.9, 81.1, 95.6 |
+
+The upper body gained 33–38 counts of blue — the grey film is gone in the
+composited bar, not just offline. The 1 pt bottom edge is darker than before,
+which is the V5 `.sheen` doing its job. White-top guard over that same
+interval: **82** (`min(R, G, B)` max over the top two rows), so the menu bar
+still carries no neutral white line.
+
 ## Open items
 
 - Phase C: softness, ambient 0, grain 0, stacked order and the white-theme
@@ -205,7 +254,8 @@ would be ≥250.
   feature: the parameter is stored and validated but no renderer draws it.
 - Phase D: re-run the Debug build and the `GLASS_PREVIEW_DUMP` matrix, and
   re-measure `SpectrumFrameCache.cachedByteCount` with the wider spans.
-- Phase D: live menu-bar capture (fixture-driven) using the reviewed
-  `live-capture.sh` backup/restore wrapper; the machine was unlocked earlier
-  this round but no live capture has been taken yet.
+- Phase D: live menu-bar capture is **done** (see the Phase D section). It was
+  taken with the user's own settings, not a fixture, so the attention states
+  (Error / Waiting / Unread) and the traveller-on case are still unverified on
+  hardware.
 - Nothing has been pushed, merged, or released. The commit is local only.

@@ -95,9 +95,18 @@ and are not committed.
   --check` clean; the Debug app was rebuilt and relaunched (running PID
   28292 at the time of writing). `AuroraAlignDumpTests` writes 15 whole-lane
   PNGs including a measured before/after pair.
-- **Real machine**: no live capture of the fixed build. The display was locked
-  or asleep for every attempt this round, so every number here is the offline
-  renderer's own output. This is not a claim about the composited menu bar.
+- **Real machine**: **captured** at 15:08 on 2026-10-16 with the display
+  unlocked. The running app was PID 28292 (`c662038`, launched 14:50) and the
+  frames come from `screencapture`, so this is real WindowServer compositing.
+  A 6.81 s recording measures the curtain's dominant frequency at **0.734 Hz**
+  against the configured 0.729 Hz floor. A before/after on the same text-free
+  region shows the upper body gaining 33-38 counts of blue, and the white-top
+  guard over that region is 82 (a neutral white line would be >=250). Files:
+  `live/live-c662038-full-bar.png`, `live/live-c662038-motion-contact.png`,
+  `live/live-menubar-c662038.mp4`, `contact-live-vs-web.png`.
+- **Still not verified on hardware**: attention states (Error / Waiting /
+  Unread) and the traveller-on case; the capture used the user's own settings
+  (`showTravelingLight=false`).
 - **Visual gap, measured properly**: re-rendering the lab with the *selected*
   parameters at a frozen phase 0.35 and comparing like with like, the inner
   tier is `99,157,191` native vs `98,139,190` web — blue within 1/255, green
