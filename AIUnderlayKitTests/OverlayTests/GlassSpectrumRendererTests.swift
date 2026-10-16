@@ -369,6 +369,15 @@ final class GlassSpectrumRendererTests: XCTestCase {
         XCTAssertLessThanOrEqual(high.heightFraction, SpectrumWaveModel.tallestHeightFraction)
     }
 
+    /// The base visibility is a fidelity contract, not a taste knob: V5's
+    /// Aurora scene draws every ray at `0.22 + modulated`. An earlier revision
+    /// trimmed it to `0.17` to work around composite faults, and the curtain
+    /// then read as translucent grey next to the lab. Pinning the constant
+    /// makes any future trim an explicit decision with its own lab evidence.
+    func test_baseVisibility_matchesTheAuroraLab() {
+        XCTAssertEqual(SpectrumWaveModel.baseAlpha, 0.22)
+    }
+
     func test_heightStaysBounded_soTheWaveNeverInverts() {
         for index in 0..<64 {
             for phase in stride(from: 0.0, to: 1.0, by: 0.05) {
