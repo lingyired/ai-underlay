@@ -34,6 +34,27 @@ Two references are used, and the report says which one any number comes from:
 The earlier note that "the browser refuses `file://`" applied to an in-app
 browser panel; the Chrome binary renders the same file without trouble.
 
+### The rendered lab is NOT a pixel oracle for the fill
+
+The headless lab render is a valid reference for *motion and light* (canvas
+rays, light field, travel) but it cannot be used as a pixel oracle for the
+quota fill. Its scene composites through `backdrop-filter` over a synthetic
+wallpaper and its Aurora `.quota` rules are a *flat* horizontal hue ramp
+(`#285c95 → #367ab2 → #254666`) — measured on the rendered PNG, the inner tier
+is `[47,103,154]` at row 6 and `[47,103,154]` at row 60: a vertical delta of
+**zero**. Our fill is a deliberate V5-fill vertical ramp (0.30/0.46/0.20 alpha
+outer, 0.88/0.68/0.30 inner) because that is what the earlier rounds and
+`551e647` established as the product's reading rule. Comparing region *means*
+between the two therefore measures the chroma of two different renderers'
+compositing stacks, not fidelity of the fill; per-column correlations between
+the web band and the native lane are R 0.01 / G 0.38 / B 0.55 on the live
+fixture.
+
+What the numbers below *are* good for: (a) the native before/after delta, which
+is measured on one renderer with one fixture and one phase, and (b) the
+"no white top line" guard. The residual "native brighter than the web" figure
+is expected and explained by the two facts above.
+
 ## Phase status
 
 | Phase | State | Evidence |
@@ -106,6 +127,12 @@ outer = 62…74 %):
 | screen blend removed only | 93, 155, 192 | −17, +6, −4 | 49, 95, 120 | −43, −18, −42 |
 | **after (all three)** | **100, 160, 196** | **−11, +11, −0** | **57, 102, 126** | **−35, −11, −37** |
 
+The lab column of this first table came from the **default-parameter** HTML
+render and the crop the earlier session used. The re-measure below re-renders
+the lab with the user's selected parameters at a frozen phase, which is the
+number to quote for fidelity; this table stays as the attribution record
+(which cause moved which channel).
+
 So the inner fill now matches the lab in blue (196 vs 196) and is slightly
 brighter in green. What moved the number:
 
@@ -131,11 +158,44 @@ every capture after it is the screensaver, not the bar. The numbers above are
 the offline renderer's own output and the headless lab render; neither is a
 claim about the real composited bar.
 
+
+### Re-measure, same fixture and phase this time
+
+The table above compares the native lane against the lab render at *its own*
+default parameters. Re-running it with the lab set to the user's selected
+parameters and a frozen phase (`speed 48` → `hz = 0.4849`, `t = 0.35 / hz =
+0.7217`), left zone `x 314…1440`, rows `869…938`, mirrored so the fill anchor
+matches the native lane, rows 30…95 %:
+
+| strip | inner 6…34 % | outer 62…74 % |
+| --- | --- | --- |
+| web Aurora (selected params, frozen phase 0.35) | 98, 139, 190 | 129, 148, 185 |
+| native before `3e51f0f` | 88, 137, 167 | 33, 61, 75 |
+| native after `c662038` | **99, 157, 191** | 60, 107, 131 |
+| native after, curtain hidden | 85, 146, 181 | 48, 96, 120 |
+
+So the inner tier's *blue* is now within 1/255 of the web render and its green
+runs 18/255 lighter (the agent tint at full strength screens a cyan
+`#007DAF`); the outer tier is still markedly darker, which is the deliberate
+palette rule. White-top guard on the committed lane: the maximum
+`min(R, G, B)` over the top two device rows is **206** — a neutral white line
+would be ≥250.
+
+## Phase C: remaining items, measured
+
+| Item | Result |
+| --- | --- |
+| Softness 0 / 17 / 32 | the rendered inner tier moves with the token: codex 89,141,168 → 95,150,174 → 98,153,177 (`GLASS_PREVIEW_DUMP` matrix in `build/phaseC-after/`) |
+| Ambient 0 | `tintAmbient` is hidden (`isHidden = ambientGlow <= 0.001`) and holds no animation; `test_ambientGlowZero_doesNotHideTheThemeTint` pins that the glass tint itself stays |
+| Grain 0 | no renderer consumes `material.grain`; the stored value is 0, so it contributes nothing. A non-zero grain still has no native implementation — that gap is unchanged by this round |
+| White theme (`#ffffff`, Claude) | the legibility ceiling resolves to 0.55 before the tint layers are multiplied, so a white theme cannot wash the menu text: measured inner 133,108,95 at softness 17 with the copper palette underneath |
+| Stacked-layer order | bed → fills → tint clip → caps; the tint is clipped to the real outer fill length, so a 0 % lane keeps black and an unknown lane keeps its neutral groove |
+
 ## Open items
 
-- Phase C: reconcile the remaining glass/quota/attention numbers with the V5
-  `.zone .quota` and `.glass-tint` CSS, then verify softness 0/17/32 and the
-  selected ambient 0 / grain 0 actually disable their contributions.
+- Phase C: softness, ambient 0, grain 0, stacked order and the white-theme
+  case are now measured (table above). What remains open there is grain as a
+  feature: the parameter is stored and validated but no renderer draws it.
 - Phase D: re-run the Debug build and the `GLASS_PREVIEW_DUMP` matrix, and
   re-measure `SpectrumFrameCache.cachedByteCount` with the wider spans.
 - Phase D: live menu-bar capture (fixture-driven) using the reviewed

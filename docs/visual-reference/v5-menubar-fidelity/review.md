@@ -86,20 +86,29 @@ and are not committed.
 
 ## Status, honestly
 
-- **Implementation**: phases A, B and the first half of C are done and
-  committed. Phase C's remaining items (softness 0/17/32, ambient 0 / grain 0
-  off verification, stacked order, the white-theme case) and Phase D's live
-  menu-bar capture are **not** done.
-- **Automation**: 431 tests passed, 3 skipped; domain purity OK; the curtain
-  dump's 32 PNGs are byte-identical to `after/curtain`; the new
-  `AuroraAlignDumpTests` writes 15 whole-lane PNGs including a measured
-  before/after pair.
-- **Real machine**: the screen locked mid-round, so there is **no valid live
-  capture** of the fixed build. Every statement about the real bar here is
-  offline renderer output.
-- **Visual gap**: the inner fill now matches the lab (blue 196 vs 196); the
-  outer tier is still 35/11/37 darker, because V5 separates its tiers by alpha
-  over one hue while our outer tier is a darker *colour*.
+- **Implementation**: phases A and B and the grey-film half of phase C are
+  done and committed (`3e51f0f`, `c662038`). Phase C's remaining measurements
+  (softness 0/17/32, ambient 0, grain 0, stacked order, white theme) are now
+  taken and written into `execution-status.md`; grain as a *feature* is still
+  not rendered by anything.
+- **Automation**: 431 tests passed, 3 skipped; domain purity OK; `git diff
+  --check` clean; the Debug app was rebuilt and relaunched (running PID
+  28292 at the time of writing). `AuroraAlignDumpTests` writes 15 whole-lane
+  PNGs including a measured before/after pair.
+- **Real machine**: no live capture of the fixed build. The display was locked
+  or asleep for every attempt this round, so every number here is the offline
+  renderer's own output. This is not a claim about the composited menu bar.
+- **Visual gap, measured properly**: re-rendering the lab with the *selected*
+  parameters at a frozen phase 0.35 and comparing like with like, the inner
+  tier is `99,157,191` native vs `98,139,190` web — blue within 1/255, green
+  +18 from the full-strength `#007DAF` tint. The outer tier stays deliberately
+  darker than the web's flat ramp because the palette — not CSS alpha — owns
+  our tier ladder.
+- **What the web render is not**: the lab draws its Aurora fill as a *flat*
+  horizontal hue ramp (row 6 and row 60 both `47,103,154`), composited through
+  `backdrop-filter` over a synthetic wallpaper. It is a reference for motion
+  and light, not a pixel oracle for the fill; column-profile correlations are
+  R 0.01 / G 0.38 / B 0.55.
 - **Browser**: the lab **was** rendered this round, headless
-  (`--headless --screenshot`), and the rendered PNG is the reference for the
-  Phase C table. It is a headless browser render, not a native screenshot.
+  (`--headless --screenshot`) with both the default and the selected
+  parameters. It is a headless browser render, never a native screenshot.
