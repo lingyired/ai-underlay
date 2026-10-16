@@ -7,9 +7,26 @@ import AppKit
 ///
 /// Error, Waiting and Unread are the *same structure* with different colours
 /// and sweep durations — never three bespoke styles. The colour comes from the
-/// resolved signal lights; the priority that chose the kind is a code constant.
+/// resolved signal lights — the *saturated* half of each pair, because the
+/// menu bar material is what the pale half cannot survive — and the priority
+/// that chose the kind is a code constant.
 @MainActor
 public enum AttentionLightRenderer {
+    /// Alpha of the two translucent alert layers.
+    ///
+    /// V5's lab stops are `.24` (wash) and `.38` (glow), tuned against its own
+    /// flat wallpaper. A lane is not drawn on a wallpaper here: it is
+    /// composited *through* the system menu bar's material, which measured
+    /// ~0.70 of the requested value on the real bar (waiting top line live
+    /// `180,154,94` against `#FFE1A0`), and the prediction is the same for the
+    /// layers under it. Both alphas therefore carry a small, explicit
+    /// compensation; the stored colours are untouched.
+    static let washAlpha: Double = 0.30
+    static let glowAlpha: Double = 0.46
+    /// V5 paints the ribbon's bottom edge at its group opacity `.95`; the cap
+    /// stays just under that so the bottom pixel never becomes a solid slab.
+    static let ribbonAlpha: Double = 0.92
+
     /// A fresh layer tree (tests, offline preview).
     public static func render(_ spec: LaneRenderSpec, attention: AttentionKind, restartSweep: Bool) -> CALayer {
         let lane = CALayer()
@@ -38,7 +55,16 @@ public enum AttentionLightRenderer {
         }
         root.isHidden = false
 
+        // V5 names two colours per alert: the pale `--alert` (top line, ribbon)
+        // and its saturated `--tint` partner (wash, glow, ribbon glow). A lane
+        // here is composited *through* the menu bar material, which measured
+        // 0.70× on pale colours but leaves saturated ones untouched — `#FFE1A0`
+        // arrived as `192,164,104` (tan) while `#FFC25B` arrived as
+        // `201,146,34` (amber). The whole stack is therefore drawn in the tint
+        // so the alert still reads as light on hardware; the alert colour
+        // stays the semantic signal colour and the source of the tint.
         let color = spec.glass.signalLights.light(for: attention)
+        let tint = spec.glass.signalLights.tint(for: attention)
         let geometry = spec.glass.attention
         let height = size.height
         let topHeight = min(max(CGFloat(geometry.topLineHeight), 0), height / 6)
@@ -48,25 +74,27 @@ public enum AttentionLightRenderer {
         let animated = !spec.reduceMotion
 
         // Full-lane wash, bottom-up: the breathing room of the alert.
-        // V5's `.hint` is `linear-gradient(to top, rgba(tint,.24), transparent
-        // 95%)` — the tint sits on the *bottom* edge, so the wash never reads
-        // as a veil over the quota. Gradient y = 1 is the top of the layer.
+        // V5's `.hint` is `linear-gradient(to top, rgba(var(--tint),.24),
+        // transparent 95%)` — the *tint* sits on the bottom edge, so the wash
+        // never reads as a pale veil over the quota. Gradient y = 1 is the top
+        // of the layer.
         let wash = LayerSlot.named("wash", in: root, as: CAGradientLayer.self)
         wash.frame = CGRect(origin: .zero, size: size)
         wash.type = .axial
         wash.startPoint = CGPoint(x: 0.5, y: 0)
         wash.endPoint = CGPoint(x: 0.5, y: 0.95)
-        wash.colors = [color.withAlpha(0.24).cgColor, color.withAlpha(0).cgColor]
+        wash.colors = [tint.withAlpha(Self.washAlpha).cgColor, tint.withAlpha(0).cgColor]
 
         // Glow rising out of the ribbon: the V5 band casts a shadow *upward*
-        // (`0 -4px 12px`), so it is brightest where it meets the ribbon and
-        // fades with height instead of starting at its own top edge.
+        // (`0 -4px 12px rgba(var(--tint), .38)`), so it is brightest where it
+        // meets the ribbon and fades with height instead of starting at its
+        // own top edge — and it is cast in the tint, not in the alert colour.
         let glow = LayerSlot.named("glow", in: root, as: CAGradientLayer.self)
         glow.frame = CGRect(x: 0, y: 0, width: size.width, height: glowHeight)
         glow.type = .axial
         glow.startPoint = CGPoint(x: 0.5, y: 0)
         glow.endPoint = CGPoint(x: 0.5, y: 1)
-        glow.colors = [color.withAlpha(0.38).cgColor, color.withAlpha(0).cgColor]
+        glow.colors = [tint.withAlpha(Self.glowAlpha).cgColor, tint.withAlpha(0).cgColor]
 
         // The ribbon: translucent so the quota fill stays readable through it,
         // and bright on the bottom edge — V5 draws
@@ -77,16 +105,23 @@ public enum AttentionLightRenderer {
         ribbon.type = .axial
         ribbon.startPoint = CGPoint(x: 0.5, y: 1)
         ribbon.endPoint = CGPoint(x: 0.5, y: 0)
-        ribbon.colors = [color.withAlpha(0.05).cgColor, color.withAlpha(min(color.alpha, 0.85)).cgColor]
+        ribbon.colors = [
+            tint.withAlpha(0.05).cgColor,
+            tint.withAlpha(min(tint.alpha, Self.ribbonAlpha)).cgColor,
+        ]
         ribbon.masksToBounds = true
 
-        // The top line: 2pt of solid alert that survives Reduce Motion.
+        // The top line: 2pt of solid alert that survives Reduce Motion, with
+        // V5's own halo (`box-shadow: 0 0 9px var(--alert)` at group opacity
+        // `.95`; CSS blur 9px ≈ a 4.5pt Core Animation shadow radius). The
+        // halo is what keeps the line reading as a light source after the
+        // material has taken its ~30%.
         let topLine = LayerSlot.named("topLine", in: root)
         topLine.frame = CGRect(x: 0, y: height - topHeight, width: size.width, height: topHeight)
-        topLine.backgroundColor = color.cgColor
-        topLine.shadowColor = color.cgColor
-        topLine.shadowOpacity = 0.75
-        topLine.shadowRadius = 3
+        topLine.backgroundColor = tint.cgColor
+        topLine.shadowColor = tint.cgColor
+        topLine.shadowOpacity = 0.95
+        topLine.shadowRadius = 4.5
         topLine.shadowOffset = .zero
 
         // The sweep is optional: the static alert (top line, ribbon, glow)

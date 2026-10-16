@@ -259,3 +259,77 @@ still carries no neutral white line.
   (Error / Waiting / Unread) and the traveller-on case are still unverified on
   hardware.
 - Nothing has been pushed, merged, or released. The commit is local only.
+
+## Round 3 (2026-10-16): what the material does to a colour
+
+The user's report: „我们的等待似乎都比较灰，少了一些亮度，然后我们的主要他颜色一号线也比较灰" —
+the Waiting alert reads grey and dim, and the 2 pt top line with it.
+
+### The controlled probe
+
+`probe-material-transfer.sh <out-dir> [colour …]` repaints the waiting top line
+in flat known colours through the production fixture path, captures the real
+bar and leaves a PNG per colour. Measured with `measure-strip.py` (screenshots
+carry the display ICC, so every value is converted to sRGB first), device rows
+0–3, columns 1200…2800:
+
+| asked (`signalColors.waiting`) | measured on the bar |
+| --- | --- |
+| `#FFFFFF` | `185,185,185` |
+| `#FF0000` | `255,37,0` |
+| `#00FF00` | `0,196,0` |
+| `#0000FF` | `4,51,255` |
+| `#FFE1A0` (V5 alert) | `192,164,104` |
+| `#FFC25B` (V5 tint) | `201,146,34` |
+| `#FFD98A` | `202,147,0` |
+
+Two facts follow, and they are not a per-channel scale:
+
+1. **Pale colours are dimmed** — white lands at `0.70` and `#FFE1A0` at
+   `192,164,104`, a tan that reads grey next to the kiosk display of the lab.
+2. **Saturated colours survive and are pushed further** — pure red keeps its
+   255, and every warm yellow loses its blue channel entirely. Saturation, not
+   lightness, is the currency that buys visibility under this material.
+
+The same probe's *body* rows also explain the older „一直在变" impression: the
+desktop wallpaper is the dynamic **Sequoia Sunrise**, so the colour the
+material mixes in changes with the time of day.
+
+### The change
+
+`GlassSignalLights.tint(for:)` now reproduces V5's own saturated partner
+(`--tint`: error `#FF587E`, waiting `#FFC25B`, unread `#2FE7AD`) for the shipped
+palette and lifts the saturation for a user override, and every *painted* layer
+of an alerting lane uses it:
+
+| layer | before | after |
+| --- | --- | --- |
+| wash | `alert @ .24` | `tint @ .30` |
+| glow | `alert @ .38` | `tint @ .46` |
+| ribbon | `alert`, capped `.85` | `tint`, capped `.92` (V5's group is `.95`) |
+| top line | `alert`, shadow `.75 / r3` | `tint`, shadow `.95 / r4.5` (V5: `0 0 9px` at `.95`) |
+| curtain | `alert` | `tint` (`paintedLight(for:)`; a quiet lane keeps its running light) |
+
+### Live before / after, same fixture, same wallpaper phase
+
+Waiting fixture, device rows, columns 1200…2800:
+
+| row | before | after |
+| --- | --- | --- |
+| 1 (top line) | `180,154,94` | `186,134,36` |
+| 20 (body) | `62,111,133` | `70,113,127` |
+| 56 (ribbon) | `112,102,74` | `128,100,44` |
+
+The line keeps its hue and raises its chroma from 86 to 150 counts (max − min
+per pixel), and the ribbon's bottom edge is warm light again instead of grey
+film.
+
+### Still open
+
+- The **body** (quota fill + bed) has not been compensated: live row 24 is
+  `61.9,138.2,181.1` against `126.4,198.4,233.5` in the offline renderer, so
+  the everyday „不够通透" gap is the same material loss. Pre-compensating the
+  fill means changing the product's everyday palette, so it needs the user's
+  go-ahead.
+- All of the above is measured on one wallpaper (Sequoia Sunrise, dark mode,
+  Reduce Transparency off). A light wallpaper moves every number.

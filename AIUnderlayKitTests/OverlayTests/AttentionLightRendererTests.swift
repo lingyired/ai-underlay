@@ -63,8 +63,76 @@ final class AttentionLightRendererTests: XCTestCase {
         let colors = try XCTUnwrap(ribbon.colors as? [CGColor])
         XCTAssertEqual(ribbon.endPoint.y, 0, accuracy: 0.0001, "the bright end is the bottom edge")
         XCTAssertLessThan(colors[0].alpha, 0.1, "no hard bright edge at the top of the band")
-        XCTAssertLessThanOrEqual(colors[1].alpha, 0.85, "still translucent over the quota")
+        XCTAssertLessThanOrEqual(colors[1].alpha, 0.92, "still translucent over the quota")
         XCTAssertGreaterThan(colors[1].alpha, 0.2)
+    }
+
+    /// Every layer of the stack wears the tint. V5 draws the top line and the
+    /// ribbon with the pale `--alert`, but the menu bar material hands back
+    /// `192,164,104` for `#FFE1A0` — tan. The tint is what survives.
+    func test_theWholeStackIsDrawnInTheSaturatedTint() throws {
+        let lights = GlassDefaults.signalLights
+        let lane = AttentionLightRenderer.render(spec(), attention: .waiting, restartSweep: true)
+        let attention = try XCTUnwrap(root(of: lane))
+        let wash = try XCTUnwrap(attention.sublayers?.first { $0.name == "wash" } as? CAGradientLayer)
+        let glow = try XCTUnwrap(attention.sublayers?.first { $0.name == "glow" } as? CAGradientLayer)
+        let top = try XCTUnwrap(attention.sublayers?.first { $0.name == "topLine" })
+        let ribbon = try XCTUnwrap(attention.sublayers?.first { $0.name == "ribbon" } as? CAGradientLayer)
+        let tint = lights.tint(for: .waiting)
+
+        // V5's waiting pair: alert #FFE1A0, tint rgb(255,194,91).
+        XCTAssertEqual(tint.hexString, "#FFC25B")
+        for layer in [wash, glow] {
+            let stops = try XCTUnwrap(layer.colors as? [CGColor])
+            let components = try XCTUnwrap(stops.first?.components)
+            XCTAssertEqual(Double(components[0]), tint.red, accuracy: 0.01)
+            XCTAssertEqual(Double(components[2]), tint.blue, accuracy: 0.02)
+        }
+        let topComponents = try XCTUnwrap(top.backgroundColor?.components)
+        XCTAssertEqual(Double(topComponents[2]), tint.blue, accuracy: 0.02)
+        let ribbonStops = try XCTUnwrap(ribbon.colors as? [CGColor])
+        let brightStop = try XCTUnwrap(ribbonStops.last?.components)
+        XCTAssertEqual(Double(brightStop[2]), tint.blue, accuracy: 0.02)
+        XCTAssertLessThan(tint.blue, lights.waiting.blue, "the tint is the more saturated partner")
+    }
+
+    /// V5 separates alert and tint for every kind, not just waiting.
+    func test_everyKindCarriesV5sOwnTint() {
+        let lights = GlassDefaults.signalLights
+        XCTAssertEqual(lights.tint(for: .error).hexString, "#FF587E")
+        XCTAssertEqual(lights.tint(for: .waiting).hexString, "#FFC25B")
+        XCTAssertEqual(lights.tint(for: .unread).hexString, "#2FE7AD")
+    }
+
+    /// A quiet lane is not compensated: its own running light is the everyday
+    /// look, and a rename must never repaint it.
+    func test_aQuietLaneKeepsItsRunningLight() {
+        let lights = GlassDefaults.signalLights
+        XCTAssertEqual(lights.paintedLight(for: .none).hexString, lights.running.hexString)
+        XCTAssertEqual(lights.paintedLight(for: .waiting).hexString, "#FFC25B")
+    }
+
+    /// A user-supplied signal colour still gets a saturated light: same hue,
+    /// lifted saturation, never a grey wash.
+    func test_customSignalColour_getsASaturationLiftedTint() {
+        var lights = GlassDefaults.signalLights
+        lights.waiting = RGBAColor(red: 0.2, green: 0.6, blue: 0.3)
+        let tint = lights.tint(for: .waiting)
+        let before = (0.6 - 0.2) / 0.6
+        let after = (tint.green - min(tint.red, tint.blue)) / max(tint.red, tint.green, tint.blue)
+        XCTAssertGreaterThan(after, before, "the hint of grey is pushed out")
+        XCTAssertTrue(tint.green >= tint.blue && tint.blue >= tint.red, "same hue family")
+        XCTAssertGreaterThan(tint.luminance, lights.waiting.luminance)
+    }
+
+    /// The halo is V5's `box-shadow: 0 0 9px var(--alert)` at `.95`: it is what
+    /// keeps the 2pt line reading as a light source under the material.
+    func test_topLineCarriesV5sHalo() throws {
+        let lane = AttentionLightRenderer.render(spec(), attention: .error, restartSweep: true)
+        let top = try XCTUnwrap(root(of: lane)?.sublayers?.first { $0.name == "topLine" })
+        XCTAssertEqual(Double(top.shadowOpacity), 0.95, accuracy: 0.01)
+        XCTAssertEqual(Double(top.shadowRadius), 4.5, accuracy: 0.01)
+        XCTAssertEqual(top.shadowOffset, .zero)
     }
 
     /// The wash and the glow are bottom-heavy: the V5 wash fades upward from
@@ -89,17 +157,20 @@ final class AttentionLightRendererTests: XCTestCase {
 
     func test_eachKindWearsItsOwnSignalColour() throws {
         let expectations: [(AttentionKind, RGBAColor)] = [
-            (.error, GlassDefaults.signalLights.error),
-            (.waiting, GlassDefaults.signalLights.waiting),
-            (.unread, GlassDefaults.signalLights.unread),
+            (.error, GlassDefaults.signalLights.tint(for: .error)),
+            (.waiting, GlassDefaults.signalLights.tint(for: .waiting)),
+            (.unread, GlassDefaults.signalLights.tint(for: .unread)),
         ]
         for (kind, color) in expectations {
             let lane = AttentionLightRenderer.render(spec(), attention: kind, restartSweep: true)
             let attention = try XCTUnwrap(root(of: lane))
             let top = try XCTUnwrap(attention.sublayers?.first { $0.name == "topLine" })
             let components = try XCTUnwrap(top.backgroundColor?.components)
-            XCTAssertEqual(Double(components[0]), color.red, accuracy: 0.01, "\(kind)")
+            XCTAssertEqual(Double(components[0]), color.red, accuracy: 0.02, "\(kind)")
+            XCTAssertEqual(Double(components[1]), color.green, accuracy: 0.02, "\(kind)")
         }
+        let tints = [AttentionKind.error, .waiting, .unread].map { GlassDefaults.signalLights.tint(for: $0) }
+        XCTAssertEqual(Set(tints.map(\.hexString)).count, 3, "each kind keeps its own colour")
     }
 
     func test_userSignalOverride_reachesTheRibbon() throws {
@@ -110,7 +181,8 @@ final class AttentionLightRendererTests: XCTestCase {
         let attention = try XCTUnwrap(root(of: lane))
         let top = try XCTUnwrap(attention.sublayers?.first { $0.name == "topLine" })
         let components = try XCTUnwrap(top.backgroundColor?.components)
-        XCTAssertEqual(Double(components[1]), 0.9, accuracy: 0.01)
+        XCTAssertGreaterThan(Double(components[1]), 0.85, "the override reaches the alert stack")
+        XCTAssertGreaterThan(Double(components[1]), Double(components[0]), "and keeps its hue")
     }
 
     // MARK: - Sweep tempo and restarts

@@ -587,6 +587,30 @@ final class GlassSpectrumRendererTests: XCTestCase {
         XCTAssertNotEqual(error, waiting)
     }
 
+    /// The curtain is a painted layer, so under an alert it wears the
+    /// *saturated* partner of the signal colour: the pale alert does not
+    /// survive the menu bar material (`#FFE1A0` arrived as `192,164,104`).
+    func test_alertingCurtainWearsTheSaturatedTint() throws {
+        func pixel(_ kind: AttentionKind) throws -> (red: CGFloat, blue: CGFloat) {
+            let lane = GlassSpectrumRenderer.render(
+                spec(signal: ProviderVisualSignal(isRunning: true, attention: kind), trackWidth: 320),
+                running: true, cycle: cycle, restart: true
+            )
+            let spectrum = try XCTUnwrap(root(of: lane))
+            let frame = try XCTUnwrap(curtain(in: spectrum)?.contents) as! CGImage
+            let rep = NSBitmapImageRep(cgImage: frame)
+            let pixel = try XCTUnwrap(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2))
+            let colour = pixel.usingColorSpace(.deviceRGB) ?? .clear
+            return (colour.redComponent, colour.blueComponent)
+        }
+        let lights = GlassDefaults.signalLights
+        let waiting = try pixel(.waiting)
+        let paleRatio = lights.waiting.blue / lights.waiting.red
+        XCTAssertLessThan(Double(waiting.blue / waiting.red), Double(paleRatio) * 0.85,
+                          "the field is painted in the tint, not in the pale alert")
+        XCTAssertGreaterThan(waiting.blue, 0, "and it is still amber, not red")
+    }
+
     func test_providerAgentTheme_doesNotColourTheCurtain() throws {
         var themed = ResolvedGlassTheme.default(providerId: "codex")
         themed.agentThemeColor = RGBAColor(red: 1, green: 0, blue: 1)

@@ -86,6 +86,54 @@ public struct GlassSignalLights: Sendable, Equatable {
         }
     }
 
+    /// The colour of the *light*, not of the lamp: what the wash and the
+    /// ribbon's glow are painted with.
+    ///
+    /// V5 separates the two on purpose. `--alert` is the pale colour of the
+    /// 2pt top line and the ribbon itself; `--tint` is a hand-picked, more
+    /// saturated version used for the two translucent layers
+    /// (`rgba(var(--tint), .24)` wash, `rgba(var(--tint), .38)` glow), so they
+    /// stay legible as coloured light instead of greying the glass. We shipped
+    /// the pale alert colour in both, which is the measured cause of the
+    /// "等待比较灰 / 少了一些亮度" reading on hardware, where the system menu
+    /// bar material already desaturates everything underneath it.
+    ///
+    /// The shipped palette returns V5's lab values verbatim; a user override
+    /// gets the same hue with its saturation lifted instead.
+    public func tint(for attention: AttentionKind) -> RGBAColor {
+        let light = light(for: attention)
+        if let reference = Self.v5TintReference[attention],
+           reference.alert.hexString == light.hexString {
+            return reference.tint
+        }
+        return light.saturationLifted()
+    }
+
+    /// The colour a *painted* layer wears, which is not always the colour the
+    /// state is *named*: the pale alert is what Error/Waiting/Unread mean, the
+    /// saturated partner is what survives the menu bar material. A quiet lane
+    /// keeps its running light untouched — that is the everyday look and it is
+    /// already the light field's own colour.
+    public func paintedLight(for attention: AttentionKind) -> RGBAColor {
+        attention == .none ? light(for: .none) : tint(for: attention)
+    }
+
+    /// V5's `.zone[data-attention=…]` pairs, copied from the lab stylesheet.
+    private static let v5TintReference: [AttentionKind: (alert: RGBAColor, tint: RGBAColor)] = [
+        .error: (
+            alert: RGBAColor(red: 0xFF / 255, green: 0x75 / 255, blue: 0x96 / 255),
+            tint: RGBAColor(red: 0xFF / 255, green: 0x58 / 255, blue: 0x7E / 255)
+        ),
+        .waiting: (
+            alert: RGBAColor(red: 0xFF / 255, green: 0xE1 / 255, blue: 0xA0 / 255),
+            tint: RGBAColor(red: 0xFF / 255, green: 0xC2 / 255, blue: 0x5B / 255)
+        ),
+        .unread: (
+            alert: RGBAColor(red: 0x64 / 255, green: 0xF1 / 255, blue: 0xBD / 255),
+            tint: RGBAColor(red: 0x2F / 255, green: 0xE7 / 255, blue: 0xAD / 255)
+        ),
+    ]
+
     public static let selectedV5 = GlassSignalLights(
         running: RGBAColor(red: 0xD9 / 255, green: 0xEE / 255, blue: 0xFF / 255),
         error: RGBAColor(red: 0xFF / 255, green: 0x75 / 255, blue: 0x96 / 255),

@@ -153,7 +153,7 @@ public enum GlassSpectrumRenderer {
         }
         root.isHidden = false
 
-        let color = spec.glass.signalLights.light(for: spec.signal?.attention ?? .none)
+        let color = spec.glass.signalLights.paintedLight(for: spec.signal?.attention ?? .none)
         let density = spec.glass.material.rayDensity
         let size = region.size
         let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
@@ -219,7 +219,7 @@ public enum GlassSpectrumRenderer {
         let curtain = LayerSlot.named("curtain", in: root)
         let frames = SpectrumFrameCache.sequence(
             width: size.width, height: size.height, scale: scale, cycle: cycle,
-            color: spec.glass.signalLights.light(for: spec.signal?.attention ?? .none),
+            color: spec.glass.signalLights.paintedLight(for: spec.signal?.attention ?? .none),
             density: spec.glass.material.rayDensity, intensity: spec.waveIntensity,
             travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight
         )
@@ -241,7 +241,7 @@ public enum GlassSpectrumRenderer {
         let size = spec.geometry.localFillBounds.size
         return SpectrumFrameRasteriser.frame(
             width: size.width, height: size.height, scale: scale,
-            color: spec.glass.signalLights.light(for: spec.signal?.attention ?? .none),
+            color: spec.glass.signalLights.paintedLight(for: spec.signal?.attention ?? .none),
             density: spec.glass.material.rayDensity, intensity: spec.waveIntensity,
             travels: spec.showsTravelingLight, growsTowardRight: spec.geometry.growsTowardRight,
             phase: phase
