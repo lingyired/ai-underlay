@@ -384,3 +384,48 @@ was `#FFFFFF`, a leftover from the 18:03 material probe (round-3 backups at
 16:04–17:29 all carry `{}`). It was backed up to
 `build/round4/settings-before-restore.json` and cleared, so the running light
 is the shipped `#D9EEFF` again.
+
+### Round 5 — the black band that follows the wave
+
+Round 4 removed the extra `scaled(by: 0.55)` from the fill's bottom stop but
+kept V5's CSS `.20/.30` bottom alpha. That value never reaches the lab's
+screen: on the rendered lab, `.aurora .zone.left .quota-outer`
+(`linear-gradient(90deg,…)`) out-specifies the vertical ramp, so the fill is
+flat top-to-bottom (measured `[47,103,154]` at row 6 **and** row 60). Over our
+real menu-bar material the CSS ramp only darkens the lane: the last rows
+composited **below the bare bar**.
+
+Evidence (one session, curtain ON vs OFF vs overlay OFF, fixture
+`agentRunning`, left lane x 300…1250, median luminance per row):
+
+| row | macOS bar alone | our fill only (curtain off) | before fix (curtain on) | after fix |
+| --- | --- | --- | --- | --- |
+| 50 | 68 | 60 | 110 | 122 |
+| 54 | 63 | 50 | 103 | 117 |
+| 58 | 55 | 38 | 90 | 105 |
+
+The fill's bottom two rows were **17 luminance darker than the bare bar**, so
+every gap between rays exposed it. Because `sample.heightFraction` rises with
+the crest, the exposed region's silhouette followed the wave: across six live
+frames the bottom-band profile tracked the crest profile with correlation
+`+0.98…+1.00`, and the user's own crop reproduced it (row 58 min luminance
+`42` against a `99` median).
+
+The fix is one line in `GlassQuotaRenderer.applyFillGradient`: the bottom stop
+holds the body alpha (`lowAlpha`) instead of diving to `v5(0.20, 0.30)`. V5's
+machined bottom edge still comes from the spectrum renderer's `.sheen`
+(`scrim`, `#08162a1f` over the last 24%). Measured on the same fixture:
+
+- live bottom row `90 → 105` (bare bar `55`); fill-only bottom row `38 → ~102`
+- ray gaps are still visible — the bottom-row stripe/gap contrast stays
+  `+20` at row 52, and `test_rayCurtain_standsOnTheBottomEdge` still passes
+- the known-exhausted region is untouched: `x 1235…1660` still reads `3…11`
+  on every row, and the right lane's black used-up bed is unchanged
+- the committed preview PNGs (`docs/preview/glass-spectrum/`) were regenerated;
+  the 30pt idle lane's lower half is now flat (`155→96` before, `164→164`
+  after) like the rendered lab
+
+438 tests / 3 skipped / 0 failures, `check-domain-purity: OK`, Debug build
+succeeded. This is live menu-bar capture on one wallpaper; it is not human
+sign-off, and the product's everyday fill palette is now brighter at the
+bottom edge by design.

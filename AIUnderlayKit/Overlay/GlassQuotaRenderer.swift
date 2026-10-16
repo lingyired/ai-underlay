@@ -151,29 +151,32 @@ public enum GlassQuotaRenderer {
     }
 
     /// The V5 fill language, rebalanced for a dark glass base: a saturated body
-    /// that falls away toward the bottom. The outer tier stays visibly *darker*
-    /// than the inner one, so the nested length can be read at 30pt without a
-    /// uniform bright wash.
+    /// that holds its strength down to the bottom edge. The outer tier stays
+    /// visibly *darker* than the inner one, so the nested length can be read at
+    /// 30pt without a uniform bright wash.
     ///
     /// There is deliberately no white top stop. Layer coordinates are
     /// unflipped, so index 0 is the *top* edge; a white top stop there made the
     /// first ~18% of every fill read as an inner shadow over the black bed.
     ///
-    /// The three alphas are V5's own stops, interpolated outward→inward:
-    /// `0.30/0.46/0.20` for the outermost fill and `0.88/0.68/0.30` for the
-    /// innermost (`styles` in the V5 lab's `.zone .quota`). V5 previews one
-    /// hue and separates the tiers with alpha alone; our palette hands us the
-    /// tier's *colour*, already darkened by `tierFactor`. Dividing the alphas
-    /// by that factor keeps the on-screen ladder V5-exact without the double
-    /// attenuation that made the outer fill look like grey film.
+    /// The top and body alphas are V5's, interpolated outward→inward:
+    /// `0.30/0.46` for the outermost fill and `0.88/0.68` for the innermost.
+    /// V5 previews one hue and separates the tiers with alpha alone; our palette
+    /// hands us the tier's *colour*, already darkened by `tierFactor`. Dividing
+    /// the alphas by that factor keeps the on-screen ladder V5-exact without the
+    /// double attenuation that made the outer fill look like grey film.
     ///
-    /// The bottom stop keeps the plain tier colour, like V5's own
-    /// `rgba(var(--provider-rgb), .20/.30) 100%` stop over its near-black
-    /// base. An earlier build darkened that stop by `0.55` on top of the
-    /// alpha; on hardware the bottom quarter then composited to `78,87,95`
-    /// while the lab's own bottom rows are `119,164,193`. That extra
-    /// darkening, not the system material, was the black band's inside-the-
-    /// bar half.
+    /// **The bottom stop holds the body alpha — it does not dive back toward
+    /// V5's CSS `.20/.30` value.** On the rendered lab that CSS stop never
+    /// reaches the screen: the `.aurora .zone.left .quota-outer` rule
+    /// (`linear-gradient(90deg,…)`) out-specifies the vertical ramp, so the
+    /// rendered fill is flat top-to-bottom (measured `[47,103,154]` at row 6 and
+    /// row 60). The CSS ramp only exists where the lab's black bed shows
+    /// through: over our *real* menu-bar material that bed renders near black,
+    /// so a `.20/.30` bottom stop composited to `38` luminance in the lane's
+    /// last rows — darker than the bare bar (`54`) — and the ray gaps exposed it
+    /// as a black band whose silhouette followed the wave tips. Holding the body
+    /// alpha leaves the curtain's own `.sheen` to draw the machined bottom edge.
     static func applyFillGradient(
         _ layer: CAGradientLayer,
         color: RGBAColor,
@@ -193,7 +196,8 @@ public enum GlassQuotaRenderer {
         }
         let topAlpha = v5(0.30, 0.88)
         let lowAlpha = v5(0.46, 0.68)
-        let bottomAlpha = v5(0.20, 0.30)
+        // Render-faithful, not CSS-faithful: flat below the body stop.
+        let bottomAlpha = lowAlpha
         layer.colors = [
             color.withAlpha(topAlpha).cgColor,
             color.withAlpha(lowAlpha).cgColor,

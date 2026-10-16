@@ -231,7 +231,7 @@ final class GlassQuotaRendererTests: XCTestCase {
         XCTAssertEqual(QuotaTierPalette.factors(count: 1), [1.0])
     }
 
-    func test_fillGradient_startsInTheQuotaColour_andFallsOffTowardTheBase() {
+    func test_fillGradient_startsInTheQuotaColour_andHoldsItsBodyToTheBase() {
         let layer = CAGradientLayer()
         GlassQuotaRenderer.applyFillGradient(layer, color: ProviderPalette.codex.inner, rank: 1, isInnermost: true)
         let colors = layer.colors as? [CGColor] ?? []
@@ -246,7 +246,16 @@ final class GlassQuotaRendererTests: XCTestCase {
         XCTAssertEqual(Double(channels[2]), expected.blue, accuracy: 0.01)
         XCTAssertGreaterThan(top.alpha, 0.6, "the top edge keeps a solid fill, not a wash")
         XCTAssertLessThan(colors[1].alpha, top.alpha, "the body eases off toward the base")
-        XCTAssertLessThan(colors[2].alpha, colors[1].alpha)
+        // Below the body stop the fill is flat, not a fade back to V5's CSS
+        // `.20/.30` bottom value. That CSS stop is invisible in the rendered
+        // lab (its horizontal provider rule out-specifies the vertical ramp);
+        // draw it here and the lane's last ~2pt falls below the bare menu bar,
+        // so the ray gaps expose a near-black band whose silhouette follows the
+        // wave tips.
+        XCTAssertEqual(colors[2].alpha, colors[1].alpha, accuracy: 0.001,
+                       "the base holds the body alpha instead of diving to black")
+        XCTAssertGreaterThan(colors[2].alpha, 0.3,
+                             "the lane's bottom edge must not be darker than the bar it sits on")
     }
 
     // MARK: - End caps
