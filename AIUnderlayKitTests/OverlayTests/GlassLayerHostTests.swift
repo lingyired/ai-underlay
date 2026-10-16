@@ -238,7 +238,7 @@ final class GlassLayerHostTests: XCTestCase {
         let host = GlassLayerHost()
         host.update(spec(signal: ProviderVisualSignal(isRunning: true, attention: .error)))
         XCTAssertEqual(host.root.sublayers?.compactMap(\.name),
-                       ["quotaGlass", "spectrum", "attention", "baseline"],
+                       ["quotaGlass", "spectrum", "scrim", "attention", "baseline"],
                        "baseline stays on top, glass below everything")
     }
 

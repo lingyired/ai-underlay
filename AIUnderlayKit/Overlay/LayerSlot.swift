@@ -57,9 +57,12 @@ enum LayerSlot {
         }
     }
 
-    /// The z-order of one provider lane: glass → spectrum → attention →
-    /// baseline. The baseline is last so it stays readable over every effect.
-    static let laneOrder = ["quotaGlass", "spectrum", "attention", "baseline"]
+    /// The z-order of one provider lane: glass → spectrum → sheen → attention
+    /// → baseline. The sheen (`scrim`) is V5's `.zone .sheen`, a normal-blend
+    /// layer above the screen-blended ray group — it cannot live inside that
+    /// group or the screen filter would neutralize it. The baseline is last so
+    /// it stays readable over every effect.
+    static let laneOrder = ["quotaGlass", "spectrum", "scrim", "attention", "baseline"]
 
     static func reconcileLane(_ lane: CALayer) {
         reconcile(lane, keeping: laneOrder)

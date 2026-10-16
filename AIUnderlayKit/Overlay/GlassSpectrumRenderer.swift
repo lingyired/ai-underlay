@@ -115,6 +115,46 @@ public enum GlassSpectrumRenderer {
         root.frame = region
         root.masksToBounds = true
 
+        // V5 blits its whole light canvas — travelling field, ray bases, the
+        // specular crest — with `mix-blend-mode: screen` (`.zone .rays`), so
+        // the light lifts the fill it stands on. Composited source-over, the
+        // same pixels replace the fill with a grey veil: that was the measured
+        // "bottom goes black / 灰蒙蒙" reading, where the strip's lower quarter
+        // lost the fill's chroma even though the lab's rows gain light.
+        // The filter belongs on the spectrum *group*: the curtain's own
+        // masked superlayer would isolate its backdrop to the scrim alone.
+        root.compositingFilter = "screenBlendMode"
+
+        // V5's `.zone .sheen` is a *normal-blend* layer at z-index 7, above
+        // the screen-blended rays (z-index 4). It is therefore a sibling of
+        // the spectrum group, not a child: inside the group the screen filter
+        // handles the whole subtree, so the dark edge would composite as
+        // light and neutralize itself. On the lab render the sheen is exactly
+        // the last-quarter decline (blue 205 → 193) before the border rim.
+        //
+        // The scrim stands on the quota fill itself. Earlier builds put a
+        // 0.45-alpha black scrim across the bottom 82% of the fill "to give the
+        // rays something dark to stand on"; V5's own equivalent is `.zone
+        // .sheen`, `linear-gradient(to bottom, transparent 76%, #08162a1f
+        // 100%)` — a 0.12 machined bottom edge, not a half-black curtain. The
+        // old scrim was the whole "灰蒙蒙" film: on the 12-tap dump it cost the
+        // inner fill 38/255 of blue (155 native vs 193 in the lab).
+        //
+        // The sheen reproduces V5's gradient in geometry and colour, minus
+        // the `#ffffff24 0px` top line: that 1px white top edge is the
+        // "白线/内阴影" this lane deliberately removed in 551e647. Static —
+        // Reduce Motion keeps it.
+        let sheen = LayerSlot.named("scrim", in: lane, as: CAGradientLayer.self)
+        sheen.frame = CGRect(origin: region.origin, size: region.size)
+        sheen.type = .axial
+        sheen.startPoint = CGPoint(x: 0.5, y: 0)
+        sheen.endPoint = CGPoint(x: 0.5, y: 1)
+        sheen.colors = [
+            CGColor(red: 8 / 255, green: 22 / 255, blue: 42 / 255, alpha: 0),
+            CGColor(red: 8 / 255, green: 22 / 255, blue: 42 / 255, alpha: 0.12),
+        ]
+        sheen.locations = [0.76, 1]
+
         // A mask must not also be a sublayer, so it is created detached and
         // reused through `root.mask` across unknown ↔ valid changes.
         let clip: CALayer
@@ -148,39 +188,18 @@ public enum GlassSpectrumRenderer {
 
         guard running else {
             root.isHidden = true
+            sheen.isHidden = true
             stopAnimations(lane)
             return
         }
         root.isHidden = false
+        sheen.isHidden = false
 
         let color = spec.glass.signalLights.paintedLight(for: spec.signal?.attention ?? .none)
         let density = spec.glass.material.rayDensity
         let size = region.size
         let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
         let animated = !spec.reduceMotion
-
-        // The curtain stands on the quota fill itself. Earlier builds put a
-        // 0.45-alpha black scrim across the bottom 82% of the fill "to give the
-        // rays something dark to stand on"; V5's own equivalent is `.zone
-        // .sheen`, `linear-gradient(to bottom, transparent 76%, #08162a1f
-        // 100%)` — a 0.12 machined bottom edge, not a half-black curtain. The
-        // old scrim was the whole "灰蒙蒙" film: on the 12-tap dump it cost the
-        // inner fill 38/255 of blue (155 native vs 193 in the lab).
-        //
-        // The scrim therefore reproduces V5's sheen exactly in geometry and
-        // colour, minus the `#ffffff24 0px` top line: that 1px white top edge
-        // is the "白线/内阴影" this lane deliberately removed in 551e647.
-        // Static — Reduce Motion keeps it.
-        let scrim = LayerSlot.named("scrim", in: root, as: CAGradientLayer.self)
-        scrim.frame = CGRect(origin: .zero, size: size)
-        scrim.type = .axial
-        scrim.startPoint = CGPoint(x: 0.5, y: 0)
-        scrim.endPoint = CGPoint(x: 0.5, y: 1)
-        scrim.colors = [
-            CGColor(red: 8 / 255, green: 22 / 255, blue: 42 / 255, alpha: 0),
-            CGColor(red: 8 / 255, green: 22 / 255, blue: 42 / 255, alpha: 0.12),
-        ]
-        scrim.locations = [0.76, 1]
 
         let curtain = LayerSlot.named("curtain", in: root)
         curtain.frame = CGRect(origin: .zero, size: size)
@@ -200,7 +219,7 @@ public enum GlassSpectrumRenderer {
             _ = setCurtainFrame(curtain, frames: frames, phase: 0)
         }
 
-        LayerSlot.reconcile(root, keeping: ["scrim", "curtain"])
+        LayerSlot.reconcile(root, keeping: ["curtain"])
     }
 
     /// Freezes one lane at one phase: the offline preview path and the test

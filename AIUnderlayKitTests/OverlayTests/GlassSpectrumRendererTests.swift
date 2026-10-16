@@ -56,7 +56,7 @@ final class GlassSpectrumRendererTests: XCTestCase {
             running: true, cycle: cycle, restart: true
         )
         let spectrum = try XCTUnwrap(root(of: lane))
-        XCTAssertNotNil(spectrum.sublayers?.first { $0.name == "scrim" })
+        XCTAssertNotNil(lane.sublayers?.first { $0.name == "scrim" })
         let layer = try XCTUnwrap(curtain(in: spectrum))
         XCTAssertTrue((layer.sublayers ?? []).isEmpty, "the curtain is one animated layer, not a layer per ray")
         let animation = try XCTUnwrap(layer.animation(forKey: "curtainFrames") as? CAKeyframeAnimation)
@@ -66,7 +66,10 @@ final class GlassSpectrumRendererTests: XCTestCase {
         XCTAssertEqual(animation.duration, cycle, accuracy: 0.0001)
     }
 
-    /// The scrim is V5's `.zone .sheen` bottom edge, not a film over the fill.
+    /// The scrim is V5's `.zone .sheen` bottom edge, not a film over the fill,
+    /// and it stands *above* the screen-blended light group: inside the group
+    /// the screen filter would composite the dark edge as light and neutralize
+    /// it, leaving a sheen that renders nothing.
     ///
     /// A 0.45-alpha black scrim across the bottom 82% of the lane is what made
     /// the native glass read "灰蒙蒙" next to the lab: it cost the inner fill
@@ -78,9 +81,15 @@ final class GlassSpectrumRendererTests: XCTestCase {
             spec(signal: ProviderVisualSignal(isRunning: true)),
             running: true, cycle: cycle, restart: true
         )
-        let spectrum = try XCTUnwrap(root(of: lane))
         let scrim = try XCTUnwrap(
-            spectrum.sublayers?.first { $0.name == "scrim" } as? CAGradientLayer
+            lane.sublayers?.first { $0.name == "scrim" } as? CAGradientLayer
+        )
+        let names = (lane.sublayers ?? []).map { $0.name ?? "" }
+        let spectrumIndex = try XCTUnwrap(names.firstIndex(of: "spectrum"))
+        let scrimIndex = try XCTUnwrap(names.firstIndex(of: "scrim"))
+        XCTAssertGreaterThan(
+            scrimIndex, spectrumIndex,
+            "the sheen must composite over the screened light, like V5's .sheen z-index 7"
         )
         let colors = try XCTUnwrap(scrim.colors as? [CGColor])
         XCTAssertEqual(colors.count, 2)

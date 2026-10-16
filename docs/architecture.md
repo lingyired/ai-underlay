@@ -40,7 +40,8 @@ from three renderers over one stable layer tree:
 ```text
 laneHost
 ├── quotaGlass        bed (used-up black / neutral groove) + nested fills + tint + caps
-├── spectrum          static scrim + one frame-sequence ray curtain
+├── spectrum          screen-blended light group: one frame-sequence ray curtain
+├── scrim             V5's `.zone .sheen` bottom edge, normal blend above the group
 ├── attention         wash + glow + bottom ribbon (+ glint sweep) + 2pt top line
 └── baseline          pace marker, always on top
 ```

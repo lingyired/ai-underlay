@@ -109,16 +109,14 @@ final class AuroraAlignDumpTests: XCTestCase {
             }
         }
         if variant.scrimRemoved, let scrim = lane.sublayers?
-            .first(where: { $0.name == "spectrum" })?
-            .sublayers?.first(where: { $0.name == "scrim" }) as? CAGradientLayer {
+            .first(where: { $0.name == "scrim" }) as? CAGradientLayer {
             scrim.colors = [
                 CGColor(red: 0, green: 0, blue: 0, alpha: 0),
                 CGColor(red: 0, green: 0, blue: 0, alpha: 0),
             ]
         }
         if variant.legacyScrim, let scrim = lane.sublayers?
-            .first(where: { $0.name == "spectrum" })?
-            .sublayers?.first(where: { $0.name == "scrim" }) as? CAGradientLayer {
+            .first(where: { $0.name == "scrim" }) as? CAGradientLayer {
             scrim.colors = [
                 CGColor(red: 0, green: 0, blue: 0, alpha: 0),
                 CGColor(red: 0, green: 0, blue: 0, alpha: 0.45),

@@ -166,6 +166,14 @@ public enum GlassQuotaRenderer {
     /// tier's *colour*, already darkened by `tierFactor`. Dividing the alphas
     /// by that factor keeps the on-screen ladder V5-exact without the double
     /// attenuation that made the outer fill look like grey film.
+    ///
+    /// The bottom stop keeps the plain tier colour, like V5's own
+    /// `rgba(var(--provider-rgb), .20/.30) 100%` stop over its near-black
+    /// base. An earlier build darkened that stop by `0.55` on top of the
+    /// alpha; on hardware the bottom quarter then composited to `78,87,95`
+    /// while the lab's own bottom rows are `119,164,193`. That extra
+    /// darkening, not the system material, was the black band's inside-the-
+    /// bar half.
     static func applyFillGradient(
         _ layer: CAGradientLayer,
         color: RGBAColor,
@@ -189,7 +197,7 @@ public enum GlassQuotaRenderer {
         layer.colors = [
             color.withAlpha(topAlpha).cgColor,
             color.withAlpha(lowAlpha).cgColor,
-            color.scaled(by: 0.55).withAlpha(bottomAlpha).cgColor,
+            color.withAlpha(bottomAlpha).cgColor,
         ]
         layer.cornerRadius = isInnermost ? 1.5 : 0
     }

@@ -333,3 +333,54 @@ film.
   go-ahead.
 - All of the above is measured on one wallpaper (Sequoia Sunrise, dark mode,
   Reduce Transparency off). A light wallpaper moves every number.
+
+### Round 4 — the black band under the running bar
+
+The user's „底部黑色的阴影" screenshot was matched onto this display (best
+match mad 6.49 at dx=1055, dy=17). A full-screen A/B — overlay enabled vs
+disabled, same session — shows device rows **60+ byte-identical** in both
+captures (`45,45,45` / `68,68,68` / `34.4`): the `~1,1,1` line and the grey
+rows below the strip are macOS's own menu-bar fence and desktop shadow, not
+the app. Rows 0…58 differ between the two captures; those are ours.
+
+Inside the bar two real causes were found and fixed:
+
+1. `GlassQuotaRenderer.applyFillGradient` darkened its bottom stop by an extra
+   `scaled(by: 0.55)`. V5's own bottom stop is the plain tier colour at
+   `.20/.30` over the near-black base; the extra factor stacked a second
+   attenuation. Removed.
+2. `GlassSpectrumRenderer` composited the ray canvas source-over. V5 blits the
+   whole light canvas with `mix-blend-mode: screen`, so the light *lifts* the
+   fill; source-over replaced it with a grey veil, which is what made the
+   lower quarter read dark. The spectrum group now carries
+   `compositingFilter = "screenBlendMode"`.
+
+V5's `.zone .sheen` is a *normal-blend* layer at z-index 7, above the
+screen-blended rays. The native `scrim` is therefore a sibling of the spectrum
+group (`laneOrder` now `quotaGlass, spectrum, scrim, attention, baseline`)
+instead of a child: inside the group the screen filter would composite the
+dark edge as light and neutralize it. On the lab render the sheen is exactly
+the last-quarter decline (blue `205 → 193`) before the border rim.
+
+### Live, same session and wallpaper phase, columns 1540…2114
+
+| row | before | after |
+| --- | --- | --- |
+| 44 | `95,121,144` | `89.5,141.5,174` |
+| 48 | `93,113,130` | `98,142.5,171` |
+| 52 | `90,106,119` | `102.5,142.5,168` |
+| 56 | `86,97,107` | `108.5,142.5,164` |
+| 58 | `78,87,95` | `111,141,163.5` |
+| 60 (macOS fence, both) | `45,45,45` | `45,45,45` |
+
+The bottom quarter gained `+20…+33` green and `+56…+68` blue against the
+pre-fix build, so the in-bar band no longer falls away before the system
+fence. `scaled(by: 0.55)` had no test guarding it; the z-order test now pins
+`scrim` above `spectrum`, and the sheen test asserts it stays a bottom edge
+in the fill's blue family.
+
+Also reset in the same session: the stored `appearance.signalColors.running`
+was `#FFFFFF`, a leftover from the 18:03 material probe (round-3 backups at
+16:04–17:29 all carry `{}`). It was backed up to
+`build/round4/settings-before-restore.json` and cleared, so the running light
+is the shipped `#D9EEFF` again.
