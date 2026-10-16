@@ -34,6 +34,13 @@ Two references are used, and the report says which one any number comes from:
 The earlier note that "the browser refuses `file://`" applied to an in-app
 browser panel; the Chrome binary renders the same file without trouble.
 
+### Phase C commit
+
+The scrim / tier-alpha / `mix-blend-mode` work landed as `c662038`
+("drop the grey scrim and blend the glass tint like V5"); the re-measured
+lab comparison landed as `0e4eb59`. Both are local commits on
+`codex/v5-menubar-fidelity` and neither has been pushed, merged or released.
+
 ### The rendered lab is NOT a pixel oracle for the fill
 
 The headless lab render is a valid reference for *motion and light* (canvas
