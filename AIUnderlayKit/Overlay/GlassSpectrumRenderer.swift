@@ -159,21 +159,28 @@ public enum GlassSpectrumRenderer {
         let scale = lane.contentsScale > 0 ? lane.contentsScale : (NSScreen.main?.backingScaleFactor ?? 2)
         let animated = !spec.reduceMotion
 
-        // The curtain needs something dark to stand on. The band window sits
-        // *below* the system menu bar, so everything we draw is seen through
-        // the bar's own material and loses roughly 40% of its contrast; white
-        // rays over a light quota fill then read as a faint texture. This bed
-        // is the V5 dark base and it is static — Reduce Motion keeps it.
+        // The curtain stands on the quota fill itself. Earlier builds put a
+        // 0.45-alpha black scrim across the bottom 82% of the fill "to give the
+        // rays something dark to stand on"; V5's own equivalent is `.zone
+        // .sheen`, `linear-gradient(to bottom, transparent 76%, #08162a1f
+        // 100%)` — a 0.12 machined bottom edge, not a half-black curtain. The
+        // old scrim was the whole "灰蒙蒙" film: on the 12-tap dump it cost the
+        // inner fill 38/255 of blue (155 native vs 193 in the lab).
+        //
+        // The scrim therefore reproduces V5's sheen exactly in geometry and
+        // colour, minus the `#ffffff24 0px` top line: that 1px white top edge
+        // is the "白线/内阴影" this lane deliberately removed in 551e647.
+        // Static — Reduce Motion keeps it.
         let scrim = LayerSlot.named("scrim", in: root, as: CAGradientLayer.self)
         scrim.frame = CGRect(origin: .zero, size: size)
         scrim.type = .axial
         scrim.startPoint = CGPoint(x: 0.5, y: 0)
         scrim.endPoint = CGPoint(x: 0.5, y: 1)
         scrim.colors = [
-            CGColor(red: 0, green: 0, blue: 0, alpha: 0),
-            CGColor(red: 0, green: 0, blue: 0, alpha: 0.45),
+            CGColor(red: 8 / 255, green: 22 / 255, blue: 42 / 255, alpha: 0),
+            CGColor(red: 8 / 255, green: 22 / 255, blue: 42 / 255, alpha: 0.12),
         ]
-        scrim.locations = [0.18, 1]
+        scrim.locations = [0.76, 1]
 
         let curtain = LayerSlot.named("curtain", in: root)
         curtain.frame = CGRect(origin: .zero, size: size)

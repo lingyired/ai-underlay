@@ -126,6 +126,7 @@ public enum GlassQuotaRenderer {
         let lengths = NestedGauge.nestedLengths(trackWidth: spec.geometry.fillBounds.width, remaining: fractions)
         let knownCount = spec.windows.enumerated().filter { !lengths[$0.offset].isNaN }.count
         let tierColors = spec.palette.tierColors(forWindowCount: knownCount)
+        let brightest = tierColors.map(\.luminance).max() ?? 1
 
         var slots: [String] = []
         var colorIndex = 0
@@ -141,8 +142,9 @@ public enum GlassQuotaRenderer {
             let rect = spec.geometry.fillRect(forLength: length)
             fill.frame = rect
             fill.opacity = state == .stale ? 0.62 : 1
-            applyFillGradient(fill, color: color, rank: knownCount <= 1 ? 1 : Double(colorIndex - 1) / Double(knownCount - 1),
-                              isInnermost: isInnermost)
+            let rank = knownCount <= 1 ? 1 : Double(colorIndex - 1) / Double(knownCount - 1)
+            applyFillGradient(fill, color: color, rank: rank, isInnermost: isInnermost,
+                              tierFactor: brightest > 0 ? color.luminance / brightest : 1)
         }
         LayerSlot.reconcile(fills, keeping: slots)
         return lengths
@@ -156,14 +158,34 @@ public enum GlassQuotaRenderer {
     /// There is deliberately no white top stop. Layer coordinates are
     /// unflipped, so index 0 is the *top* edge; a white top stop there made the
     /// first ~18% of every fill read as an inner shadow over the black bed.
-    static func applyFillGradient(_ layer: CAGradientLayer, color: RGBAColor, rank: Double, isInnermost: Bool) {
+    ///
+    /// The three alphas are V5's own stops, interpolated outward→inward:
+    /// `0.30/0.46/0.20` for the outermost fill and `0.88/0.68/0.30` for the
+    /// innermost (`styles` in the V5 lab's `.zone .quota`). V5 previews one
+    /// hue and separates the tiers with alpha alone; our palette hands us the
+    /// tier's *colour*, already darkened by `tierFactor`. Dividing the alphas
+    /// by that factor keeps the on-screen ladder V5-exact without the double
+    /// attenuation that made the outer fill look like grey film.
+    static func applyFillGradient(
+        _ layer: CAGradientLayer,
+        color: RGBAColor,
+        rank: Double,
+        isInnermost: Bool,
+        tierFactor: Double = 1
+    ) {
         layer.type = .axial
         layer.startPoint = CGPoint(x: 0.5, y: 1)
         layer.endPoint = CGPoint(x: 0.5, y: 0)
         layer.locations = [0, 0.55, 1]
-        let topAlpha = 0.48 + 0.34 * rank
-        let lowAlpha = 0.34 + 0.46 * rank
-        let bottomAlpha = 0.18 + 0.26 * rank
+        let clampedRank = min(max(rank, 0), 1)
+        let factor = min(max(tierFactor, 0.05), 1)
+        func v5(_ outermost: Double, _ innermost: Double) -> Double {
+            let target = outermost + (innermost - outermost) * clampedRank
+            return min(1, target / factor)
+        }
+        let topAlpha = v5(0.30, 0.88)
+        let lowAlpha = v5(0.46, 0.68)
+        let bottomAlpha = v5(0.20, 0.30)
         layer.colors = [
             color.withAlpha(topAlpha).cgColor,
             color.withAlpha(lowAlpha).cgColor,
@@ -216,6 +238,15 @@ public enum GlassQuotaRenderer {
         clip.masksToBounds = true
         let contentFrame = CGRect(x: -clipRect.minX, y: 0, width: tint.bounds.width, height: tint.bounds.height)
 
+        // V5's `.glass-tint` and `.ambient` both carry `mix-blend-mode: screen`:
+        // the agent colour *adds light* to the quota underneath instead of
+        // being laid over it as paint. Without the same blend mode the native
+        // tint can only darken what it covers, which is what made the lane read
+        // as a grey film next to the lab. `screenBlendMode` is the Core Image
+        // name for exactly that operator; the layers are static, so this costs
+        // one offscreen pass per tint change, not per frame.
+        let screenBlend = "screenBlendMode"
+
         // Radial glass bloom, V5 `glass-tint`. Near-white tints are attenuated
         // so menu bar text and icons stay readable.
         let bloom = LayerSlot.named("tintBloom", in: clip, as: CAGradientLayer.self)
@@ -232,6 +263,7 @@ public enum GlassQuotaRenderer {
             color.withAlpha(0).cgColor,
         ]
         bloom.opacity = Float(min(1, material.agentThemeStrength * 0.22 * ceiling))
+        bloom.compositingFilter = screenBlend
 
         // A white top bevel + soft tint falloff, V5's linear second layer.
         let linear = LayerSlot.named("tintLinear", in: clip, as: CAGradientLayer.self)
@@ -246,6 +278,7 @@ public enum GlassQuotaRenderer {
             color.withAlpha(0.22).cgColor,
         ]
         linear.opacity = Float(min(1, material.agentThemeStrength * 0.30 * ceiling))
+        linear.compositingFilter = screenBlend
 
         // Softness: the stored `blurRadiusTarget` drives a pre-blurred halo
         // texture whose kernel is computed in device pixels, so 0/17/32 change
@@ -266,6 +299,7 @@ public enum GlassQuotaRenderer {
         )
         halo.opacity = Float(min(1, material.agentThemeStrength * 0.5 * ceiling))
         halo.isHidden = halo.contents == nil
+        halo.compositingFilter = screenBlend
 
         // Ambient glow: the extra diffusion the user set to 0 in V5. Zero here
         // must NOT hide the tint above — that is the V4 bug this guards.

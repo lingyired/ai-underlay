@@ -86,17 +86,20 @@ and are not committed.
 
 ## Status, honestly
 
-- **Implementation**: phases A and B are done and committed. Phase C (glass
-  tint / quota CSS reconciliation, softness 0/17/32, ambient 0 / grain 0 off
-  verification) is **not** done. Phase D's live menu-bar capture is **not**
-  done.
-- **Automation**: 427 tests passed, 2 skipped; domain purity OK; the dump test
-  was re-run this round and its 32 PNGs are byte-identical to `after/curtain`.
-- **Real machine**: no new capture this round. Any statement about the actual
-  menu bar would be about the previous round's build, not this one.
-- **Visual gap**: the native curtain still carries ~0.055 less ink than the
-  lab, by design (base alpha 0.17 vs 0.22). If the morning review wants the lab
-  exactly, that single constant is the knob.
-- **Browser**: `file://` navigation was denied by the execution policy, so
-  there are **no new browser screenshots**. This is a V5 source/parameter
-  comparison only.
+- **Implementation**: phases A, B and the first half of C are done and
+  committed. Phase C's remaining items (softness 0/17/32, ambient 0 / grain 0
+  off verification, stacked order, the white-theme case) and Phase D's live
+  menu-bar capture are **not** done.
+- **Automation**: 431 tests passed, 3 skipped; domain purity OK; the curtain
+  dump's 32 PNGs are byte-identical to `after/curtain`; the new
+  `AuroraAlignDumpTests` writes 15 whole-lane PNGs including a measured
+  before/after pair.
+- **Real machine**: the screen locked mid-round, so there is **no valid live
+  capture** of the fixed build. Every statement about the real bar here is
+  offline renderer output.
+- **Visual gap**: the inner fill now matches the lab (blue 196 vs 196); the
+  outer tier is still 35/11/37 darker, because V5 separates its tiers by alpha
+  over one hue while our outer tier is a darker *colour*.
+- **Browser**: the lab **was** rendered this round, headless
+  (`--headless --screenshot`), and the rendered PNG is the reference for the
+  Phase C table. It is a headless browser render, not a native screenshot.

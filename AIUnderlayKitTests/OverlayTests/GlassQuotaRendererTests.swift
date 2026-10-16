@@ -538,4 +538,60 @@ final class GlassQuotaRendererTests: XCTestCase {
         XCTAssertGreaterThan(halo.opacity, bloom.opacity, "the local reflection carries the tint")
         XCTAssertNotNil(halo.contents)
     }
+
+    /// V5 blends the glass tint with `mix-blend-mode: screen` — the agent colour
+    /// *adds light* to the quota instead of painting over it. Without the same
+    /// operator the native tint can only darken what it covers, which is the
+    /// second half of the "grey, not translucent" reading against the lab.
+    func test_glassTintAddsLightLikeV5sScreenBlend() throws {
+        GlassMaterialRenderer.resetCache()
+        let lane = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.8),
+                                                           window("s", remaining: 0.5)]))
+        let clip = try XCTUnwrap(tintClip(lane))
+        for name in ["tintBloom", "tintLinear", "tintHalo"] {
+            let layer = try XCTUnwrap(clip.sublayers?.first { $0.name == name })
+            XCTAssertEqual(layer.compositingFilter as? String, "screenBlendMode",
+                           "\(name) must screen over the fill, like V5's mix-blend-mode")
+        }
+    }
+
+    /// The tier ladder is a *colour* ladder and V5's fills are an *alpha*
+    /// ladder over one hue. Applying both at once double-attenuated the outer
+    /// fill until it read as grey mud; the alphas are compensated by the
+    /// tier's own brightness so the rendered ink still matches V5.
+    func test_outerTierCompensatesItsOwnDarkening() {
+        let palette = ProviderPalette.codex
+        let tiers = palette.tierColors(forWindowCount: 2)
+        let brightest = tiers.map(\.luminance).max() ?? 1
+        let factor = tiers[0].luminance / brightest
+        XCTAssertLessThan(factor, 0.9, "the outer tier is genuinely darkened by the palette")
+
+        let outer = CAGradientLayer()
+        let inner = CAGradientLayer()
+        GlassQuotaRenderer.applyFillGradient(outer, color: tiers[0], rank: 0,
+                                             isInnermost: false, tierFactor: factor)
+        GlassQuotaRenderer.applyFillGradient(inner, color: tiers[1], rank: 1,
+                                             isInnermost: true, tierFactor: 1)
+        let outerColors = outer.colors as? [CGColor] ?? []
+        let innerColors = inner.colors as? [CGColor] ?? []
+
+        func ink(_ color: CGColor) -> Double {
+            let c = color.components ?? []
+            let alpha = Double(c[3])
+            return (Double(c[0]) * 0.2126 + Double(c[1]) * 0.7152 + Double(c[2]) * 0.0722)
+                * alpha
+        }
+        // V5's own ratio between the tiers (0.30 vs 0.88 at the top stop) is
+        // ~0.34; compensation must land near it, not at the un-compensated 0.10.
+        let ratio = ink(outerColors[0]) / ink(innerColors[0])
+        XCTAssertGreaterThan(ratio, 0.22, "the outer tier must not be double-attenuated")
+        XCTAssertLessThan(ratio, 0.70, "the outer tier must still read as the darker tier")
+        // Every stop keeps the darker tier's *rendered ink* below the brighter
+        // one. Raw alpha is deliberately not compared: the compensation raises
+        // the alpha of the already-darkened colour, and ink is the invariant.
+        for index in 0..<3 {
+            XCTAssertLessThan(ink(outerColors[index]), ink(innerColors[index]),
+                              "stop \(index) keeps the tier ladder readable")
+        }
+    }
 }

@@ -66,6 +66,40 @@ final class GlassSpectrumRendererTests: XCTestCase {
         XCTAssertEqual(animation.duration, cycle, accuracy: 0.0001)
     }
 
+    /// The scrim is V5's `.zone .sheen` bottom edge, not a film over the fill.
+    ///
+    /// A 0.45-alpha black scrim across the bottom 82% of the lane is what made
+    /// the native glass read "灰蒙蒙" next to the lab: it cost the inner fill
+    /// 38/255 of blue. The ceiling here keeps a future edit from silently
+    /// re-introducing it, and the floor keeps the machined bottom edge that
+    /// gives the rays something to stand on.
+    func test_scrimIsAV5SheenEdge_notAFilmOverTheFill() throws {
+        let lane = GlassSpectrumRenderer.render(
+            spec(signal: ProviderVisualSignal(isRunning: true)),
+            running: true, cycle: cycle, restart: true
+        )
+        let spectrum = try XCTUnwrap(root(of: lane))
+        let scrim = try XCTUnwrap(
+            spectrum.sublayers?.first { $0.name == "scrim" } as? CAGradientLayer
+        )
+        let colors = try XCTUnwrap(scrim.colors as? [CGColor])
+        XCTAssertEqual(colors.count, 2)
+        XCTAssertEqual(Double(colors[0].alpha), 0, accuracy: 0.001,
+                       "the scrim starts fully transparent")
+        XCTAssertLessThanOrEqual(Double(colors[1].alpha), 0.16,
+                                 "the scrim stays a bottom edge, never a film")
+        XCTAssertGreaterThan(Double(colors[1].alpha), 0.05,
+                             "the bottom edge keeps the machined sheen")
+        let locations = try XCTUnwrap(scrim.locations?.map { $0.doubleValue })
+        XCTAssertEqual(locations, [0.76, 1.0],
+                       "V5's sheen only covers the last quarter of the lane")
+        // V5's sheen is a dark blue-grey, not neutral black: on the Aurora scene
+        // a pure black edge reads as a shadow instead of a machined rim.
+        let edge = colors[1].components ?? []
+        XCTAssertGreaterThanOrEqual(Double(edge[2]), Double(edge[0]),
+                                    "the sheen stays in the fill's blue family")
+    }
+
     func test_animatedLayerBudget_isSmall() throws {
         let lane = GlassSpectrumRenderer.render(
             spec(signal: ProviderVisualSignal(isRunning: true)),

@@ -31,6 +31,7 @@
 		2BCA783B2D0FD626D0C67D9A /* AgentEventAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A69AF0F5318B8894A471744 /* AgentEventAdapter.swift */; };
 		2D66D0877F78F5CF89272CC2 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D740EC79D606AFA338E8E0C3 /* AppSettings.swift */; };
 		3300A5661912D23F300CF100 /* CodexBarSessionCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39495282B13FC6FFD49CC7C /* CodexBarSessionCatalog.swift */; };
+		364832AA50D8CCED73E97E32 /* AuroraAlignDumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B99594B32DEFEEAED151E1C /* AuroraAlignDumpTests.swift */; };
 		37A7AAE5C87ABE57AAF5EECD /* GlassSpectrumRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8386B7CD2E2DBC1F22189F /* GlassSpectrumRendererTests.swift */; };
 		3A95A11E45FC523522A3068A /* CodexBarProviderCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C22E7BD8D324BADEC3B32CF /* CodexBarProviderCatalog.swift */; };
 		3F1C3A2B5782466C1DFEB2E2 /* QuotaEngineManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0F4BB73DA071FF23A3A820 /* QuotaEngineManager.swift */; };
@@ -186,6 +187,7 @@
 		08397254C141A1C0C0775AF8 /* ProxyEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyEnvironment.swift; sourceTree = "<group>"; };
 		097E5C67BE077E51944019E1 /* QuotaDisplayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotaDisplayState.swift; sourceTree = "<group>"; };
 		0A8386B7CD2E2DBC1F22189F /* GlassSpectrumRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSpectrumRendererTests.swift; sourceTree = "<group>"; };
+		0B99594B32DEFEEAED151E1C /* AuroraAlignDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuroraAlignDumpTests.swift; sourceTree = "<group>"; };
 		0C235C4996F509BA5A95FDD7 /* V5FidelityDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V5FidelityDumpTests.swift; sourceTree = "<group>"; };
 		0F18C72C66838E0074B68016 /* AgentStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStateStore.swift; sourceTree = "<group>"; };
 		10641359353453C2D2E39123 /* HookEventPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventPayload.swift; sourceTree = "<group>"; };
@@ -614,6 +616,7 @@
 			isa = PBXGroup;
 			children = (
 				75EEA8CADCE884540F66F158 /* AttentionLightRendererTests.swift */,
+				0B99594B32DEFEEAED151E1C /* AuroraAlignDumpTests.swift */,
 				666DDB9479CBB79AF6D7DCA6 /* BandWatchdogTests.swift */,
 				A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */,
 				F6A3624BE81ED9C3CA8DA4C1 /* GlassLayerHostTests.swift */,
@@ -866,6 +869,7 @@
 				4CCF11CE0C028470CEB24E83 /* AgentSessionReducerTests.swift in Sources */,
 				7D1EA3D74C13B7A5839F4910 /* AgentStateStoreTests.swift in Sources */,
 				EAFD5EDF348550B8B99AD320 /* AttentionLightRendererTests.swift in Sources */,
+				364832AA50D8CCED73E97E32 /* AuroraAlignDumpTests.swift in Sources */,
 				85A0473684853F947DB690AC /* BandWatchdogTests.swift in Sources */,
 				D0B281AE93BA1CCB1AB8A43A /* BandWindowLevelTests.swift in Sources */,
 				5B1F52CFE32A5F4A022BE979 /* CLIInventoryTests.swift in Sources */,
