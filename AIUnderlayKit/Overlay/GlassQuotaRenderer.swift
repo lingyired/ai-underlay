@@ -63,7 +63,7 @@ public enum GlassQuotaRenderer {
         let lengths = updateFills(glass, spec: spec, state: state)
         updateTint(glass, spec: spec, state: state, outerLength: lengths.first, scale: scale)
         updateCaps(glass, spec: spec, state: state, lengths: lengths, scale: scale)
-        LayerSlot.reconcile(glass, keeping: ["bed", "fills", "tint", "caps", "envBottom"])
+        LayerSlot.reconcile(glass, keeping: ["bed", "fills", "tint", "caps"])
 
         updateBaseline(lane, spec: spec)
     }
@@ -105,12 +105,12 @@ public enum GlassQuotaRenderer {
             base.withAlpha(base.alpha * alphaScale * 0.98).cgColor,
         ]
 
-        // A dark bottom rim only. The 1pt white top highlight that used to sit
-        // here read as a second inner shadow under the fill's own top edge, so
-        // the bed now keeps a single machined edge at the bottom.
-        let bottom = LayerSlot.named("envBottom", in: parent)
-        bottom.frame = CGRect(x: groove.minX, y: groove.minY, width: groove.width, height: 1)
-        bottom.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: state == .unknown ? 0.35 : 0.7)
+        // No `envBottom` rim. A 1pt black line at 0.7 alpha used to sit on the
+        // bottom edge of the groove; on the real bar it reads as a black shadow
+        // under the lane (row 57 `92,114,128` -> rows 58-59 `69,76,80`, while
+        // the same rows with the overlay off are flat). V5 has no such line:
+        // its glass ends on the bed's own gradient plus the `.sheen`, which the
+        // spectrum renderer already draws at 0.12.
     }
 
     // MARK: - Nested fills

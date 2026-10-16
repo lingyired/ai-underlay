@@ -175,6 +175,21 @@ final class GlassQuotaRendererTests: XCTestCase {
         XCTAssertNotNil(bed, "a known 0% is drawn as exhausted black")
     }
 
+    /// The lane ends on the bed's gradient plus the spectrum's `.sheen`. The
+    /// 1pt black rim that used to sit here measured `69,76,80` against a
+    /// `92,114,128` row above it on the real bar — a black shadow under the
+    /// lane, and not something V5 draws.
+    func test_theGrooveDrawsNoBlackBottomRim() {
+        let glass = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: 0.4)]))
+            .sublayers?.first { $0.name == "quotaGlass" }
+        let names = (glass?.sublayers ?? []).compactMap(\.name)
+        XCTAssertFalse(names.contains("envBottom"), "layers: \(names)")
+        for layer in glass?.sublayers ?? [] where layer.frame.height <= 1.5 {
+            XCTAssertLessThan(layer.backgroundColor?.alpha ?? 0, 0.1,
+                              "\(layer.name ?? "?") paints a dark hairline across the lane")
+        }
+    }
+
     func test_unknownQuota_drawsTheNeutralBedNeverBlackExhaustion() {
         let lane = GlassQuotaRenderer.render(spec(windows: [window("w", remaining: nil, availability: .unavailable)]))
         let glass = lane.sublayers?.first { $0.name == "quotaGlass" }
