@@ -493,9 +493,10 @@ public final class AppCoordinator: ObservableObject {
         windows: [QuotaWindow],
         signal: ProviderVisualSignal?,
         settings s: AppSettings,
-        theme: ThemeDocument?
+        theme: ThemeDocument?,
+        splitRole: SplitLaneRole? = nil
     ) -> LaneContent {
-        let glass = glassTheme(for: providerId, theme: theme, settings: s)
+        let glass = glassTheme(for: providerId, theme: theme, settings: s, splitRole: splitRole)
         return LaneContent(
             providerId: providerId,
             windows: windows,
@@ -527,27 +528,34 @@ public final class AppCoordinator: ObservableObject {
             split: s.dualWindowSplit
         )
         let targets = LanePlanResolver.lanes(for: plan, windowsForProvider: windowsFor)
-        func lane(_ target: LanePlanResolver.LaneTarget?) -> LaneContent? {
+        func lane(_ target: LanePlanResolver.LaneTarget?, side: GaugeSide) -> LaneContent? {
             guard let target else { return nil }
             return laneContent(
                 providerId: target.providerId,
                 windows: target.windows,
                 signal: signalFor(target.providerId),
                 settings: s,
-                theme: theme
+                theme: theme,
+                splitRole: plan.splitRole(for: side)
             )
         }
-        return (plan, lane(targets.left), lane(targets.right))
+        return (plan, lane(targets.left, side: .left), lane(targets.right, side: .right))
     }
 
     /// Resolves the full glass theme for one provider: built-in V5 defaults,
     /// then the active theme file, then the user's own appearance edits.
-    private func glassTheme(for providerId: String, theme: ThemeDocument?, settings s: AppSettings) -> ResolvedGlassTheme {
+    private func glassTheme(
+        for providerId: String,
+        theme: ThemeDocument?,
+        settings s: AppSettings,
+        splitRole: SplitLaneRole? = nil
+    ) -> ResolvedGlassTheme {
         ThemeResolver.glassTheme(
             theme: theme,
             providerId: providerId,
             base: ProviderPalette.for(providerId: providerId),
-            appearance: s.appearance
+            appearance: s.appearance,
+            splitRole: splitRole
         )
     }
 

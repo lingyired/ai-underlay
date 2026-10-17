@@ -73,6 +73,54 @@ final class ThemeResolverTests: XCTestCase {
         XCTAssertEqual(ProviderPalette.claude.inner, RGBAColor(hex: "#FFB08A")!)
     }
 
+    // MARK: - Split side colours
+
+    func test_splitRole_paintsTheTwoSidesDifferently() {
+        let weekly = ThemeResolver.palette(theme: nil, providerId: "codex", base: .codex, splitRole: .weekly)
+        let session = ThemeResolver.palette(theme: nil, providerId: "codex", base: .codex, splitRole: .session)
+
+        XCTAssertEqual(weekly, .codex, "the weekly side keeps the provider look untouched")
+        XCTAssertNotEqual(session.inner, weekly.inner, "a split must be visible at a glance")
+        XCTAssertLessThan(session.outer.luminance, session.inner.luminance,
+                          "the derived tier ladder still holds on the split side")
+    }
+
+    func test_splitRole_neverTouchesTrackOrBaseline() {
+        let resolved = ThemeResolver.palette(
+            theme: v1Theme, providerId: "codex", base: .codex, splitRole: .session
+        )
+        XCTAssertEqual(resolved.track.alpha, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(resolved.baseline.alpha, 0.25, accuracy: 0.0001)
+    }
+
+    func test_splitRole_userSplitColourOutranksTheDerivation() {
+        let appearance = GlassAppearance(splitQuotaBaseColors: ["session": "#FF0000"])
+        let session = ThemeResolver.palette(
+            theme: nil, providerId: "codex", base: .codex, appearance: appearance, splitRole: .session
+        )
+        XCTAssertEqual(session.inner, RGBAColor(hex: "#FF0000"))
+
+        let weekly = ThemeResolver.palette(
+            theme: nil, providerId: "codex", base: .codex, appearance: appearance, splitRole: .weekly
+        )
+        XCTAssertEqual(weekly, .codex, "one side's colour never leaks into the other")
+    }
+
+    func test_splitRole_staysInsideTheProvidersOwnColour() {
+        // A user or theme colour for the provider is the source both sides
+        // derive from: the split must not fall back to the built-in V5 base.
+        let appearance = GlassAppearance(quotaBaseColors: ["codex": "#00FF00"])
+        let session = ThemeResolver.palette(
+            theme: nil, providerId: "codex", base: .codex, appearance: appearance, splitRole: .session
+        )
+        XCTAssertEqual(session.inner, RGBAColor(hex: "#00FF00")!.rotatedHue(by: SplitLaneColors.sessionHueShift))
+    }
+
+    func test_splitRoleIsIgnoredWithoutASplit() {
+        let plain = ThemeResolver.palette(theme: nil, providerId: "codex", base: .codex)
+        XCTAssertEqual(plain, .codex)
+    }
+
     // MARK: - Agent glass tint
 
     func test_agentThemeDefaultsAreTheUsersV5Selection() {

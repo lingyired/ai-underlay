@@ -68,6 +68,44 @@ final class GlassPreviewTests: XCTestCase {
         )
     }
 
+    /// The plan and both lane targets of a one-provider dual-window split,
+    /// resolved exactly the way the coordinator resolves them.
+    private func splitPlan() -> (
+        plan: LanePlan,
+        targets: (left: LanePlanResolver.LaneTarget?, right: LanePlanResolver.LaneTarget?)
+    ) {
+        let plan = LanePlanResolver.plan(
+            enabledProviders: ["codex"],
+            supportedProviders: ["codex", "claude"],
+            layout: .dual,
+            split: .sessionLeft
+        )
+        let targets = LanePlanResolver.lanes(for: plan) {
+            FixtureSnapshots.windows(for: "glassV5", providerId: $0)
+        }
+        return (plan, targets)
+    }
+
+    /// One lane's content, with a split role exactly when it is part of a split.
+    private func splitSideContent(
+        _ target: LanePlanResolver.LaneTarget,
+        splitRole: SplitLaneRole?
+    ) -> LaneContent {
+        let glass = ThemeResolver.glassTheme(
+            theme: nil,
+            providerId: target.providerId,
+            base: ProviderPalette.for(providerId: target.providerId),
+            appearance: .empty,
+            splitRole: splitRole
+        )
+        return LaneContent(
+            providerId: target.providerId,
+            windows: target.windows,
+            palette: glass.palette,
+            glass: glass
+        )
+    }
+
     // MARK: - Rasterisation
 
     private func rasterise(_ layer: CALayer, scale: CGFloat = 2) throws -> NSBitmapImageRep {
@@ -219,6 +257,32 @@ final class GlassPreviewTests: XCTestCase {
                           "unknown data must not read as an opaque used-up bar")
     }
 
+    /// The split has to be visible in the pixels, not only in the resolved
+    /// palette: both sides come out of the same renderer here.
+    func test_splitSidesRasteriseTwoDifferentQuotaColours() throws {
+        let split = splitPlan()
+        let left = try XCTUnwrap(split.targets.left)
+        let right = try XCTUnwrap(split.targets.right)
+
+        let session = try rasterise(
+            lane(splitSideContent(left, splitRole: split.plan.splitRole(for: .left)), height: 30)
+        )
+        let weekly = try rasterise(
+            lane(splitSideContent(right, splitRole: split.plan.splitRole(for: .right)), height: 30)
+        )
+
+        let weeklyFill = colour(weekly, atRelativeX: 0.30)
+        let sessionFill = colour(session, atRelativeX: 0.30)
+        XCTAssertGreaterThan(distance(weeklyFill, sessionFill), 0.04,
+                             "the 5-hour side and the weekly side must not read as one colour")
+
+        // The weekly side keeps the provider's own colour: the very same lane
+        // without a split role renders exactly what it rendered before.
+        let unsplit = try rasterise(lane(splitSideContent(right, splitRole: nil), height: 30))
+        XCTAssertLessThan(distance(colour(unsplit, atRelativeX: 0.30), weeklyFill), 0.001,
+                          "only the split side may change colour")
+    }
+
     // MARK: - PNG dump for human review
 
     func test_dumpPreviewPNGsWhenRequested() throws {
@@ -309,6 +373,15 @@ final class GlassPreviewTests: XCTestCase {
                 let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
                 try data.write(to: output.appendingPathComponent("\(provider)-softness\(Int(softness))-32pt-2x.png"))
             }
+        }
+        // The two sides of a one-provider split, side by side for review.
+        let split = splitPlan()
+        for item in [("split-session-side", split.targets.left, SplitLaneRole.session),
+                     ("split-weekly-side", split.targets.right, SplitLaneRole.weekly)] {
+            guard let target = item.1 else { continue }
+            let rep = try rasterise(lane(splitSideContent(target, splitRole: item.2), height: 32))
+            let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+            try data.write(to: output.appendingPathComponent("\(item.0)-32pt-2x.png"))
         }
         XCTAssertEqual(cases.count, 15)
     }

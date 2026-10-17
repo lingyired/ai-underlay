@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
-[![Tests: 421 passing](https://img.shields.io/badge/Tests-421%20passing-brightgreen.svg)](Scripts/test.sh)
+[![Tests: 482 passing](https://img.shields.io/badge/Tests-482%20passing-brightgreen.svg)](Scripts/test.sh)
 [![No telemetry](https://img.shields.io/badge/Telemetry-none-lightgrey.svg)](docs/privacy-and-permissions.md)
 
 Draws an AI quota and agent-activity bar **into the macOS menu bar background**.
@@ -14,6 +14,10 @@ that sits above the desktop icons and below the menu bar.
 - Left side: Codex · Right side: Claude Code (configurable, per display).
 - Nested quota: each shorter window occupies the *remaining* length of the
   longer one (week → 5h), with a pace baseline marker.
+- A one-provider dual split paints its two sides differently, so the 5-hour side
+  and the weekly side never look alike: the 5-hour side turns the provider's own
+  hue by 30°, the weekly side keeps the provider colour, and either side can be
+  overridden by hand (Settings → Theme → 额度颜色 → 拆分).
 - Agent state (running / waiting for approval / waiting for input / unread) is
   shown with independent light-field and alert visuals — never by altering
   quota numbers.

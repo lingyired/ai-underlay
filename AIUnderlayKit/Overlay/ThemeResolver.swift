@@ -18,12 +18,19 @@ public enum ThemeResolver {
     // MARK: - Palette (quota tiers)
 
     /// The quota palette for a provider: base V5 palette → v2 single base
-    /// colour → v1/v2 explicit layers → user's own base colour.
+    /// colour → v1/v2 explicit layers → user's own base colour → the split
+    /// side's own base colour.
+    ///
+    /// `splitRole` is only set while one provider is split across both lanes;
+    /// it re-derives the tier ladder from that side's base so the two sides of
+    /// the split cannot look alike. Every other layout passes nil and keeps the
+    /// provider's single colour.
     public static func palette(
         theme: ThemeDocument?,
         providerId: String,
         base: ProviderPalette,
-        appearance: GlassAppearance = .empty
+        appearance: GlassAppearance = .empty,
+        splitRole: SplitLaneRole? = nil
     ) -> ProviderPalette {
         var palette = base
 
@@ -43,6 +50,22 @@ public enum ThemeResolver {
         if let userBase = appearance.quotaBaseColors[providerId].flatMap({ RGBAColor(hex: $0) }) {
             palette = ProviderPalette.derived(providerId: providerId, base: userBase)
         }
+        // The split's own colour is more specific than the provider's, so it
+        // comes last: it reuses whatever the chain above resolved as this
+        // provider's full-brightness colour, then only moves the hue for the
+        // side that carries the 5-hour window. The track and the baseline are
+        // not the provider's colour and stay exactly as the theme set them.
+        if let splitRole {
+            let splitBase = SplitLaneColors.baseColor(
+                role: splitRole,
+                providerBase: palette.inner,
+                overrides: appearance.splitQuotaBaseColors
+            )
+            let tiers = QuotaTierPalette.derive(base: splitBase, count: 3)
+            palette.outer = tiers[0]
+            palette.middle = tiers[1]
+            palette.inner = tiers[2]
+        }
         if let track = theme?.global?.trackColor.flatMap({ ThemeColor(hex: $0) }) {
             palette.track = RGBAColor(track, alpha: theme?.global?.trackOpacity ?? defaultTrackAlpha)
         }
@@ -58,9 +81,16 @@ public enum ThemeResolver {
         theme: ThemeDocument?,
         providerId: String,
         base: ProviderPalette,
-        appearance: GlassAppearance = .empty
+        appearance: GlassAppearance = .empty,
+        splitRole: SplitLaneRole? = nil
     ) -> ResolvedGlassTheme {
-        let palette = palette(theme: theme, providerId: providerId, base: base, appearance: appearance)
+        let palette = palette(
+            theme: theme,
+            providerId: providerId,
+            base: base,
+            appearance: appearance,
+            splitRole: splitRole
+        )
 
         let agentThemeColor =
             appearance.agentThemeColors[providerId].flatMap { RGBAColor(hex: $0) }

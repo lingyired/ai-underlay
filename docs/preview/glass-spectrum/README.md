@@ -41,6 +41,8 @@ matrix in `build/glass-fidelity/after/` instead of writing every image here.
 | `reduce-motion-running-error.png` | Reduce Motion: same layout, zero animations |
 | `running-no-traveling-light.png` | 横穿扫光关闭：宽光场隐藏，局部射线仍在固定亮区起伏 |
 | `running-error-no-attention-sweep.png` | 状态灯带扫光关掉：顶线/底带/辉光保留，只去掉亮带 |
+| `split-session-side-32pt-2x.png` | 单提供商双侧拆分：5 小时那侧（Provider 色相偏转 30°，青） |
+| `split-weekly-side-32pt-2x.png` | 同一拆分的周额度那侧（Provider 本色，冰蓝） |
 
 **`unread-only.png` and `running-unread.png` are simulated.** Production keeps
 `AgentSignals.unreadCount` at 0 until the durable completion ledger merges
