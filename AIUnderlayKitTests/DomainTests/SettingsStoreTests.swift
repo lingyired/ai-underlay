@@ -149,6 +149,29 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.settings.appearance.material?.grain, 0.4)
     }
 
+    func test_splitQuotaColors_surviveARoundTrip() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = SettingsStore(fileURL: url)
+        store.update { settings in
+            settings.appearance.splitQuotaBaseColors = [
+                SplitLaneRole.session.rawValue: "#00FF00",
+                SplitLaneRole.weekly.rawValue: "#FF00FF",
+            ]
+        }
+
+        let reloaded = SettingsStore(fileURL: url)
+        XCTAssertEqual(reloaded.settings.appearance.splitQuotaBaseColors["session"], "#00FF00")
+        XCTAssertEqual(reloaded.settings.appearance.splitQuotaBaseColors["weekly"], "#FF00FF")
+    }
+
+    func test_splitQuotaColors_defaultToEmpty_onAnOlderFile() throws {
+        let json = #"{"layout":"dual","enabledProviders":["codex"]}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        XCTAssertTrue(settings.appearance.splitQuotaBaseColors.isEmpty)
+    }
+
     // MARK: - Baseline motion tempo
 
     func test_motionFloor_survivesARoundTrip_andDefaultsToNil() throws {

@@ -24,6 +24,48 @@ public enum DualWindowSplit: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// Which side of an active one-provider dual-window split a lane draws.
+///
+/// The role, not the screen side, carries the colour: flipping the split moves
+/// the 5-hour window to the other side and its colour moves with it, so what a
+/// colour means never changes underneath the user.
+public enum SplitLaneRole: String, Codable, Sendable, CaseIterable {
+    /// The side that carries the 5-hour session window.
+    case session
+    /// The side that keeps every remaining window (weekly, monthly, …).
+    case weekly
+}
+
+/// The quota base colour of one side of a dual-window split.
+///
+/// Splitting one provider across both lanes would otherwise paint both sides
+/// with its single base colour, and a glance could not tell the 5-hour window
+/// from the weekly one. So the session side turns the provider's own hue by
+/// `sessionHueShift`; the weekly side keeps the provider colour untouched. A
+/// user override (`GlassAppearance.splitQuotaBaseColors`) always wins.
+public enum SplitLaneColors {
+    /// −30°: far enough that the two sides read as different colours, close
+    /// enough that each stays inside its provider's colour family.
+    public static let sessionHueShift: Double = -30.0 / 360.0
+
+    /// The base colour for one side. `providerBase` is the provider's own
+    /// full-brightness quota colour *after* theme and per-provider overrides,
+    /// so a themed provider keeps its theme on both sides.
+    public static func baseColor(
+        role: SplitLaneRole,
+        providerBase: RGBAColor,
+        overrides: [String: String] = [:]
+    ) -> RGBAColor {
+        if let hex = overrides[role.rawValue], let color = RGBAColor(hex: hex) {
+            return color
+        }
+        switch role {
+        case .weekly: return providerBase
+        case .session: return providerBase.rotatedHue(by: sessionHueShift)
+        }
+    }
+}
+
 /// Which provider each lane shows, resolved from the app-level provider
 /// switches, the layout, and the dual-window split. Pure, so the whole
 /// settings matrix is unit-tested without an `AppCoordinator`.
@@ -46,6 +88,16 @@ public struct LanePlan: Equatable, Sendable {
         self.leftProviderId = leftProviderId
         self.rightProviderId = rightProviderId
         self.splitSessionSide = splitSessionSide
+    }
+
+    /// The role `side` plays while this plan splits one provider across both
+    /// lanes, or nil in every other layout. Both lanes must really show the
+    /// same provider: two providers keep their own colours, untouched.
+    public func splitRole(for side: GaugeSide) -> SplitLaneRole? {
+        guard let splitSessionSide,
+              let providerId = leftProviderId,
+              rightProviderId == providerId else { return nil }
+        return splitSessionSide == side ? .session : .weekly
     }
 }
 

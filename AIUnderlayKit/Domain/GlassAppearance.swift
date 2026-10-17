@@ -12,6 +12,11 @@ public struct GlassAppearance: Codable, Sendable, Equatable {
     public var agentThemeColors: [String: String]
     /// providerId → hex. The provider's quota colour; tiers derive from it.
     public var quotaBaseColors: [String: String]
+    /// `SplitLaneRole` raw value → hex. The quota colour of each side while one
+    /// provider is split across both lanes ("5 小时" vs "周额度"). Empty means
+    /// the built-in two-tone derivation (`SplitLaneColors`). It is never
+    /// applied outside an active split, so normal dual mode is unaffected.
+    public var splitQuotaBaseColors: [String: String]
     /// `AttentionKind` raw value (+ "running") → hex. Global, state-driven.
     public var signalColors: [String: String]
     /// The fully-exhausted quota bed. V5 default: opaque black.
@@ -22,12 +27,14 @@ public struct GlassAppearance: Codable, Sendable, Equatable {
     public init(
         agentThemeColors: [String: String] = [:],
         quotaBaseColors: [String: String] = [:],
+        splitQuotaBaseColors: [String: String] = [:],
         signalColors: [String: String] = [:],
         exhaustedTrackColor: String? = nil,
         material: GlassMaterialOverrides? = nil
     ) {
         self.agentThemeColors = agentThemeColors
         self.quotaBaseColors = quotaBaseColors
+        self.splitQuotaBaseColors = splitQuotaBaseColors
         self.signalColors = signalColors
         self.exhaustedTrackColor = exhaustedTrackColor
         self.material = material
@@ -36,8 +43,8 @@ public struct GlassAppearance: Codable, Sendable, Equatable {
     public static let empty = GlassAppearance()
 
     public var isEmpty: Bool {
-        agentThemeColors.isEmpty && quotaBaseColors.isEmpty && signalColors.isEmpty
-            && exhaustedTrackColor == nil && (material?.isEmpty ?? true)
+        agentThemeColors.isEmpty && quotaBaseColors.isEmpty && splitQuotaBaseColors.isEmpty
+            && signalColors.isEmpty && exhaustedTrackColor == nil && (material?.isEmpty ?? true)
     }
 
     /// Tolerant decoding: a malformed dictionary entry must never fail the
@@ -46,6 +53,7 @@ public struct GlassAppearance: Codable, Sendable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         agentThemeColors = (try? c.decodeIfPresent([String: String].self, forKey: .agentThemeColors)) ?? [:]
         quotaBaseColors = (try? c.decodeIfPresent([String: String].self, forKey: .quotaBaseColors)) ?? [:]
+        splitQuotaBaseColors = (try? c.decodeIfPresent([String: String].self, forKey: .splitQuotaBaseColors)) ?? [:]
         signalColors = (try? c.decodeIfPresent([String: String].self, forKey: .signalColors)) ?? [:]
         exhaustedTrackColor = try? c.decodeIfPresent(String.self, forKey: .exhaustedTrackColor)
         material = try? c.decodeIfPresent(GlassMaterialOverrides.self, forKey: .material)

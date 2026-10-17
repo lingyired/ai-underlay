@@ -163,6 +163,63 @@ final class LanePlanTests: XCTestCase {
         XCTAssertEqual(split.left.count + split.right.count, all.count)
     }
 
+    // MARK: - Split side roles and colours
+
+    func test_splitRole_namesTheSessionSideAndTheWeeklySide() {
+        let sessionLeft = plan(["codex"], .dual, .sessionLeft)
+        XCTAssertEqual(sessionLeft.splitRole(for: .left), .session)
+        XCTAssertEqual(sessionLeft.splitRole(for: .right), .weekly)
+
+        // Flipping the split moves the colour with the 5-hour window, so the
+        // side a colour sits on never changes what it means.
+        let sessionRight = plan(["codex"], .dual, .sessionRight)
+        XCTAssertEqual(sessionRight.splitRole(for: .left), .weekly)
+        XCTAssertEqual(sessionRight.splitRole(for: .right), .session)
+    }
+
+    func test_splitRole_isNilWheneverBothLanesAreNotOneSplitProvider() {
+        XCTAssertNil(plan(["codex"], .dual, .none).splitRole(for: .left), "no split")
+        XCTAssertNil(plan(["codex"], .dual, .none).splitRole(for: .right), "the provider owns its own side")
+        XCTAssertNil(plan(["codex", "claude"], .dual, .sessionLeft).splitRole(for: .left),
+                     "two providers keep their own colours")
+        XCTAssertNil(plan(["codex"], .single, .sessionLeft).splitRole(for: .left), "single layout")
+        XCTAssertNil(plan([], .dual, .sessionLeft).splitRole(for: .left), "no provider at all")
+    }
+
+    func test_splitColors_weeklyKeepsTheProviderColour_sessionTurnsTheHue() {
+        let base = ProviderPalette.codex.inner
+        let weekly = SplitLaneColors.baseColor(role: .weekly, providerBase: base)
+        let session = SplitLaneColors.baseColor(role: .session, providerBase: base)
+
+        XCTAssertEqual(weekly, base)
+        XCTAssertNotEqual(session.hexString, weekly.hexString, "the two sides must not look alike")
+        XCTAssertEqual(max(session.red, session.green, session.blue),
+                       max(base.red, base.green, base.blue), accuracy: 0.0001,
+                       "a split turns the hue only: brightness and chroma stay")
+    }
+
+    func test_splitColors_userPickWins_perSideAndPerRole() {
+        let base = ProviderPalette.codex.inner
+        let overrides = [SplitLaneRole.session.rawValue: "#FF00FF"]
+        XCTAssertEqual(SplitLaneColors.baseColor(role: .session, providerBase: base, overrides: overrides),
+                       RGBAColor(hex: "#FF00FF"))
+        XCTAssertEqual(SplitLaneColors.baseColor(role: .weekly, providerBase: base, overrides: overrides), base,
+                       "picking one side must not repaint the other")
+    }
+
+    func test_splitColors_invalidHexFallsBackToTheDerivation() {
+        let base = ProviderPalette.claude.inner
+        let overrides = [SplitLaneRole.session.rawValue: "not-a-colour"]
+        XCTAssertEqual(SplitLaneColors.baseColor(role: .session, providerBase: base, overrides: overrides),
+                       base.rotatedHue(by: SplitLaneColors.sessionHueShift),
+                       "a typo in settings.json must not render black")
+    }
+
+    func test_splitColors_greyHasNoHueToTurn() {
+        let grey = RGBAColor(red: 0.5, green: 0.5, blue: 0.5)
+        XCTAssertEqual(SplitLaneColors.baseColor(role: .session, providerBase: grey), grey)
+    }
+
     private func window(_ id: String, _ kind: QuotaWindowKind) -> QuotaWindow {
         QuotaWindow(
             id: id, label: id, kind: kind, durationSeconds: nil,

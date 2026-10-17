@@ -120,9 +120,11 @@ Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`�
 | P6-14 光幕画面对比度 | DONE | 离屏预览有 80 级明暗差，真机菜单栏只有 24 级：band 窗口在菜单栏之下，系统菜单栏材质吃掉约 40% 对比度。射线幕新增静态深色底（自下而上 45%→透明、不参与动画、Reduce Motion 保留），射线基准波高 0.20→0.32、不透明度 0.46 起、白核 1.16→1.3pt。真机实测明暗差 24→约 50。守卫：`test_curtainStandsOnAStaticDarkScrim` |
 | P6-15 两处扫光可关 | DONE | 「横穿扫光」（`showTravelingLight`）关掉只隐藏两条宽光场，射线幕照常呼吸；「状态灯带扫光」（`showAttentionSweep`）关掉保留顶线/底带/辉光，只去掉来回的亮带。开关走 `LaneRenderSpec` 且**不重建图层**，切换即时生效（图层保留、只切 hidden 与动画）。守卫：`test_travelingLightDisabled_*`、`test_sweepDisabled_keepsTheStaticAlert`、`test_*Toggle_appliesToTheLiveLayer(s)`、`test_sweepToggles_*` |
 | P6-16 服务商总开关 + 单提供商双侧拆分 | DONE | 「服务商」页每家一个 `enabledProviders` 总开关，独立于 CodexBar 上游启用：关掉的 provider 不请求、不显示（overlay/dashboard/刷新计划一致），重新打开立即取数；上游状态与登录状态照常展示。「外观」页新增 `dualWindowSplit`（仅双侧 + 只启用一家时可用）：5 小时窗口放选定一侧、其余窗口（周/月）嵌套在另一侧，两侧共用同一提供商的配色与动效（`LanePlanResolver` / `WindowSplit` 纯域解析，live 与 fixture 共用同一组合管线）。守卫：`LanePlanTests`、`SettingsStoreTests.test_providerSwitches_*`、`test_unknownSplitValue_fallsBackToNone`、旧文件缺键默认全开不拆分 |
+| P6-17 拆分两侧不同色 | DONE | 原先单提供商拆分后两侧共用同一配色，一眼分不出 5 小时与周额度。现在配色按**角色**而非物理左右走：5 小时那侧把 Provider 的本色相偏转 30°（`SplitLaneColors.sessionHueShift`），周额度侧沿用本色；翻转拆分方向时颜色跟着窗口走。「主题 → 额度颜色 → 拆分」可分别覆盖两侧（`GlassAppearance.splitQuotaBaseColors`，设置级、不写主题文件），一侧选色不影响另一侧。未拆分/两家各占一侧/单条一律不受影响（`LanePlan.splitRole(for:)` 只在两侧同 Provider 时给出角色）。守卫：`LanePlanTests.test_splitRole_*` / `test_splitColors_*`、`ThemeResolverTests.test_splitRole*`、`SettingsStoreTests.test_splitQuotaColors_*`、`GlassPreviewTests.test_splitSidesRasteriseTwoDifferentQuotaColours`（像素级：5 小时侧与周额度侧必须不同色，且未拆分的那条像素不变） |
 
-Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x，含关闭扫光的对照图）。Total tests: 384 passing
-(1 skipped = the opt-in PNG dump), `Scripts/check-domain-purity.sh` OK。
+Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x，含关闭扫光的对照图与
+`split-*-side-32pt-2x.png` 拆分两侧对照）。Total tests: 482 passing
+(3 skipped = opt-in PNG dumps), `Scripts/check-domain-purity.sh` OK。
 
 Known limits: 真实 TPS 未接入（光场始终跑设置里的基准节奏）；
 Unread 仅 fixtures；

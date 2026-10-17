@@ -94,6 +94,17 @@ public struct ThemeTab: View {
             }
             Text("两层额度由统一亮度梯度生成：外层更暗、内层更亮、端点高光；用完的部分保持黑色。")
                 .font(.caption).foregroundStyle(.secondary)
+
+            Divider()
+
+            ColorPicker("拆分 · 5 小时侧", selection: splitColorBinding(.session))
+            ColorPicker("拆分 · 周额度侧", selection: splitColorBinding(.weekly))
+            Button("恢复拆分默认色") {
+                settings.update { $0.appearance.splitQuotaBaseColors = [:] }
+                status = "已恢复双侧拆分的默认配色"
+            }
+            Text("只在「外观 → 双侧拆分（单提供商）」生效：5 小时那侧默认把 Provider 的色相偏转 30°，周额度侧沿用 Provider 本色，这样分开的两侧一眼能区分；这里选色即覆盖默认。普通双侧（两家各占一侧）与单条都不受影响。")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -229,6 +240,38 @@ public struct ThemeTab: View {
                 let resolved = RGBAColor(newColor, fallback: fallback())
                 settings.update { $0.appearance[keyPath: dictionary][key] = resolved.hexString }
             }
+        )
+    }
+
+    /// The provider a dual-window split would colour right now: the only one
+    /// enabled. With none or several enabled this falls back to the first
+    /// supported provider, which is the side a split would take over.
+    private var splitProviderId: String {
+        let enabled = AIUnderlayKit.supportedProviders.filter {
+            settings.settings.enabledProviders.contains($0)
+        }
+        return enabled.first ?? AIUnderlayKit.supportedProviders.first ?? "codex"
+    }
+
+    /// What a side is painted with when the user has not picked a colour, so
+    /// the swatch shows the colour that is actually rendered rather than an
+    /// unrelated default.
+    private func splitColorFallback(_ role: SplitLaneRole) -> RGBAColor {
+        let providerId = splitProviderId
+        let glass = ThemeResolver.glassTheme(
+            theme: themes.activeTheme,
+            providerId: providerId,
+            base: ProviderPalette.for(providerId: providerId),
+            appearance: settings.settings.appearance
+        )
+        return SplitLaneColors.baseColor(role: role, providerBase: glass.palette.inner)
+    }
+
+    private func splitColorBinding(_ role: SplitLaneRole) -> Binding<Color> {
+        colorBinding(
+            dictionary: \.splitQuotaBaseColors,
+            key: role.rawValue,
+            fallback: { splitColorFallback(role) }
         )
     }
 
