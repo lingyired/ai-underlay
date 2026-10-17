@@ -116,6 +116,7 @@
 		D5F4A5E453361AC0421BCDFE /* CodexBarInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B6679633CB7EDCF0B2F5D60 /* CodexBarInstallerTests.swift */; };
 		D7A26CF90F88C7AECFAFF488 /* QuotaPaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08385A1B1E590AD1C4146C4 /* QuotaPaceTests.swift */; };
 		D8DCAF64A1BF95DAC56C5BF6 /* QuotaDisplayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E5C67BE077E51944019E1 /* QuotaDisplayState.swift */; };
+		D99C32214AEA64E3BF5CDB05 /* QuotaRefreshSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3738D78B53F8976DA9363B7F /* QuotaRefreshSchedulerTests.swift */; };
 		DB02A2DE81B0100BCE734B8A /* SettingsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06344A58A3E38193CDD8F1BD /* SettingsRootView.swift */; };
 		DBF094D39BC2065F1BA2CB8A /* ThemeTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A72D72753750FFF9D0ABD5D /* ThemeTabTests.swift */; };
 		DE3DDBE3D4153B2E6FA1A682 /* CLIInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7A4197DE70CA52C4BBB319 /* CLIInventory.swift */; };
@@ -214,6 +215,7 @@
 		351770E5E673383B059F5D57 /* AgentSessionReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionReducerTests.swift; sourceTree = "<group>"; };
 		35F37FF3D017FBD584780913 /* GlassAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassAppearance.swift; sourceTree = "<group>"; };
 		35FFBF408FA8B50601E237D6 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		3738D78B53F8976DA9363B7F /* QuotaRefreshSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotaRefreshSchedulerTests.swift; sourceTree = "<group>"; };
 		39F2E83F61A2C81401C68EDA /* GlassMaterial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassMaterial.swift; sourceTree = "<group>"; };
 		3E574582EF39BA5655DE53B7 /* HookEventPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventPayloadTests.swift; sourceTree = "<group>"; };
 		3F07D7E67F4FDB6BE4676063 /* AIUnderlayKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AIUnderlayKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -390,6 +392,7 @@
 				A287A900B1E0ABC0BD2513BA /* ProviderCatalogTests.swift */,
 				116880B669122A4CC2AF8A73 /* ProxyEnvironmentTests.swift */,
 				6992B579B02AF713BECB0B82 /* QuotaEngineManagerTests.swift */,
+				3738D78B53F8976DA9363B7F /* QuotaRefreshSchedulerTests.swift */,
 				97C88035D344707F24402DA5 /* SessionCatalogTests.swift */,
 			);
 			path = DataTests;
@@ -903,6 +906,7 @@
 				50AA701F6F6CC995E9B54935 /* ProxyEnvironmentTests.swift in Sources */,
 				06C81CC2B5EEC7B854DB2B8B /* QuotaEngineManagerTests.swift in Sources */,
 				D7A26CF90F88C7AECFAFF488 /* QuotaPaceTests.swift in Sources */,
+				D99C32214AEA64E3BF5CDB05 /* QuotaRefreshSchedulerTests.swift in Sources */,
 				C6DE3F6CB2B4BBBF7B8CDF0E /* SessionCatalogTests.swift in Sources */,
 				E72A67E3766024F67874674B /* SettingsStoreTests.swift in Sources */,
 				E7C623F32F23B9C826476B68 /* SmokeTests.swift in Sources */,

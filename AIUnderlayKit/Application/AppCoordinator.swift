@@ -355,7 +355,11 @@ public final class AppCoordinator: ObservableObject {
         lastEnabledProviders = currentProviders
         let override = settings.settings.proxyOverride
         engineManager.setProxyOverride(override.isEmpty ? nil : override)
-        guard let engine = engineManager.activeEngine else { return }
+        guard let engine = engineManager.activeEngine else {
+            Log.write("engine: no compatible CodexBar CLI; quota lanes stay empty "
+                + "candidates=\(engineManager.candidates.map { "\($0.url.lastPathComponent):\($0.compatibility)" })")
+            return
+        }
 
         scheduler = QuotaRefreshScheduler(
             interval: 240,
@@ -365,13 +369,23 @@ public final class AppCoordinator: ObservableObject {
                 self.liveSnapshots[snapshot.providerId] = snapshot
                 self.cache.store(snapshot)
                 self.lastErrors[snapshot.providerId] = nil
+                // A silently empty quota lane has to be diagnosable from the log:
+                // "which provider, how many windows, what availability, and does
+                // the gauge have a remaining fraction to draw".
+                let windows = snapshot.windows
+                    .map { "\($0.label)=\($0.remainingFraction.map { String(format: "%.2f", $0) } ?? "nil")/\($0.availability)" }
+                    .joined(separator: ",")
+                Log.write("quota: \(snapshot.providerId) availability=\(snapshot.availability) "
+                    + "windows=[\(windows)]")
                 self.dataRevision += 1
                 self.render()
             },
             onError: { [weak self] provider, error in
                 guard let self else { return }
-                self.lastErrors[provider] = CodexBarCLIClient.desensitize("\(error)")
+                let message = CodexBarCLIClient.desensitize("\(error)")
+                self.lastErrors[provider] = message
                 // Fall back to the last valid cached snapshot, marked stale.
+                Log.write("quota: \(provider) fetch failed: \(message)")
                 if let cached = self.cache.cached(id: "\(provider):default") {
                     self.liveSnapshots[provider] = cached
                 }
