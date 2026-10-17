@@ -16,7 +16,7 @@ public struct SettingsRootView: View {
                 .tabItem { Label("外观", systemImage: "paintbrush") }
             ThemeTab(settings: store, themes: themes)
                 .tabItem { Label("主题", systemImage: "swatchpalette") }
-            ProvidersTab()
+            ProvidersTab(store: store)
                 .tabItem { Label("服务商", systemImage: "square.stack.3d.up") }
             EngineTab()
                 .tabItem { Label("引擎", systemImage: "gearshape.2") }

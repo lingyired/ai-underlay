@@ -59,12 +59,16 @@ Scripts/check-domain-purity.sh
 1. Launch the app. It appears as a small gauge icon in the menu bar (no Dock
    icon). Click it → **Settings…**.
 2. **Appearance** — choose dual/single, anchor (notch or screen edge),
-   direction, and a preview fixture. Changes render live.
+   direction, and a preview fixture. Changes render live. With exactly one
+   provider switched on, dual mode can split that provider's 5-hour and
+   weekly windows across the two sides of the notch.
 3. **Theme** — pick a theme, drop your own JSON into the Themes folder, or copy
    the authoring instructions to an AI agent. Themes are appearance-only:
    `docs/theme/README.md`.
-4. **Providers / Engine** — see the detected CodexBar CLI and each provider's
-   login state. *Test Connection* refreshes immediately.
+4. **Providers / Engine** — switch each provider on or off for this app (a
+   provider switched off here is neither fetched nor drawn, even when CodexBar
+   has it enabled), and see the detected CodexBar CLI plus each provider's
+   upstream and login state. *Test Connection* refreshes immediately.
 5. **Agent** — preview and install Claude Code hooks (this is the only way the
    app modifies `~/.claude/settings.json`, and it backs the file up first).
 6. **Diagnostics** — measured geometry and overlay state, with a desensitized

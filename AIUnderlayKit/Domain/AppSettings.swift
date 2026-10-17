@@ -44,9 +44,15 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var statusItemVisible: Bool
     /// Per-display configurations, keyed by stable display ID.
     public var displays: [DisplayConfiguration]
-    /// Deprecated: the provider set is now fixed to `AIUnderlayKit.supportedProviders`.
-    /// Kept only so older settings files still decode; it no longer affects
-    /// what is shown.
+    /// The providers this app actually fetches and draws. A provider left out
+    /// stays off even when CodexBar has it enabled; membership is resolved
+    /// against `AIUnderlayKit.supportedProviders`, so order is irrelevant.
+    public var enabledProviders: [String]
+    /// How one provider's quota windows spread across the two dual lanes.
+    /// Only meaningful when exactly one provider is enabled.
+    public var dualWindowSplit: DualWindowSplit
+    /// Deprecated: replaced by `enabledProviders`, which is the toggle the
+    /// users control. Kept only so older settings files still decode.
     public var displayedProviders: [String]
 
     public init(
@@ -67,6 +73,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         previewFixture: String? = nil,
         statusItemVisible: Bool = true,
         displays: [DisplayConfiguration] = [],
+        enabledProviders: [String] = AIUnderlayKit.supportedProviders,
+        dualWindowSplit: DualWindowSplit = .none,
         displayedProviders: [String] = []
     ) {
         self.layout = layout
@@ -86,6 +94,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.previewFixture = previewFixture
         self.statusItemVisible = statusItemVisible
         self.displays = displays
+        self.enabledProviders = enabledProviders
+        self.dualWindowSplit = dualWindowSplit
         self.displayedProviders = displayedProviders
     }
 
@@ -100,7 +110,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         case motionIntensity
         case showTravelingLight, showAttentionSweep
         case appearance, activeThemeId, previewFixture, statusItemVisible
-        case displays, displayedProviders
+        case displays, enabledProviders, dualWindowSplit, displayedProviders
         // Removed settings (read-only compatibility):
         case runningEffect
         case runningEffectColor
@@ -152,6 +162,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         previewFixture = try c.decodeIfPresent(String.self, forKey: .previewFixture)
         statusItemVisible = try c.decodeIfPresent(Bool.self, forKey: .statusItemVisible) ?? d.statusItemVisible
         displays = try c.decodeIfPresent([DisplayConfiguration].self, forKey: .displays) ?? d.displays
+        enabledProviders = try c.decodeIfPresent([String].self, forKey: .enabledProviders) ?? d.enabledProviders
+        dualWindowSplit = (try? c.decodeIfPresent(DualWindowSplit.self, forKey: .dualWindowSplit)) ?? d.dualWindowSplit
         displayedProviders = try c.decodeIfPresent([String].self, forKey: .displayedProviders) ?? d.displayedProviders
 
         migrateLegacyVisualChoices(from: c)
@@ -198,6 +210,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         try c.encodeIfPresent(previewFixture, forKey: .previewFixture)
         try c.encode(statusItemVisible, forKey: .statusItemVisible)
         try c.encode(displays, forKey: .displays)
+        try c.encode(enabledProviders, forKey: .enabledProviders)
+        try c.encode(dualWindowSplit, forKey: .dualWindowSplit)
         try c.encode(displayedProviders, forKey: .displayedProviders)
         // The removed keys are deliberately not re-written.
     }
