@@ -69,14 +69,32 @@ public actor CodexLocalSessionReader {
             tails.forget(url)
             return nil
         }
-        let phase = tails.phase(of: url)
-        let active = phase == .running && age <= Self.activeWindow
+        // A long-lived thread writes every turn into one file, so on a busy day
+        // the current turn's `task_started` can sit tens of megabytes behind
+        // the end — outside the bounded scan. The reader then falls back to
+        // "this turn was still being written", which is exactly the evidence
+        // the previous boundary-only scan threw away, and the session went dark
+        // while the agent kept working.
+        let reading = tails.reading(of: url)
+        let active = reading.phase == .running && age <= Self.activeWindow
+        // "I cannot tell" is reported as `unknown`, never as `idle`. An idle
+        // claim is used to veto hook evidence ("the transcript says this turn
+        // ended"), so guessing it here would let a scan that found nothing
+        // switch off a light the hooks know is on.
+        let state: String
+        if active {
+            state = "active"
+        } else if reading.phase == .ended {
+            state = "idle"
+        } else {
+            state = "unknown"
+        }
         return AgentSessionInfo(
             id: id,
             provider: "codex",
             sessionName: title ?? "",
             projectName: cwd.map { URL(fileURLWithPath: $0).lastPathComponent },
-            state: active ? "active" : "idle",
+            state: state,
             lastActivityAt: modified,
             source: "localRollout"
         )

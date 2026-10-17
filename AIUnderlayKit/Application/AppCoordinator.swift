@@ -288,7 +288,11 @@ public final class AppCoordinator: ObservableObject {
         let waiting = AgentSignals.counting(hookSessions).waitingCount
         guard !polled.isEmpty || waiting > 0 else { return nil }
         let running = polled.filter { $0.agentState == .running }.count
-        return (running, polled.count - running, waiting)
+        // A session the transcript could not be read for is neither running nor
+        // idle: counting it as idle is how "I could not tell" becomes a claim
+        // the user can check and find wrong.
+        let idle = polled.filter { $0.agentState == .idle }.count
+        return (running, idle, waiting)
     }
 
     public func stop() {

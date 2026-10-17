@@ -392,6 +392,20 @@ final class AgentSessionReducerTests: XCTestCase {
         XCTAssertEqual(signals?.activeCount, 1)
     }
 
+    func test_reconciled_anUnreadableTranscriptDoesNotVetoTheHooks() {
+        // Codex's local reader reports `unknown` when it cannot read a
+        // transcript. That must not be treated as "the transcript says the turn
+        // ended": choosing between a light that stays on and an agent that
+        // disappears, we keep the light.
+        let now = Date()
+        let signals = AgentSignals.reconciled(
+            hook: [session("live", .running, at: now)],
+            polled: [session("live", .unknown, at: now, confidence: .unknown)],
+            now: now
+        )
+        XCTAssertEqual(signals?.activeCount, 1)
+    }
+
     func test_reconciled_withoutAFreshListTrustsTheHooks() {
         // No engine / no `codexbar` output: hooks are all we have, and a live
         // session must not be dropped just because nothing corroborates it.

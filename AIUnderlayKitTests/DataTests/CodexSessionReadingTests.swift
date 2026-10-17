@@ -146,8 +146,10 @@ final class CodexSessionReadingTests: XCTestCase {
         let id = UUID().uuidString.lowercased()
         let url = rolloutURL(day: "10/14", id: id)
         // The turn start sits ~700 KB behind the end: a long tool call writes
-        // nothing in between, so only a bounded scan back can see it.
-        let filler = String(repeating: "{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\"}}\n", count: 7000)
+        // nothing in between, so only a bounded scan back can see it. The
+        // filler is ordinary transcript, not a turn-scoped record, so the
+        // boundary is the only claim the file makes.
+        let filler = String(repeating: "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\"}}\n", count: 7000)
         writeRollout(boundary("task_started") + "\n" + filler, to: url)
 
         var reader = CodexRolloutTailReader()
@@ -204,6 +206,91 @@ final class CodexSessionReadingTests: XCTestCase {
         writeRollout("{\"type\":\"session_meta\",\"payload\":{\"id\":\"\(id)\"}}\n", to: url)
         var reader = CodexRolloutTailReader()
         XCTAssertEqual(reader.phase(of: url), .unknown)
+    }
+
+    // MARK: - The regression: a turn whose start fell out of the scan window
+
+    private func activity(turn: String, kind: String = "item_completed", at: String) -> String {
+        """
+        {"timestamp":"\(at)","type":"event_msg","payload":{"type":"\(kind)","thread_id":"x","turn_id":"\(turn)","item":{"type":"CommandExecution"}}}
+        """
+    }
+
+    /// A long-lived thread keeps every turn in one file. After a busy day the
+    /// running turn's `task_started` can be tens of megabytes back — outside
+    /// the bounded window — while the turn is still writing records at the end.
+    /// Reporting `unknown` there meant "nobody is running", and that is exactly
+    /// how a session working on a long build stayed invisible.
+    func test_tailReaderSaysRunningWhenOnlyActivitySurvivedTheWindow() throws {
+        let id = UUID().uuidString.lowercased()
+        let url = rolloutURL(day: "10/14", id: id)
+        let turn = "22222222-2222-7222-8222-222222222222"
+        // ~9 MB of transcript between the turn's start and the end pushes the
+        // boundary past the 8 MB scan limit.
+        let filler = String(repeating: "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\"}}\n", count: 9 * 1024 * 1024 / 60)
+        writeRollout(boundary("task_started", turn: turn) + "\n" + filler
+                     + activity(turn: turn, at: "2026-10-14T23:59:00.000Z") + "\n", to: url)
+
+        var reader = CodexRolloutTailReader()
+        let reading = reader.reading(of: url)
+        XCTAssertEqual(reading.phase, .running)
+        // The claim is a hedge, not an observed boundary.
+        XCTAssertEqual(reading.evidence, .activity)
+        XCTAssertEqual(reading.confidence, .inferred)
+    }
+
+    /// The reader's own index maps a running reading to an active session, so
+    /// the light comes on for that file. This is the end-to-end guard.
+    func test_readerReportsAnActiveSessionWhenTheStartFellOutOfTheWindow() async throws {
+        let id = UUID().uuidString.lowercased()
+        let url = rolloutURL(day: "10/14", id: id)
+        let turn = "33333333-3333-7333-8333-333333333333"
+        let filler = String(repeating: "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\"}}\n", count: 9 * 1024 * 1024 / 60)
+        writeRollout(boundary("task_started", turn: turn) + "\n" + filler
+                     + activity(turn: turn, at: "2026-10-14T23:59:00.000Z") + "\n", to: url)
+        try writeIndex([ThreadRow(id: id, rollout: url, title: "long build")])
+
+        let sessions = await CodexLocalSessionReader(home: self.home).sessions()
+        XCTAssertEqual(sessions.first { $0.id == id }?.state, "active")
+        XCTAssertEqual(sessions.first { $0.id == id }?.agentState, .running)
+    }
+
+    /// Codex flushes lifecycle records late: an `item_completed` can land after
+    /// the `task_complete` that ended its turn. That must not flip a finished
+    /// session back to running.
+    func test_lateActivityAfterCompletionDoesNotResurrectTheTurn() throws {
+        let id = UUID().uuidString.lowercased()
+        let url = rolloutURL(day: "10/14", id: id)
+        let turn = "44444444-4444-7444-8444-444444444444"
+        writeRollout([boundary("task_started", turn: turn), boundary("task_complete", turn: turn),
+                      activity(turn: turn, at: "2026-10-14T16:05:00.000Z"), ""].joined(separator: "\n"), to: url)
+
+        var reader = CodexRolloutTailReader()
+        XCTAssertEqual(reader.reading(of: url).phase, .ended)
+    }
+
+    /// The same late flush, arriving after the reader has already cached the
+    /// ending, must be ignored as well.
+    func test_lateActivityAppendedLaterDoesNotResurrectTheTurn() throws {
+        let id = UUID().uuidString.lowercased()
+        let url = rolloutURL(day: "10/14", id: id)
+        let turn = "55555555-5555-7555-8555-555555555555"
+        writeRollout(boundary("task_complete", turn: turn) + "\n", to: url)
+
+        var reader = CodexRolloutTailReader()
+        XCTAssertEqual(reader.reading(of: url).phase, .ended)
+        try append(activity(turn: turn, at: "2026-10-14T16:05:00.000Z") + "\n", to: url)
+        XCTAssertEqual(reader.reading(of: url).phase, .ended)
+    }
+
+    /// `thread_settings_applied` is written both after a turn ends and just
+    /// before the next one starts, so it proves nothing on its own.
+    func test_settingsRecordAloneStaysUnknown() throws {
+        let id = UUID().uuidString.lowercased()
+        let url = rolloutURL(day: "10/14", id: id)
+        writeRollout("{\"timestamp\":\"2026-10-14T16:00:00.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"thread_settings_applied\",\"thread_id\":\"\(id)\"}}\n", to: url)
+        var reader = CodexRolloutTailReader()
+        XCTAssertEqual(reader.reading(of: url).phase, .unknown)
     }
 
     func test_readerSkipsFilesThatAreNoLongerRecent() async throws {
