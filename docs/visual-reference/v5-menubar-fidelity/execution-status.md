@@ -429,3 +429,39 @@ machined bottom edge still comes from the spectrum renderer's `.sheen`
 succeeded. This is live menu-bar capture on one wallpaper; it is not human
 sign-off, and the product's everyday fill palette is now brighter at the
 bottom edge by design.
+
+### Round 6 — the curtain's base visibility returns to the lab
+
+The user read the stripes as translucent grey next to the web's Aurora
+("有点透明或者灰") and asked for a brighter curtain. The one remaining
+divergence in the ray model was `SpectrumWaveModel.baseAlpha`: an earlier
+revision held it at `0.17` against V5's `0.22` to answer the earlier
+"发光栅栏" reading — but that reading's causes (the source-over curtain veil,
+the fill's dark bottom ramp, the groove's black rim) have each since been
+fixed. With them gone the trimmed base only left every ray dimmer than the
+lab.
+
+`baseAlpha` is therefore the lab's `0.22` again; `alphaCeiling` stays `0.94`
+and the stored intensity stays the user's own `0.51` (it scales only the
+modulation, never the base). Offline raster — 600 pt lane, tint `#FFFFFF`,
+intensity `0.51`, per-column max alpha: p50 `81 → 92`, bottom-band mean
+`0.393 → 0.425`, columns over `0.25` `55% → 70%`; the lab at full modulation
+reads p50 `111`, so what remains is the intensity slider, not the renderer.
+
+Live menu-bar capture, same wallpaper and settings, lane device columns
+`x 500…1500`, row medians; "before" is the pre-change build (PID 36204) and
+"after" is the relaunched build (PID 74468, three frames spanning crest
+phases):
+
+| row | before | after, dim-crest frame | after, bright-crest frames |
+| --- | --- | --- | --- |
+| 44 | `92,130,157` | `92,130,156` | `103,135,157` |
+| 52 | `106,137,156` | `109,138,157` | `118,142,160` |
+| 58 | `112,140,158` | `115,142,159` | `124,147,162` |
+
+Stripe/gap contrast at row 56 is unchanged (`p90−p10` `34 → 34…36`), so the
+fence texture still reads as rays rather than a wall. 439 tests / 3 skipped /
+0 failures, `check-domain-purity: OK`; the committed preview PNGs were
+regenerated. The change lives in `AIUnderlayKit.framework`, so a running app
+must be relaunched to pick it up. This is live capture on one wallpaper, not
+human sign-off.

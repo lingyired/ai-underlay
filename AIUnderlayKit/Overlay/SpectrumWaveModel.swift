@@ -90,12 +90,17 @@ public enum SpectrumWaveModel {
 
     /// Visibility budget: a dark ray stays readable but never becomes a fence.
     ///
-    /// V5's Aurora base is `0.22`; we hold it at `0.17`. The lab draws over
-    /// its own dark wallpaper, while our lane sits over the *system* menu bar's
-    /// bright material, where a 0.22 wash across every ray is what the earlier
-    /// "发光栅栏" complaint was about. The deliberate −0.05 keeps the crest
-    /// contrast of the lab without re-introducing that fence.
-    public static let baseAlpha: Double = 0.17
+    /// V5's Aurora base is `0.22`, and the curtain now carries it whole. An
+    /// earlier revision held it at `0.17` (−0.05) to answer a "发光栅栏"
+    /// reading, but the fence came from composite faults that no longer
+    /// exist — the curtain then replaced the fill source-over (a grey veil
+    /// instead of the lab's `screen`), the fill ramped down to a dark bottom
+    /// stop, and the groove drew a black rim over the fill. Each of those is
+    /// fixed, and the trimmed base only left every stripe dimmer than the
+    /// lab: measured live it read as translucent grey over the menu-bar
+    /// material. `0.22` restores the lab's stripe body while the ceiling
+    /// below still keeps even full strength off pure white.
+    public static let baseAlpha: Double = 0.22
     public static let crestAlpha: Double = 0.28
     public static let focusAlpha: Double = 0.42
     public static let alphaCeiling: Double = 0.94
