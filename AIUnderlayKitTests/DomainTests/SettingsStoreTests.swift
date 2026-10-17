@@ -48,6 +48,42 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.settings.displays.first?.assignments.count, 2)
     }
 
+    // MARK: - Provider switches & dual-window split
+
+    func test_providerSwitches_defaultToOn_forOlderFiles() throws {
+        // A file written before the switches existed keeps both providers on
+        // and does not split windows — exactly the previous behaviour.
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"layout":"dual"}"#.utf8))
+        XCTAssertEqual(settings.enabledProviders, AIUnderlayKit.supportedProviders)
+        XCTAssertEqual(settings.dualWindowSplit, .none)
+    }
+
+    func test_providerSwitches_explicitEmptyListStaysEmpty() throws {
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"enabledProviders":[]}"#.utf8))
+        XCTAssertTrue(settings.enabledProviders.isEmpty, "an explicit 'all providers off' choice must not fall back to on")
+    }
+
+    func test_providerSwitches_andSplit_roundTripAcrossReload() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = SettingsStore(fileURL: url)
+        store.update { settings in
+            settings.enabledProviders = ["codex"]
+            settings.dualWindowSplit = .sessionRight
+        }
+
+        let reloaded = SettingsStore(fileURL: url)
+        XCTAssertEqual(reloaded.settings.enabledProviders, ["codex"])
+        XCTAssertEqual(reloaded.settings.dualWindowSplit, .sessionRight)
+    }
+
+    func test_unknownSplitValue_fallsBackToNone() throws {
+        // A hand-edited or future file must not fail to load wholesale.
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"dualWindowSplit":"diagonal"}"#.utf8))
+        XCTAssertEqual(settings.dualWindowSplit, .none)
+    }
+
     // MARK: - Legacy visual choices migrate instead of resetting
 
     func test_legacyRunningEffectNone_becomesReduceMotion() throws {

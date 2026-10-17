@@ -38,16 +38,19 @@ public final class AppCoordinator: ObservableObject {
     private var sessionTimer: Timer?
     private var lastAgentSignature: String?
     private var lastSessionSignature: String?
+    /// Provider list the quota scheduler is currently running with, so a
+    /// settings change only touches it when the switches actually changed.
+    private var lastEnabledProviders: [String] = []
     /// Live agent sessions: the local rollout reading merged with CodexBar's.
     public private(set) var agentSessions: [AgentSessionInfo] = []
 
-    /// Providers shown in the overlay and dashboard.
-    ///
-    /// Deliberately fixed to the supported pair for now (see
-    /// `AIUnderlayKit.supportedProviders`). We no longer follow the upstream
-    /// CodexBar list: "enabled in CodexBar" is not the same as "supported here",
-    /// and showing a provider we cannot render agent state for is misleading.
-    public var providers: [String] { AIUnderlayKit.supportedProviders }
+    /// Providers shown in the overlay and dashboard: the supported pair minus
+    /// the ones switched off in the app. CodexBar's own enablement never
+    /// overrides the user's choice here.
+    public var providers: [String] {
+        let enabled = settings.settings.enabledProviders
+        return AIUnderlayKit.supportedProviders.filter { enabled.contains($0) }
+    }
 
     /// The full provider catalog from the CLI, if an engine is available. Used
     /// only for metadata (display name, login status, upstream enablement) —
@@ -99,6 +102,7 @@ public final class AppCoordinator: ObservableObject {
         settings.changes
             .sink { [weak self] updated in
                 guard let self else { return }
+                self.syncProviderSelection()
                 if self.themes.selectedThemeId != updated.activeThemeId {
                     // setActive publishes `revision`, which renders for us.
                     self.themes.setActive(id: updated.activeThemeId)
@@ -328,9 +332,23 @@ public final class AppCoordinator: ObservableObject {
 
     // MARK: - Engine
 
+    /// Keeps the quota scheduler in step with the app-level provider switches:
+    /// turning one on fetches it right away; turning one off only stops future
+    /// fetches and leaves its last snapshot cached for an instant re-enable.
+    private func syncProviderSelection() {
+        let current = providers
+        guard current != lastEnabledProviders else { return }
+        lastEnabledProviders = current
+        scheduler?.updateProviders(current)
+        // The dashboard lists exactly these providers; let it rebuild.
+        dataRevision += 1
+    }
+
     /// Discovers the CLI and, if a compatible engine exists, begins periodic
     /// refreshes. Without an engine we simply keep rendering fixtures/cache.
     public func startEngine() {
+        let currentProviders = providers
+        lastEnabledProviders = currentProviders
         let override = settings.settings.proxyOverride
         engineManager.setProxyOverride(override.isEmpty ? nil : override)
         guard let engine = engineManager.activeEngine else { return }
@@ -357,7 +375,7 @@ public final class AppCoordinator: ObservableObject {
                 self.render()
             }
         )
-        scheduler?.start(providers: providers)
+        scheduler?.start(providers: currentProviders)
 
         Task { [weak self] in
             guard let self, let catalog = engine as? ProviderCatalogEngine else { return }
@@ -423,61 +441,85 @@ public final class AppCoordinator: ObservableObject {
         lastAgentSignature = signature
         let theme = themes.activeTheme
 
-        if s.previewFixture == nil {
-            // Live mode. Before the first snapshot arrives we show empty tracks —
-            // never fixture data, which could be mistaken for real usage.
-            renderLive(s, theme: theme)
+        if let key = s.previewFixture {
+            let composed = composeLanes(
+                windowsFor: { FixtureSnapshots.windows(for: key, providerId: $0) },
+                signalFor: { _ in fixtureSignals(for: key)?.visualSignal },
+                settings: s,
+                theme: theme
+            )
+            apply(plan: composed.plan, left: composed.left, right: composed.right, settings: s)
             return
         }
 
-        let key = s.previewFixture!
-        // A theme may switch the baseline off; it never switches it on against
-        // the user's own setting.
-        func content(for provider: String, windows: [QuotaWindow]) -> LaneContent {
-            let glass = glassTheme(for: provider, theme: theme, settings: s)
-            return LaneContent(
-                providerId: provider,
-                windows: windows,
-                palette: glass.palette,
-                baseline: s.showBaseline && glass.showsBaseline
-                    ? baselineSpec(for: windows)
-                    : nil,
-                glass: glass,
-                signal: s.showAgentEffects ? fixtureSignals(for: key)?.visualSignal : nil,
-                reduceMotion: s.reduceMotion,
-                spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
-                waveIntensity: SpectrumRhythm.clampedIntensity(s.motionIntensity),
-                showsTravelingLight: s.showTravelingLight,
-                showsAttentionSweep: s.showAttentionSweep
-            )
-        }
-        apply(left: content(for: "codex", windows: FixtureSnapshots.windows(for: key, providerId: "codex")),
-              right: content(for: "claude", windows: FixtureSnapshots.windows(for: key, providerId: "claude")),
-              settings: s)
+        // Live mode. Before the first snapshot arrives we show empty tracks —
+        // never fixture data, which could be mistaken for real usage.
+        let composed = composeLanes(
+            windowsFor: { self.liveSnapshots[$0]?.windowsLongestFirst ?? [] },
+            signalFor: { self.agentSignals(for: $0)?.visualSignal },
+            settings: s,
+            theme: theme
+        )
+        apply(plan: composed.plan, left: composed.left, right: composed.right, settings: s)
     }
 
-    private func renderLive(_ s: AppSettings, theme: ThemeDocument?) {
-        func content(for provider: String) -> LaneContent {
-            // Agent activity must remain visible even when quota data is
-            // unavailable (logged out, stale source, or before the first fetch).
-            let windows = liveSnapshots[provider]?.windowsLongestFirst ?? []
-            let glass = glassTheme(for: provider, theme: theme, settings: s)
-            return LaneContent(
-                providerId: provider,
-                windows: windows,
-                palette: glass.palette,
-                baseline: s.showBaseline && glass.showsBaseline ? baselineSpec(for: windows) : nil,
-                glass: glass,
-                signal: s.showAgentEffects ? agentSignals(for: provider)?.visualSignal : nil,
-                reduceMotion: s.reduceMotion,
-                spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
-                waveIntensity: SpectrumRhythm.clampedIntensity(s.motionIntensity),
-                showsTravelingLight: s.showTravelingLight,
-                showsAttentionSweep: s.showAttentionSweep
+    /// One lane's content. Windows arrive longest-first; an empty array is the
+    /// neutral groove an offline provider shows. Agent activity must remain
+    /// visible even when quota data is unavailable (logged out, stale source,
+    /// or before the first fetch), so the signal is independent of the windows.
+    ///
+    /// A theme may switch the baseline off; it never switches it on against
+    /// the user's own setting.
+    private func laneContent(
+        providerId: String,
+        windows: [QuotaWindow],
+        signal: ProviderVisualSignal?,
+        settings s: AppSettings,
+        theme: ThemeDocument?
+    ) -> LaneContent {
+        let glass = glassTheme(for: providerId, theme: theme, settings: s)
+        return LaneContent(
+            providerId: providerId,
+            windows: windows,
+            palette: glass.palette,
+            baseline: s.showBaseline && glass.showsBaseline ? baselineSpec(for: windows) : nil,
+            glass: glass,
+            signal: s.showAgentEffects ? signal : nil,
+            reduceMotion: s.reduceMotion,
+            spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
+            waveIntensity: SpectrumRhythm.clampedIntensity(s.motionIntensity),
+            showsTravelingLight: s.showTravelingLight,
+            showsAttentionSweep: s.showAttentionSweep
+        )
+    }
+
+    /// Both lanes for the current settings, honouring the app-level provider
+    /// switches and the single-provider dual-window split. Live and fixture
+    /// rendering share this so the semantics cannot drift apart.
+    private func composeLanes(
+        windowsFor: (String) -> [QuotaWindow],
+        signalFor: (String) -> ProviderVisualSignal?,
+        settings s: AppSettings,
+        theme: ThemeDocument?
+    ) -> (plan: LanePlan, left: LaneContent?, right: LaneContent?) {
+        let plan = LanePlanResolver.plan(
+            enabledProviders: providers,
+            supportedProviders: AIUnderlayKit.supportedProviders,
+            layout: s.layout,
+            split: s.dualWindowSplit
+        )
+        let targets = LanePlanResolver.lanes(for: plan, windowsForProvider: windowsFor)
+        func lane(_ target: LanePlanResolver.LaneTarget?) -> LaneContent? {
+            guard let target else { return nil }
+            return laneContent(
+                providerId: target.providerId,
+                windows: target.windows,
+                signal: signalFor(target.providerId),
+                settings: s,
+                theme: theme
             )
         }
-
-        apply(left: content(for: "codex"), right: content(for: "claude"), settings: s)
+        return (plan, lane(targets.left), lane(targets.right))
     }
 
     /// Resolves the full glass theme for one provider: built-in V5 defaults,
@@ -501,16 +543,18 @@ public final class AppCoordinator: ObservableObject {
         return nil
     }
 
-    private func apply(left: LaneContent?, right: LaneContent?, settings s: AppSettings) {
+    private func apply(plan: LanePlan, left: LaneContent?, right: LaneContent?, settings s: AppSettings) {
         let config = DisplayConfiguration(
             displayID: "primary",
             isEnabled: s.overlayEnabled,
             layout: s.layout,
             anchor: s.anchor,
             singleDirection: s.singleDirection,
-            singleProviderId: "codex",
-            assignments: [SideAssignment(side: .left, providerId: "codex"),
-                          SideAssignment(side: .right, providerId: "claude")]
+            singleProviderId: s.layout == .single ? plan.singleProviderId : nil,
+            assignments: [
+                plan.leftProviderId.map { SideAssignment(side: .left, providerId: $0) },
+                plan.rightProviderId.map { SideAssignment(side: .right, providerId: $0) },
+            ].compactMap { $0 }
         )
         overlay.apply(OverlayPresentation(
             config: config,

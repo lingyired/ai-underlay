@@ -119,6 +119,7 @@ Evidence: `docs/preview/p5-agent-spectrum.png`、`p6-agent-waiting-borders.png`�
 | P6-13 基准节奏可调 | DONE | 原先把基准写死在代码里，只能改代码再编译。现在 `AppSettings.motionFloorFrequencyHz` 经 coordinator 落到 `LaneRenderSpec.spectrumFloorHz`，「外观 → Agent 动效节奏」用滑杆 + 4 个预设（2.9/2.0/1.4/1.1 秒一圈）实时对比；`SpectrumRhythm.clampedFloor` 把越界值夹到 0.15–1.10 Hz，坏设置也不会变成频闪或静止。守卫：`test_userFloor_*`、`test_baselineTempo_*`、`test_motionFloor_*` |
 | P6-14 光幕画面对比度 | DONE | 离屏预览有 80 级明暗差，真机菜单栏只有 24 级：band 窗口在菜单栏之下，系统菜单栏材质吃掉约 40% 对比度。射线幕新增静态深色底（自下而上 45%→透明、不参与动画、Reduce Motion 保留），射线基准波高 0.20→0.32、不透明度 0.46 起、白核 1.16→1.3pt。真机实测明暗差 24→约 50。守卫：`test_curtainStandsOnAStaticDarkScrim` |
 | P6-15 两处扫光可关 | DONE | 「横穿扫光」（`showTravelingLight`）关掉只隐藏两条宽光场，射线幕照常呼吸；「状态灯带扫光」（`showAttentionSweep`）关掉保留顶线/底带/辉光，只去掉来回的亮带。开关走 `LaneRenderSpec` 且**不重建图层**，切换即时生效（图层保留、只切 hidden 与动画）。守卫：`test_travelingLightDisabled_*`、`test_sweepDisabled_keepsTheStaticAlert`、`test_*Toggle_appliesToTheLiveLayer(s)`、`test_sweepToggles_*` |
+| P6-16 服务商总开关 + 单提供商双侧拆分 | DONE | 「服务商」页每家一个 `enabledProviders` 总开关，独立于 CodexBar 上游启用：关掉的 provider 不请求、不显示（overlay/dashboard/刷新计划一致），重新打开立即取数；上游状态与登录状态照常展示。「外观」页新增 `dualWindowSplit`（仅双侧 + 只启用一家时可用）：5 小时窗口放选定一侧、其余窗口（周/月）嵌套在另一侧，两侧共用同一提供商的配色与动效（`LanePlanResolver` / `WindowSplit` 纯域解析，live 与 fixture 共用同一组合管线）。守卫：`LanePlanTests`、`SettingsStoreTests.test_providerSwitches_*`、`test_unknownSplitValue_fallsBackToNone`、旧文件缺键默认全开不拆分 |
 
 Evidence: `docs/preview/glass-spectrum/*.png`（30pt，2x，含关闭扫光的对照图）。Total tests: 384 passing
 (1 skipped = the opt-in PNG dump), `Scripts/check-domain-purity.sh` OK。

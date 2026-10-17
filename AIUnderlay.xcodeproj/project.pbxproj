@@ -51,6 +51,7 @@
 		56998F3E54C21B21021C62DC /* AgentEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB61B0A84EA0CC8E0FC472B3 /* AgentEvent.swift */; };
 		59AF096E4CCBE85665B8376C /* SpectrumRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3882DEB5863B6DE396FC725 /* SpectrumRhythm.swift */; };
 		5B1F52CFE32A5F4A022BE979 /* CLIInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E325529F092095FCC948EF09 /* CLIInventoryTests.swift */; };
+		5B41E4641754DBC047FF92FA /* LanePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC66A6058AE278189F236593 /* LanePlan.swift */; };
 		5CA5CC6292F38CA8737B19F2 /* PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5934EB281BFE20A72EB88463 /* PanelGeometry.swift */; };
 		5CCD583B2EAE8E15890FF192 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7286A9AC911CFC8D91A062 /* DashboardView.swift */; };
 		5FE48A008C863317B61F41D6 /* CodexRolloutTail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8155412A7710E3DE1856A5BE /* CodexRolloutTail.swift */; };
@@ -103,6 +104,7 @@
 		C8488EB8C005013BC4BF6B2E /* SpectrumWaveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D86ED1F072BD23EC2550363 /* SpectrumWaveModel.swift */; };
 		CAC55AFE9C84303B0444EFDE /* MenuBarBandWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C6ADBFFC3A99E669572CE3 /* MenuBarBandWindow.swift */; };
 		CC2CA59E5B3D5D61FB2C908B /* GlassSpectrumRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DC96C21D8570582349700F /* GlassSpectrumRenderer.swift */; };
+		CE0FE178C97B492D55DF4397 /* LanePlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD1B286488438B9E7F10CF8 /* LanePlanTests.swift */; };
 		CF7E85EF05423C7432F8ED68 /* DashboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B7583F73B9356754A1E3A1 /* DashboardModel.swift */; };
 		D0B281AE93BA1CCB1AB8A43A /* BandWindowLevelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CC340DB4811AE40B4D6639 /* BandWindowLevelTests.swift */; };
 		D1685E17F47928956FE94DD5 /* QuotaPace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503587D50FD8B7D01610FF58 /* QuotaPace.swift */; };
@@ -189,6 +191,7 @@
 		0A8386B7CD2E2DBC1F22189F /* GlassSpectrumRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSpectrumRendererTests.swift; sourceTree = "<group>"; };
 		0B99594B32DEFEEAED151E1C /* AuroraAlignDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuroraAlignDumpTests.swift; sourceTree = "<group>"; };
 		0C235C4996F509BA5A95FDD7 /* V5FidelityDumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V5FidelityDumpTests.swift; sourceTree = "<group>"; };
+		0DD1B286488438B9E7F10CF8 /* LanePlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanePlanTests.swift; sourceTree = "<group>"; };
 		0F18C72C66838E0074B68016 /* AgentStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStateStore.swift; sourceTree = "<group>"; };
 		10641359353453C2D2E39123 /* HookEventPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventPayload.swift; sourceTree = "<group>"; };
 		107C98213BC167CD5510FBA0 /* DashboardModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModelTests.swift; sourceTree = "<group>"; };
@@ -258,6 +261,7 @@
 		A20FEE059E082DD8C6C0C315 /* claude-usage-notloggedin.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "claude-usage-notloggedin.json"; sourceTree = "<group>"; };
 		A287A900B1E0ABC0BD2513BA /* ProviderCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCatalogTests.swift; sourceTree = "<group>"; };
 		ABE44CD254D8977D5EA75216 /* ThemeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTab.swift; sourceTree = "<group>"; };
+		AC66A6058AE278189F236593 /* LanePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanePlan.swift; sourceTree = "<group>"; };
 		AC7286A9AC911CFC8D91A062 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		ACB6F48BF363DA2A8571F6E3 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		ACBE5EA6F15A6AC99D468548 /* AttentionLightRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttentionLightRenderer.swift; sourceTree = "<group>"; };
@@ -534,6 +538,7 @@
 				35F37FF3D017FBD584780913 /* GlassAppearance.swift */,
 				960821CFEA607C5619B5DD36 /* GlassDefaults.swift */,
 				39F2E83F61A2C81401C68EDA /* GlassMaterial.swift */,
+				AC66A6058AE278189F236593 /* LanePlan.swift */,
 				B2F507F12EE1F97264626E02 /* NestedGauge.swift */,
 				20DA304778C48C9CF01547F4 /* ProviderQuotaSnapshot.swift */,
 				097E5C67BE077E51944019E1 /* QuotaDisplayState.swift */,
@@ -604,6 +609,7 @@
 			children = (
 				C412EC1DB7C77A838C6DDB23 /* DomainModelTests.swift */,
 				2AEA3EA74D68982CEA5EE0D2 /* GaugeGeometryTests.swift */,
+				0DD1B286488438B9E7F10CF8 /* LanePlanTests.swift */,
 				41B5ECD9EB22C689E847C5D7 /* NestedGaugeTests.swift */,
 				D08385A1B1E590AD1C4146C4 /* QuotaPaceTests.swift */,
 				6B16AF4C5DE112257477514F /* SettingsStoreTests.swift */,
@@ -806,6 +812,7 @@
 				CC2CA59E5B3D5D61FB2C908B /* GlassSpectrumRenderer.swift in Sources */,
 				B6385DF6D6C7EAFBAA69BEFE /* HookSetupCoordinator.swift in Sources */,
 				FBC647D583C4C7522D856F26 /* Kit.swift in Sources */,
+				5B41E4641754DBC047FF92FA /* LanePlan.swift in Sources */,
 				C78563105E93C4BC1673E768 /* LaneRenderSpec.swift in Sources */,
 				1DE6F26CFD1E2897CA196707 /* LayerSlot.swift in Sources */,
 				BCACEE6D95145886C5F426D2 /* Log.swift in Sources */,
@@ -888,6 +895,7 @@
 				88D524F8A9BA5D6159BC6D33 /* HookEventPayload.swift in Sources */,
 				944601ED4FEC1FE539B52099 /* HookEventPayloadTests.swift in Sources */,
 				61A9633AB5E284F568A486A1 /* HookSetupCoordinatorTests.swift in Sources */,
+				CE0FE178C97B492D55DF4397 /* LanePlanTests.swift in Sources */,
 				97700A199CCF52F33E97236B /* MenuBarGeometryTests.swift in Sources */,
 				BE5D2D7CCF7A280587E74BCE /* NestedGaugeTests.swift in Sources */,
 				20C9A838431A6880C62E8A98 /* PanelGeometryTests.swift in Sources */,

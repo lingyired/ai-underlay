@@ -1,15 +1,20 @@
 import SwiftUI
 
-/// 服务商设置：只列出本应用支持的两家（Codex 与 Claude Code）。
-/// 额度数据仍来自 CodexBar CLI，因此这里保留「启用上游」入口——Claude 在
-/// CodexBar 里默认是关闭的，不启用就拿不到它的额度。
+/// 服务商设置：只列出本应用支持的两家（Codex 与 Claude Code），每家一个
+/// 总开关。开关决定本应用是否请求并显示该提供商——即使 CodexBar 已识别或
+/// 已启用它，也可以单独关掉。额度数据仍来自 CodexBar CLI，因此这里保留
+/// 「启用上游」入口——Claude 在 CodexBar 里默认是关闭的，不启用就拿不到它
+/// 的额度。
 public struct ProvidersTab: View {
+    @ObservedObject private var store: SettingsStore
     @State private var catalog: [String: ProviderInfo] = [:]
     @State private var snapshots: [String: ProviderQuotaSnapshot] = [:]
     @State private var loading = true
     @State private var message = ""
 
-    public init() {}
+    public init(store: SettingsStore) {
+        self.store = store
+    }
 
     private var providers: [String] { AIUnderlayKit.supportedProviders }
 
@@ -22,7 +27,7 @@ public struct ProvidersTab: View {
                 Button("刷新") { refresh(test: false) }
             }
 
-            Text("本应用目前仅支持 Codex 与 Claude Code。额度数据来自 CodexBar CLI；若某家显示「未在上游启用」，需要先启用它才能取到额度。")
+            Text("开关决定本应用是否请求并显示该提供商：即使 CodexBar 已识别或启用它，也可以在这里单独关闭。额度数据来自 CodexBar CLI；若某家显示「未在上游启用」，需要先启用它才能取到额度。")
                 .font(.caption).foregroundStyle(.secondary)
 
             if loading {
@@ -32,9 +37,11 @@ public struct ProvidersTab: View {
                     ProviderRowView(
                         id: id,
                         displayName: displayName(for: id),
+                        isAppEnabled: store.settings.enabledProviders.contains(id),
                         upstreamEnabled: catalog[id]?.enabledInCodexBar ?? false,
                         status: statusText(for: id),
                         windows: windowsText(for: id),
+                        onToggleAppEnabled: { setEnabled(id, $0) },
                         onEnableUpstream: { enableUpstream(id) }
                     )
                 }
@@ -64,6 +71,17 @@ public struct ProvidersTab: View {
 
     private func windowsText(for id: String) -> String {
         snapshots[id]?.windowsLongestFirst.map(\.label).joined(separator: " / ") ?? ""
+    }
+
+    private func setEnabled(_ id: String, _ enabled: Bool) {
+        store.update { settings in
+            if enabled {
+                guard !settings.enabledProviders.contains(id) else { return }
+                settings.enabledProviders.append(id)
+            } else {
+                settings.enabledProviders.removeAll { $0 == id }
+            }
+        }
     }
 
     private func enableUpstream(_ id: String) {
@@ -100,13 +118,22 @@ public struct ProvidersTab: View {
 struct ProviderRowView: View {
     let id: String
     let displayName: String
+    /// The app-level switch: whether this app fetches and draws the provider.
+    let isAppEnabled: Bool
     let upstreamEnabled: Bool
     let status: String
     let windows: String
+    let onToggleAppEnabled: (Bool) -> Void
     let onEnableUpstream: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
+            Toggle("", isOn: Binding(get: { isAppEnabled }, set: onToggleAppEnabled))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+                .help("在本应用请求并显示该提供商；关闭后即使 CodexBar 已启用它也不会显示")
+
             VStack(alignment: .leading, spacing: 1) {
                 Text(displayName)
                 Text(id).font(.caption2).foregroundStyle(.secondary)
@@ -126,9 +153,9 @@ struct ProviderRowView: View {
                     .help("调用 codexbar config enable，会修改共享配置")
             }
 
-            Text(status)
+            Text(isAppEnabled ? status : "已关闭")
                 .font(.caption2)
-                .foregroundStyle(status == "已登录" ? .green : .secondary)
+                .foregroundStyle(isAppEnabled && status == "已登录" ? .green : .secondary)
                 .frame(width: 52, alignment: .trailing)
         }
         .contentShape(Rectangle())

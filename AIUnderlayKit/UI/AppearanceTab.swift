@@ -13,7 +13,7 @@ public struct AppearanceTab: View {
         Form {
             Section("布局") {
                 Picker("模式", selection: binding(\.layout)) {
-                    Text("双侧（左右各一个）").tag(LayoutMode.dual)
+                    Text("双侧（左右各一条）").tag(LayoutMode.dual)
                     Text("单条（整条菜单栏）").tag(LayoutMode.single)
                 }
                 Picker("锚点（双侧）", selection: binding(\.anchor)) {
@@ -24,6 +24,14 @@ public struct AppearanceTab: View {
                     Text("从左到右").tag(SingleBarDirection.leadingToTrailing)
                     Text("从右到左").tag(SingleBarDirection.trailingToLeading)
                 }
+                Picker("双侧拆分（单提供商）", selection: binding(\.dualWindowSplit)) {
+                    Text("不拆分（窗口嵌套在同侧）").tag(DualWindowSplit.none)
+                    Text("5 小时在左，周额度在右").tag(DualWindowSplit.sessionLeft)
+                    Text("周额度在左，5 小时在右").tag(DualWindowSplit.sessionRight)
+                }
+                .disabled(!windowSplitAvailable)
+                Text(windowSplitFootnote)
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("覆盖层") {
@@ -158,6 +166,34 @@ public struct AppearanceTab: View {
             get: { SpectrumRhythm.clampedFloor(store.settings.motionFloorFrequencyHz) },
             set: { hz in store.update { $0.motionFloorFrequencyHz = SpectrumRhythm.clampedFloor(hz) } }
         )
+    }
+
+    // MARK: - Dual-window split availability
+
+    private var enabledProviderCount: Int {
+        AIUnderlayKit.supportedProviders.filter { store.settings.enabledProviders.contains($0) }.count
+    }
+
+    /// Splitting one provider's windows across the two sides only has meaning
+    /// in dual mode with exactly one provider switched on.
+    private var windowSplitAvailable: Bool {
+        store.settings.layout == .dual && enabledProviderCount == 1
+    }
+
+    /// The control stays visible and says which condition is missing, instead
+    /// of disappearing where nobody would find it again.
+    private var windowSplitFootnote: String {
+        guard store.settings.layout == .dual else {
+            return "先切到「双侧」，并且只启用一个提供商，才能把 5 小时与周额度分到刘海左右两侧。"
+        }
+        switch enabledProviderCount {
+        case 0:
+            return "尚未启用任何提供商：请先在「服务商」页打开一个。"
+        case 1:
+            return "当前只启用了一个提供商：把 5 小时放在一侧，其余额度（周/月）放在另一侧；不拆分则全部嵌套在同侧。"
+        default:
+            return "双侧拆分只在只启用一个提供商时可用；当前两家各占一侧，可在「服务商」页关闭其中一个。"
+        }
     }
 
     private var motionIntensityBinding: Binding<Double> {

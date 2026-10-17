@@ -41,6 +41,16 @@ public final class QuotaRefreshScheduler {
         timer = nil
     }
 
+    /// Swaps the fetched provider set after the app-level switches changed.
+    /// Adding a provider fetches it on the next pass; removing one only stops
+    /// future fetches and keeps its cached snapshot for an instant re-enable.
+    public func updateProviders(_ providers: [String]) {
+        guard providers != self.providers else { return }
+        let added = !Set(providers).isSubset(of: Set(self.providers))
+        self.providers = providers
+        if added { refreshNow() }
+    }
+
     /// Immediate refresh; collapses if one is already running.
     public func refreshNow() {
         Task { @MainActor in await refresh() }
