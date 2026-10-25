@@ -12,6 +12,12 @@ struct AIUnderlayApp: App {
         Settings {
             EmptyView()
         }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("设置…") { SettingsOpener.open() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
+        }
     }
 }
 
@@ -65,11 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Fired when the app is reopened while already running (double-click in
-    /// Finder, `open`, or launching again). Toggles the dashboard popup, the
-    /// same as a left-click on the status item — a reliable way in for an
-    /// accessory app with no Dock icon.
+    /// Finder, `open`, or launching again). Always opens settings, including
+    /// when the user hid the status item and there is no popup anchor.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        AppCoordinator.shared?.togglePopover()
+        SettingsOpener.open()
         return true
     }
 }

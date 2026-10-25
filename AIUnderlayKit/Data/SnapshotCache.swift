@@ -22,13 +22,19 @@ public final class SnapshotCache {
     }
 
     /// Returns the cached snapshot marked `.stale` if it is past the threshold.
-    public func cached(id: String, now: Date = Date()) -> ProviderQuotaSnapshot? {
+    public func cached(id: String, now: Date = Date(), forceStale: Bool = false) -> ProviderQuotaSnapshot? {
         guard let entry = entries[id] else { return nil }
-        guard now.timeIntervalSince(entry.fetchedAt) > staleThreshold else { return entry.snapshot }
+        guard forceStale || now.timeIntervalSince(entry.fetchedAt) > staleThreshold else { return entry.snapshot }
         var stale = entry.snapshot
         stale = ProviderQuotaSnapshot(
             id: stale.id, providerId: stale.providerId, accountKey: stale.accountKey,
-            sourceEngineId: stale.sourceEngineId, windows: stale.windows,
+            sourceEngineId: stale.sourceEngineId, windows: stale.windows.map { window in
+                QuotaWindow(id: window.id, label: window.label, kind: window.kind,
+                            durationSeconds: window.durationSeconds, remainingFraction: window.remainingFraction,
+                            resetAt: window.resetAt, expectedRemainingFraction: window.expectedRemainingFraction,
+                            updatedAt: window.updatedAt,
+                            availability: window.availability == .valid ? .stale : window.availability)
+            },
             fetchedAt: stale.fetchedAt, availability: .stale, diagnosticCode: "cached_stale"
         )
         return stale

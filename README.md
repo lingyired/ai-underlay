@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/Platform-macOS%2014%2B-blue.svg)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
-[![Tests: 482 passing](https://img.shields.io/badge/Tests-482%20passing-brightgreen.svg)](Scripts/test.sh)
+[![Tests: XCTest suite](https://img.shields.io/badge/Tests-XCTest%20suite-blue.svg)](Scripts/test.sh)
 [![No telemetry](https://img.shields.io/badge/Telemetry-none-lightgrey.svg)](docs/privacy-and-permissions.md)
 
 Draws an AI quota and agent-activity bar **into the macOS menu bar background**.
@@ -17,7 +17,7 @@ that sits above the desktop icons and below the menu bar.
 - A one-provider dual split paints its two sides differently, so the 5-hour side
   and the weekly side never look alike: the 5-hour side turns the provider's own
   hue by 30°, the weekly side keeps the provider colour, and either side can be
-  overridden by hand (Settings → Theme → 额度颜色 → 拆分).
+  overridden by hand (设置 → 主题与颜色 → 自定义颜色 → 单服务商双侧拆分).
 - Agent state (running / waiting for approval / waiting for input / unread) is
   shown with independent light-field and alert visuals — never by altering
   quota numbers.
@@ -28,12 +28,13 @@ that sits above the desktop icons and below the menu bar.
   Turning **横穿扫光** (the whole-lane sweep) off does not stop the motion: each
   ray keeps its own travelling wave, so a running lane is never mistaken for
   an idle one. Tempo defaults to 1.4 s/cycle and is adjustable in
-  Settings → Appearance → Agent 动效节奏, together with the wave strength.
+  设置 → 外观与布局 → Agent 动效, together with the wave strength.
 - Three separate colour roles: **quota colours**, the per-provider **glass
   tint**, and global **signal lights** — a theme can change any of them without
   changing the others.
-- Data comes from the community **CodexBar** CLI; agent state comes from the
-  agents' own lifecycle hooks.
+- Quota comes from the community **CodexBar** CLI. Codex activity uses a
+  read-only Desktop connection with local logs as fallback; Claude Code uses
+  local sessions with optional lifecycle hooks.
 
 ## Requirements
 
@@ -60,33 +61,42 @@ Scripts/check-domain-purity.sh
 
 ## Using it
 
-1. Launch the app. It appears as a small gauge icon in the menu bar (no Dock
-   icon). Click it → **Settings…**.
-2. **Appearance** — choose dual/single, anchor (notch or screen edge),
-   direction, and a preview fixture. Changes render live. With exactly one
-   provider switched on, dual mode can split that provider's 5-hour and
-   weekly windows across the two sides of the notch.
-3. **Theme** — pick a theme, drop your own JSON into the Themes folder, or copy
-   the authoring instructions to an AI agent. Themes are appearance-only:
-   `docs/theme/README.md`.
-4. **Providers / Engine** — switch each provider on or off for this app (a
+1. Launch the app. Click the small gauge icon in the menu bar, then **设置…**.
+   Reopening the app or pressing **⌘,** also opens Settings, including when the
+   menu bar icon has been hidden. The settings window has a resizable sidebar.
+2. **外观与布局** — choose dual/single, anchor (notch or screen edge), direction,
+   and optional offline previews. Unavailable controls explain their conditions.
+   With exactly one provider switched on, dual mode can split its 5-hour and
+   weekly windows across the two sides. Motion tuning is grouped under advanced
+   controls and respects both the app and macOS Reduce Motion preferences.
+3. **主题与颜色** — pick a theme, then optionally expand personal colors,
+   material tuning, or theme-file tools. Controls show resolved values using
+   **personal overrides → active theme → built-in defaults**. Switching themes
+   preserves personal edits; scoped restore actions return them to the theme.
+   Themes are appearance-only: `docs/theme/README.md`.
+4. **服务商 / 运行引擎** — switch each provider on or off for this app (a
    provider switched off here is neither fetched nor drawn, even when CodexBar
    has it enabled), and see the detected CodexBar CLI plus each provider's
-   upstream and login state. *Test Connection* refreshes immediately.
-5. **Agent** — preview and install Claude Code hooks (this is the only way the
-   app modifies `~/.claude/settings.json`, and it backs the file up first).
-6. **Diagnostics** — measured geometry and overlay state, with a desensitized
-   copy button.
+   upstream and data state. Connection checks follow the actual request state;
+   stale cached data is identified. Proxy fields validate addresses before use.
+5. **Agent 集成 / 诊断** — Codex connects automatically while Codex Desktop is
+   open: no Hook installation or approval. If unavailable, local logs continue
+   detection with limited question/approval coverage. Old AI Underlay Codex hooks
+   have a manual cleanup action. Claude Code retains optional preview/apply
+   hooks. Diagnostics shows the Codex connection and a desensitized report.
+
+Changes apply immediately. A visible error and retry action appear if settings
+cannot be saved. An unreadable settings file is backed up before replacement.
 
 ### Offline preview
 
-Set **Appearance → Fixture** to any of `full`, `weekLow`, `sessionLow`,
-`allZero`, `missing`, `stale`, `reset`, `agentRunning`, `agentWaiting`,
-`agentError`, `agentRunningWaiting`, `agentRunningError`, `agentUnread`,
-`agentRunningUnread`, `agentAllSignals`, `glassV5`, `notchless`. These drive the
-*real* renderer, so what you see is exactly what the menu bar will draw — no
-provider login required. `docs/preview/glass-spectrum/` holds rendered PNGs of
-the same matrix for review.
+Choose a named scenario under **外观与布局 → 离线预览**, such as 额度充足,
+5 小时额度偏低, or Agent 正在运行. The Settings window and quota popup display
+a persistent preview indicator with an exit action. These examples drive the
+real renderer without provider login; their numbers and activity are simulated.
+Choose **实时额度** or **退出预览** to restore live data. The internal scenario
+keys remain stable in `FixtureSnapshots`; `docs/preview/glass-spectrum/` holds
+offline rendered examples for development review.
 
 ## Where the data comes from
 
@@ -94,8 +104,19 @@ the same matrix for review.
   absolute path and array arguments (never a shell). We parse its JSON, map
   windows by `windowMinutes` (300 = 5h, 10080 = weekly), and never invent a
   "monthly" layer that the source did not report.
-- **Agent**: the agents' official hooks write one JSON line to a local Unix
-  socket. Events carry only provider, session id, event kind, and time.
+- **Codex activity**: a read-only connection to the local Desktop Unix socket
+  projects lifecycle and pending-request metadata into state. Local SQLite and
+  rollout logs cover sessions absent from the stream. Raw wire payloads are
+  transiently decoded, never logged or persisted. Codex hooks are ignored.
+- **Claude activity**: local session logs, optionally supplemented by lifecycle
+  hooks writing a JSON line to the app's local Unix socket.
+- **Download counts (opt-in, 设置 → 下载监控)**: one `GET` every 5 minutes
+  against the user's own stats endpoint (default
+  `https://lingai.net/api/dl/statustrio`), which aggregates the landing page's
+  netdisk button clicks with GitHub release download counts. Off by default;
+  switching it on is the only network call the app makes on its own behalf, and
+  it sends nothing about the user. The netdisk vendors expose no download
+  numbers to third parties, so the click-side count is self-collected.
 
 See `docs/architecture.md`, `docs/privacy-and-permissions.md`, and
 `docs/agent-capability-report.md`.
@@ -117,7 +138,9 @@ data-source type.
 
 This project is [MIT licensed](LICENSE). See `NOTICE` for third-party notices.
 CodexBar and CodeStatus are separate projects; this app invokes CodexBar as an
-external process and references CodeStatus only for design.
+external process and references CodeStatus only for design. The native Codex
+Desktop adapter is adapted from MIT-licensed Codex Pacer; its license is bundled
+in the app.
 
 ## Known limitations
 
@@ -126,13 +149,22 @@ external process and references CodeStatus only for design.
 - The glass is **rendered**, not sampled from the desktop: no `NSVisualEffectView`
   backdrop blur (see `docs/architecture.md`). On-device 30-minute blur/CPU spike
   is still open.
-- **Unread** is wired as an input contract (`AgentSignals.unreadCount`) and shown
-  in fixtures; the durable completion ledger lives on the unmerged
-  `codex/unread-completion-attention-ribbon` branch, so live data keeps it at 0.
-- Real output TPS is not measured yet, so the light field always runs at the
-  slowest steady tempo.
+- Live unread completion tracking is not integrated in this branch; unread
+  visuals are currently available in offline fixtures.
+- Codex Desktop IPC is an internal protocol and may change. Unsupported or
+  unavailable connections fall back to logs; CLI/IDE questions and approvals
+  are not guaranteed observable in that mode. Remote hosts are not connected.
+- Real output TPS is not measured yet, so the light field runs at the selected
+  baseline tempo rather than claiming to measure output speed.
 - Fullscreen auto-hide is **not** implemented: reliably detecting fullscreen
   Spaces needs private SkyLight APIs, which we deliberately avoid to keep the
   App Store option open.
 - The managed-CLI installer requires a pinned release URL + SHA-256 to be filled
   in before use; the GitHub build path is wired but not yet pointed at a release.
+  The unfinished installer is kept out of the user-facing setup flow.
+
+The 2026-10-17 product review, implementation notes, and validation are in
+[`docs/productization/`](docs/productization/2026-10-17-product-review.md).
+
+Codex Hook-free integration and current preview validation:
+[`docs/productization/codex-hook-free-validation.md`](docs/productization/codex-hook-free-validation.md).

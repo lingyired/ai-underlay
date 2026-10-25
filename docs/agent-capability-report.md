@@ -1,4 +1,27 @@
-# Agent Capability Report (P0-5)
+# Agent Capability Report
+
+## Current Codex path (2026-10-18)
+
+Codex Desktop uses read-only native IPC, with local SQLite/rollout logs for
+threads not present in the stream. No Codex Hook installation or approval is
+required; old Hook events are ignored. Pending questions/approvals are shown
+only when explicitly observed, and ordinary tool completion never clears them.
+Connection loss drops active assertions without fabricating completion.
+
+| Source | Running / completion | Questions / approvals |
+|---|---|---|
+| Local Desktop stream | Explicit lifecycle events | Explicit pending requests |
+| Local log fallback (including CLI/IDE) | Existing log-derived detection | Limited; do not infer from silence |
+| Remote host | Not connected | Not connected |
+
+IPC is internal and may change. Protocol regression tests do not establish
+compatibility with every Desktop version or host. Native acceptance evidence
+is recorded separately in `productization/codex-hook-free-validation.md`.
+
+## Historical P0 assessment
+
+The following notes describe the original Hook-based investigation, not the
+current Codex integration. Claude still uses its optional Hook path.
 
 > Produced during P0 to establish, before any integration work, exactly which
 > agent states can be observed accurately and which must degrade to `unknown`.

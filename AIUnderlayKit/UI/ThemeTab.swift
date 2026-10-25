@@ -1,24 +1,18 @@
-import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
-/// 主题设置。主题**只描述外观**：颜色、材质、状态灯。它不能改变
-/// `Error > Waiting > Unread` 的优先级，也不能影响任何监控数据。
-///
-/// 主题以 JSON 存在 Application Support 里，App 更新不会覆盖；文件改动会热重载。
-/// 这里的手动取色不会改写内置主题或你的主题文件，而是保存在设置里，
-/// 永远优先于主题文件 —— 改一个颜色不需要重新编译，也不会与热重载打架。
+/// Appearance-only theme settings. Personal values intentionally outrank the
+/// selected theme, which outranks the built-in V5 look.
 public struct ThemeTab: View {
-    /// Copy pinned by `ThemeTabTests`: the slider must describe the rendered
-    /// material softening, never claim a system backdrop-blur radius.
+    /// Pinned by `ThemeTabTests`: this describes rendered glass softening, never
+    /// a system backdrop-blur radius.
     public static let softnessLabel = "材质柔化"
     public static let softnessNote =
         "原生绘制材质的柔化（0 清晰 / 17 默认 / 32 最软）；不采样桌面背景，泛光与颗粒为 0 时同样生效。"
 
     @ObservedObject var settings: SettingsStore
     @ObservedObject var themes: ThemeStore
-    @State private var status = ""
-    @State private var materialExpanded = false
+    @State private var status: ThemeTabStatusMessage?
+    @State private var confirmingResetAll = false
 
     public init(settings: SettingsStore, themes: ThemeStore) {
         self.settings = settings
@@ -28,271 +22,192 @@ public struct ThemeTab: View {
     public var body: some View {
         Form {
             themeSection
-            agentGlassSection
-            quotaSection
-            signalSection
-            materialSection
-            fileSection
-
             if let error = themes.lastError {
-                Section("有问题") {
-                    Text(error)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.orange)
-                        .textSelection(.enabled)
-                    Text("有错的主题不会被使用；如果它正是当前主题，会继续用上一次正常的版本。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                themeErrorSection(error)
             }
+            ThemeTabColorsView(
+                settings: settings,
+                themes: themes,
+                reportStatus: reportStatus
+            )
+            ThemeTabMaterialView(
+                settings: settings,
+                themes: themes,
+                reportStatus: reportStatus
+            )
+            ThemeTabFileToolsView(
+                themes: themes,
+                reportStatus: reportStatus
+            )
         }
         .formStyle(.grouped)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let status {
+                ThemeTabStatusView(
+                    status: status,
+                    persistenceError: settings.persistenceError,
+                    retrySave: retrySave,
+                    dismiss: { self.status = nil }
+                )
+            }
+        }
+        .confirmationDialog(
+            "恢复全部外观为当前主题？",
+            isPresented: $confirmingResetAll,
+            titleVisibility: .visible
+        ) {
+            Button("恢复全部外观", role: .destructive) {
+                restoreAll()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("这会清除所有个人颜色和材质，但会保留当前主题、服务商开关与真实额度数据。")
+        }
     }
-
-    // MARK: - Sections
 
     private var themeSection: some View {
-        Section("主题") {
-            Picker("当前主题", selection: themeSelection) {
-                Text("Selected Glass V5（内置默认）").tag(String?.none)
-                ForEach(themes.themes, id: \.id) { theme in
-                    Text(theme.name).tag(String?.some(theme.id))
-                }
-            }
-            Text("只写你要覆盖的字段；没写的沿用内置 Selected Glass V5。额度长度、告警优先级与数据都不受主题影响。")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private var agentGlassSection: some View {
-        Section("Agent 玻璃主题色") {
-            providerColorRow("Codex", providerId: "codex",
-                             dictionary: \.agentThemeColors,
-                             fallback: { GlassDefaults.codexAgentTheme })
-            providerColorRow("Claude", providerId: "claude",
-                             dictionary: \.agentThemeColors,
-                             fallback: { GlassDefaults.claudeAgentTheme })
-            Button("恢复默认玻璃色") {
-                settings.update { $0.appearance.agentThemeColors = [:] }
-                status = "已恢复默认玻璃主题色"
-            }
-            Text("只给该 Provider 的玻璃表面染色；不影响额度颜色、状态灯色，也不影响另一侧。")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private var quotaSection: some View {
-        Section("额度颜色") {
-            providerColorRow("Codex", providerId: "codex",
-                             dictionary: \.quotaBaseColors,
-                             fallback: { ProviderPalette.codex.inner })
-            providerColorRow("Claude", providerId: "claude",
-                             dictionary: \.quotaBaseColors,
-                             fallback: { ProviderPalette.claude.inner })
-            Button("恢复默认额度色") {
-                settings.update { $0.appearance.quotaBaseColors = [:] }
-                status = "已恢复默认额度颜色"
-            }
-            Text("两层额度由统一亮度梯度生成：外层更暗、内层更亮、端点高光；用完的部分保持黑色。")
-                .font(.caption).foregroundStyle(.secondary)
-
-            Divider()
-
-            ColorPicker("拆分 · 5 小时侧", selection: splitColorBinding(.session))
-            ColorPicker("拆分 · 周额度侧", selection: splitColorBinding(.weekly))
-            Button("恢复拆分默认色") {
-                settings.update { $0.appearance.splitQuotaBaseColors = [:] }
-                status = "已恢复双侧拆分的默认配色"
-            }
-            Text("只在「外观 → 双侧拆分（单提供商）」生效：5 小时那侧默认把 Provider 的色相偏转 30°，周额度侧沿用 Provider 本色，这样分开的两侧一眼能区分；这里选色即覆盖默认。普通双侧（两家各占一侧）与单条都不受影响。")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private var signalSection: some View {
-        Section("信号光源（全部 Provider 共用）") {
-            signalColorRow("Running（运行中）", key: .running, fallback: GlassDefaults.signalLights.running)
-            signalColorRow("Error（故障）", key: .error, fallback: GlassDefaults.signalLights.error)
-            signalColorRow("Waiting（等待你）", key: .waiting, fallback: GlassDefaults.signalLights.waiting)
-            signalColorRow("Unread（未读完成）", key: .unread, fallback: GlassDefaults.signalLights.unread)
-            Button("恢复默认信号色") {
-                settings.update { $0.appearance.signalColors = [:] }
-                status = "已恢复默认信号光源色"
-            }
-            Text("优先级固定：Error > Waiting > Unread > 无。Running 是独立维度：有任务就运动，颜色取最高优先级信号色。")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private var materialSection: some View {
         Section {
-            DisclosureGroup("玻璃材质参数", isExpanded: $materialExpanded) {
-                materialSlider(Self.softnessLabel, keyPath: \.blurRadiusTarget,
-                               range: 0...32, `default`: GlassDefaults.material.blurRadiusTarget)
-                Text(Self.softnessNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                materialSlider("环境泛光", keyPath: \.ambientGlow,
-                               range: 0...1, `default`: GlassDefaults.material.ambientGlow)
-                materialSlider("颗粒质感", keyPath: \.grain,
-                               range: 0...1, `default`: GlassDefaults.material.grain)
-                materialSlider("光线密度", keyPath: \.rayDensity,
-                               range: 0...1, `default`: GlassDefaults.material.rayDensity)
-                materialSlider("额度层不透明度", keyPath: \.quotaOpacity,
-                               range: 0...1, `default`: GlassDefaults.material.quotaOpacity)
-                materialSlider("主题色强度", keyPath: \.agentThemeStrength,
-                               range: 0...1, `default`: GlassDefaults.material.agentThemeStrength)
-                Button("恢复默认材质") {
-                    settings.update { $0.appearance.material = nil }
-                    status = "已恢复默认玻璃材质"
+            Picker("主题", selection: themeSelection) {
+                Text("Selected Glass V5（内置默认）")
+                    .tag(String?.none)
+                ForEach(pickerThemes, id: \.id) { theme in
+                    Text(theme.name)
+                        .tag(String?.some(theme.id))
+                }
+                if let unavailableID {
+                    Text("所选主题（暂时不可用）")
+                        .tag(String?.some(unavailableID))
                 }
             }
-        } footer: {
-            Text("材质参数保存在设置里并即时生效；泛光为 0 时主题色仍然可见（由玻璃染色层承载）。")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
 
-    private var fileSection: some View {
-        Section("文件") {
-            Text(themes.directoryURL.path)
-                .font(.caption.monospaced())
-                .textSelection(.enabled)
+            LabeledContent("当前显示") {
+                Text(activeThemeDisplayName)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            Label(personalLabel, systemImage: personalOverrideCount == 0
+                  ? "checkmark.circle"
+                  : "paintpalette.fill")
                 .foregroundStyle(.secondary)
-            HStack {
-                Button("打开主题文件夹") {
-                    NSWorkspace.shared.open(themes.directoryURL)
-                }
-                Button("重新载入") {
-                    themes.reload()
-                    status = "已重新载入 \(themes.themes.count) 个主题"
-                }
-                Button("导出示例主题（V5）…") { exportExample() }
-                Button("复制给 AI 的指令") {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(ThemePresets.authoringGuide, forType: .string)
-                    status = "指令已复制，可直接粘给 AI Agent"
+
+            Text("切换主题会保留你的个人设置。有效的个人颜色与材质会继续覆盖新主题；需要查看主题原貌时，可在各分组中恢复。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if selectedThemeUnavailable {
+                Label("所选主题暂时无法载入，当前使用内置外观。", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+
+            if personalOverrideCount > 0 {
+                Button("恢复全部外观…") {
+                    confirmingResetAll = true
                 }
             }
-            if !status.isEmpty {
-                Text(status).font(.caption).foregroundStyle(.secondary)
-            }
+        } header: {
+            Text("主题与个人外观")
         }
     }
 
-    // MARK: - Rows
-
-    private func providerColorRow(
-        _ label: String,
-        providerId: String,
-        dictionary: WritableKeyPath<GlassAppearance, [String: String]>,
-        fallback: @escaping () -> RGBAColor
-    ) -> some View {
-        ColorPicker(label, selection: colorBinding(dictionary: dictionary, key: providerId, fallback: fallback))
-    }
-
-    private func signalColorRow(_ label: String, key: SignalColorKey, fallback: RGBAColor) -> some View {
-        ColorPicker(label, selection: colorBinding(dictionary: \.signalColors, key: key.rawValue, fallback: { fallback }))
-    }
-
-    private func materialSlider(
-        _ label: String,
-        keyPath: WritableKeyPath<GlassMaterialOverrides, Double?>,
-        range: ClosedRange<Double>,
-        `default`: Double
-    ) -> some View {
-        let binding = Binding<Double>(
-            get: { settings.settings.appearance.material?[keyPath: keyPath] ?? `default` },
-            set: { newValue in
-                settings.update { s in
-                    var material = s.appearance.material ?? GlassMaterialOverrides()
-                    material[keyPath: keyPath] = min(max(newValue, range.lowerBound), range.upperBound)
-                    s.appearance.material = material
-                }
-            }
-        )
-        return LabeledContent(label) {
-            HStack(spacing: 8) {
-                Slider(value: binding, in: range)
-                Text(String(format: range.upperBound > 2 ? "%.0f" : "%.2f", binding.wrappedValue))
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 42, alignment: .trailing)
-            }
+    private func themeErrorSection(_ error: String) -> some View {
+        Section {
+            Label("部分主题没有载入", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            Text("有问题的主题不会参与显示；如果它正在使用，会保留上一次正常版本。你的个人外观不会因此被修改。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .help(label)
-        .accessibilityLabel(label)
     }
 
-    // MARK: - Bindings
-
-    private func colorBinding(
-        dictionary: WritableKeyPath<GlassAppearance, [String: String]>,
-        key: String,
-        fallback: @escaping () -> RGBAColor
-    ) -> Binding<Color> {
-        Binding(
-            get: {
-                let stored = settings.settings.appearance[keyPath: dictionary][key]
-                let resolved = stored.flatMap { RGBAColor(hex: $0) } ?? fallback()
-                return Color(resolved)
-            },
-            set: { newColor in
-                let resolved = RGBAColor(newColor, fallback: fallback())
-                settings.update { $0.appearance[keyPath: dictionary][key] = resolved.hexString }
-            }
-        )
-    }
-
-    /// The provider a dual-window split would colour right now: the only one
-    /// enabled. With none or several enabled this falls back to the first
-    /// supported provider, which is the side a split would take over.
-    private var splitProviderId: String {
-        let enabled = AIUnderlayKit.supportedProviders.filter {
-            settings.settings.enabledProviders.contains($0)
+    private var pickerThemes: [ThemeDocument] {
+        themes.themes.filter { theme in
+            theme != ThemePresets.selectedGlassV5
+                || settings.settings.activeThemeId == ThemePresets.selectedGlassV5.id
         }
-        return enabled.first ?? AIUnderlayKit.supportedProviders.first ?? "codex"
     }
 
-    /// What a side is painted with when the user has not picked a colour, so
-    /// the swatch shows the colour that is actually rendered rather than an
-    /// unrelated default.
-    private func splitColorFallback(_ role: SplitLaneRole) -> RGBAColor {
-        let providerId = splitProviderId
-        let glass = ThemeResolver.glassTheme(
-            theme: themes.activeTheme,
-            providerId: providerId,
-            base: ProviderPalette.for(providerId: providerId),
-            appearance: settings.settings.appearance
-        )
-        return SplitLaneColors.baseColor(role: role, providerBase: glass.palette.inner)
+    private var unavailableID: String? {
+        guard let id = settings.settings.activeThemeId,
+              !themes.themes.contains(where: { $0.id == id })
+        else {
+            return nil
+        }
+        return id
     }
 
-    private func splitColorBinding(_ role: SplitLaneRole) -> Binding<Color> {
-        colorBinding(
-            dictionary: \.splitQuotaBaseColors,
-            key: role.rawValue,
-            fallback: { splitColorFallback(role) }
+    private var selectedThemeUnavailable: Bool {
+        settings.settings.activeThemeId != nil && themes.activeTheme == nil
+    }
+
+    private var activeThemeDisplayName: String {
+        themes.activeTheme?.name ?? (
+            settings.settings.activeThemeId == nil
+                ? "Selected Glass V5（内置默认）"
+                : "所选主题（暂时不可用）"
         )
     }
 
-    /// Selecting a theme writes to settings; the coordinator then repaints.
+    private var personalOverrideCount: Int {
+        ThemeTabPreviewState.overrideCount(in: settings.settings.appearance)
+    }
+
+    private var personalLabel: String {
+        personalOverrideCount == 0
+            ? "当前外观与主题一致"
+            : "\(personalOverrideCount) 项个人自定义优先于主题"
+    }
+
     private var themeSelection: Binding<String?> {
         Binding(
             get: { settings.settings.activeThemeId },
-            set: { id in settings.update { $0.activeThemeId = id } }
+            set: { id in
+                let preserved = personalOverrideCount
+                settings.update { $0.activeThemeId = id }
+                updateStatus(
+                    ThemeTabPreviewState.statusAfterMutation(
+                        success: preserved == 0
+                            ? "已切换主题，外观已立即更新。"
+                            : "已切换主题；\(preserved) 项个人自定义仍保留，并会继续优先于主题。",
+                        persistenceError: settings.persistenceError
+                    )
+                )
+            }
         )
     }
 
-    private func exportExample() {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(ThemePresets.selectedGlassV5.id).json"
-        panel.allowedContentTypes = [.json]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try Data(ThemePresets.exampleJSON.utf8).write(to: url, options: .atomic)
-            status = "已导出到 \(url.lastPathComponent)"
-        } catch {
-            status = "导出失败：\(error.localizedDescription)"
+    private func restoreAll() {
+        settings.update {
+            $0.appearance = ThemeTabPreviewState.ResetScope.all.apply(to: $0.appearance)
         }
+        updateStatus(
+            ThemeTabPreviewState.statusAfterMutation(
+                success: ThemeTabPreviewState.ResetScope.all.confirmation,
+                persistenceError: settings.persistenceError
+            )
+        )
+    }
+
+    private func retrySave() {
+        settings.save()
+        updateStatus(
+            settings.persistenceError == nil
+                ? ("设置已保存。", false)
+                : ThemeTabPreviewState.statusAfterMutation(
+                    success: "",
+                    persistenceError: settings.persistenceError
+                )
+        )
+    }
+
+    private func reportStatus(_ value: (text: String, warning: Bool)) {
+        updateStatus(value)
+    }
+
+    private func updateStatus(_ value: (text: String, warning: Bool)) {
+        status = ThemeTabStatusMessage(text: value.text, warning: value.warning)
     }
 }

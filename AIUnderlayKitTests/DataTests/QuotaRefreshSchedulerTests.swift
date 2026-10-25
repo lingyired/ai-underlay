@@ -5,6 +5,38 @@ import XCTest
 /// until the next four-minute tick.
 @MainActor
 final class QuotaRefreshSchedulerTests: XCTestCase {
+    func test_refreshReportsItsActualInFlightState() async {
+        var resumeFetch: CheckedContinuation<ProviderQuotaSnapshot, Never>?
+        var states: [Bool] = []
+        let scheduler = QuotaRefreshScheduler(
+            fetch: { _ in await withCheckedContinuation { resumeFetch = $0 } },
+            onUpdate: { _ in }, onError: { _, _ in },
+            onRefreshing: { states.append($0) }
+        )
+        scheduler.start(providers: ["codex"])
+        while resumeFetch == nil { await Task.yield() }
+        XCTAssertEqual(states.last, true)
+        resumeFetch?.resume(returning: snapshot("codex"))
+        while states.last == true { await Task.yield() }
+        XCTAssertEqual(states.suffix(2), [true, false])
+        scheduler.stop()
+    }
+
+    func test_stoppingIgnoresAResultFromTheOldConnection() async {
+        var resumeFetch: CheckedContinuation<ProviderQuotaSnapshot, Never>?
+        var applied: [ProviderQuotaSnapshot] = []
+        let scheduler = QuotaRefreshScheduler(
+            fetch: { _ in await withCheckedContinuation { resumeFetch = $0 } },
+            onUpdate: { applied.append($0) }, onError: { _, _ in }
+        )
+        scheduler.start(providers: ["codex"])
+        while resumeFetch == nil { await Task.yield() }
+        scheduler.stop()
+        resumeFetch?.resume(returning: snapshot("codex"))
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertTrue(applied.isEmpty, "a removed connection must not publish a late success")
+    }
+
     private func snapshot(_ provider: String) -> ProviderQuotaSnapshot {
         ProviderQuotaSnapshot(
             id: "\(provider):default", providerId: provider, accountKey: nil,

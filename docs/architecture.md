@@ -32,6 +32,32 @@ dependency direction (`Domain ← everything`) is enforced by module boundary �
 
 `Scripts/check-domain-purity.sh` enforces rule 1 in CI/pre-commit.
 
+## Codex activity sources
+
+`CodexRuntimeMonitor` owns a native read-only Desktop subscription. Utility-queue
+socket decoding projects only lifecycle/request metadata; one ordered MainActor
+consumer applies it to `CodexRuntimeState`. Per-thread realtime state overrides
+local log polling while available. Disconnects invalidate running state without
+inventing completion; newer log activity can replace stale terminal state.
+Pending requests remain conservative until cleared or resolved by newer logs.
+Codex Hook events are ignored; Claude keeps the existing reducer. Reconnects
+are bounded to one attempt every 30 seconds. No new Python runtime is required.
+
+The adapter follows the MIT Codex Pacer implementation pinned in `NOTICE`. The
+protocol is internal, so unsupported connections visibly fall back to logs.
+See `productization/codex-ipc-port.md` for protocol and privacy boundaries.
+
+## Download monitor (opt-in data source)
+
+A second periodic source beside quota: `DownloadMonitorClient` GETs aggregate
+counts from the user's own stats endpoint (default lingai.net) every 5 minutes
+via the shared `RefreshScheduler` (the quota scheduler was generalized over the
+snapshot type). `Domain/DownloadMonitor.swift` is the pure model; the popover
+renders a 下载监控 section, and 设置 → 下载监控 holds the switch, the endpoint
+URL, and live status. Off by default; when on, the app sends nothing about the
+user — only the URL itself. The endpoint is configurable so any compatible
+stats service works.
+
 ## Glass Spectrum (the single visual engine)
 
 The overlay has exactly one effect engine. Everything a lane shows is built
@@ -115,3 +141,5 @@ Evidence for the rendered look: `docs/preview/glass-spectrum/*.png`, produced by
 
 - CodexBar CLI: detected at `/opt/homebrew/bin/codexbar` on this machine.
 - CodeStatus: reference for hook/reducer design (MIT).
+
+- Codex Pacer: native read-only Desktop IPC adapter (MIT; snapshot in `NOTICE`).

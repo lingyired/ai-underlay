@@ -4,6 +4,46 @@ import Combine
 
 @MainActor
 final class SettingsStoreTests: XCTestCase {
+    func test_failedSaveRemainsLiveAndCanBeRetried() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("settings.json")
+        let store = SettingsStore(fileURL: url)
+        var applied: LayoutMode?
+        let observer = store.changes.sink { applied = $0.layout }
+        defer { observer.cancel() }
+
+        store.update { $0.layout = .single }
+        XCTAssertEqual(applied, .single)
+        XCTAssertEqual(store.settings.layout, .single)
+        XCTAssertNotNil(store.persistenceError)
+
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        store.save()
+        XCTAssertNil(store.persistenceError)
+        XCTAssertEqual(SettingsStore(fileURL: url).settings.layout, .single)
+    }
+
+    func test_corruptSettingsAreBackedUpBeforeReplacement() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("settings.json")
+        let original = Data("{invalid-json".utf8)
+        try original.write(to: url)
+        let store = SettingsStore(fileURL: url)
+        XCTAssertNotNil(store.persistenceError)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+
+        store.update { $0.layout = .single }
+        let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("settings-recovery-") }
+        XCTAssertEqual(backups.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(backups.first)), original)
+        XCTAssertNil(store.persistenceError)
+        XCTAssertEqual(SettingsStore(fileURL: url).settings.layout, .single)
+    }
+
     func test_tolerantDecode_olderFileWithoutNewKeys() throws {
         // A file written before `displayedProviders` existed must still decode,
         // keeping its known values and defaulting the rest — not reset wholesale.
@@ -335,5 +375,36 @@ final class SettingsStoreTests: XCTestCase {
 
         store.update { $0.layout = .dual }
         XCTAssertEqual(onDiskWhenNotified, .dual, "a theme-style hot reload reads the file, so it must be written first")
+    }
+
+    // MARK: - Download monitor
+
+    func test_downloadMonitor_defaultsToOffWithEmptyURL() {
+        // The monitor adds a periodic network call, so it is opt-in; an empty
+        // URL means "the built-in default endpoint".
+        XCTAssertFalse(AppSettings.default.downloadMonitorEnabled)
+        XCTAssertTrue(AppSettings.default.downloadMonitorURL.isEmpty)
+    }
+
+    func test_downloadMonitor_olderFilesDecodeWithoutIt() throws {
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"layout":"dual"}"#.utf8))
+        XCTAssertFalse(settings.downloadMonitorEnabled)
+        XCTAssertTrue(settings.downloadMonitorURL.isEmpty)
+        XCTAssertEqual(settings.layout, .dual, "an unrelated field must survive")
+    }
+
+    func test_downloadMonitor_survivesARoundTrip() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = SettingsStore(fileURL: url)
+        store.update {
+            $0.downloadMonitorEnabled = true
+            $0.downloadMonitorURL = "https://example.invalid/api/dl/statustrio"
+        }
+
+        let reloaded = SettingsStore(fileURL: url).settings
+        XCTAssertTrue(reloaded.downloadMonitorEnabled)
+        XCTAssertEqual(reloaded.downloadMonitorURL, "https://example.invalid/api/dl/statustrio")
     }
 }

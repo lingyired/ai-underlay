@@ -6,8 +6,12 @@ import Combine
 @MainActor
 public final class SettingsStore: ObservableObject {
     @Published public private(set) var settings: AppSettings
+    /// Changes still apply in memory if saving fails, but the UI must not say
+    /// they will survive a restart until a later save succeeds.
+    @Published public private(set) var persistenceError: String?
 
     private let fileURL: URL
+    private var needsRecoveryCopy = false
     private let changesSubject = PassthroughSubject<AppSettings, Never>()
     /// A stable publisher instance, so `onReceive(store.changes)` does not
     /// resubscribe on every view update.
@@ -28,7 +32,16 @@ public final class SettingsStore: ObservableObject {
         let url = fileURL ?? Self.defaultURL()
         self.fileURL = url
         self.changesPublisher = changesSubject.eraseToAnyPublisher()
-        self.settings = Self.load(from: url) ?? .default
+        do {
+            let data = try Data(contentsOf: url)
+            self.settings = try JSONDecoder().decode(AppSettings.self, from: data)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            self.settings = .default
+        } catch {
+            self.settings = .default
+            self.needsRecoveryCopy = FileManager.default.fileExists(atPath: url.path)
+            self.persistenceError = "无法读取已保存的设置，暂时使用默认值。再次保存前会备份原文件。"
+        }
     }
 
     public static func defaultURL() -> URL {
@@ -51,9 +64,16 @@ public final class SettingsStore: ObservableObject {
     public func save() {
         do {
             let data = try JSONEncoder().encode(settings)
+            if needsRecoveryCopy {
+                let backup = fileURL.deletingLastPathComponent()
+                    .appendingPathComponent("settings-recovery-\(UUID().uuidString).json")
+                try FileManager.default.copyItem(at: fileURL, to: backup)
+                needsRecoveryCopy = false
+            }
             try data.write(to: fileURL, options: .atomic)
+            persistenceError = nil
         } catch {
-            // Persisting settings failing is not fatal; keep running in memory.
+            persistenceError = "设置已在本次运行中生效，但未能保存。请检查设置文件夹的可用空间和写入权限，然后重试。"
         }
     }
 

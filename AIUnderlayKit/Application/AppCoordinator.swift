@@ -14,6 +14,9 @@ public final class AppCoordinator: ObservableObject {
 
     /// Bumped whenever live data changes, so the dashboard popup re-renders.
     @Published public private(set) var dataRevision = 0
+    @Published public private(set) var isRefreshingQuota = false
+    @Published public private(set) var isRefreshingDownloads = false
+    @Published public private(set) var codexRuntimeStatus: CodexRuntimeStatus = .connecting
 
     public let settings: SettingsStore
     public let overlay: MenuBarOverlayController
@@ -26,21 +29,37 @@ public final class AppCoordinator: ObservableObject {
     public private(set) var liveSnapshots: [String: ProviderQuotaSnapshot] = [:]
     /// Last error per provider, for diagnostics.
     public private(set) var lastErrors: [String: String] = [:]
+    /// Latest landing-page download counts, when the monitor is enabled.
+    public private(set) var downloadSnapshot: DownloadMonitorSnapshot?
+    /// Last download-monitor failure, desensitized, for diagnostics.
+    public private(set) var downloadError: String?
 
     private var statusItem: StatusItemController?
     private var panel: DashboardPanelController?
     private var scheduler: QuotaRefreshScheduler?
+    private var downloadScheduler: RefreshScheduler<DownloadMonitorSnapshot>?
+    private let injectedDownloadClient: DownloadMonitorClient?
+    private var lastDownloadMonitorKey: String = ""
     private var cancellables = Set<AnyCancellable>()
     private var agentReceiver: AgentEventReceiver?
     private let reducer = AgentSessionReducer()
     private let agentStateStore = AgentStateStore()
     private let codexLocalSessions = CodexLocalSessionReader()
+    private var codexRuntimeSessions: [AgentSession] = []
+    private lazy var codexRuntimeMonitor = CodexRuntimeMonitor { [weak self] snapshot in
+        self?.applyCodexRuntime(snapshot)
+    }
+    /// Current stream coverage, without exposing conversation identifiers.
+    public var codexRuntimeSessionCount: Int {
+        codexRuntimeSessions.filter { $0.confidence == .exact }.count
+    }
     private var sessionTimer: Timer?
     private var lastAgentSignature: String?
     private var lastSessionSignature: String?
     /// Provider list the quota scheduler is currently running with, so a
     /// settings change only touches it when the switches actually changed.
     private var lastEnabledProviders: [String] = []
+    private var engineRevision = 0
     /// Live agent sessions: the local rollout reading merged with CodexBar's.
     public private(set) var agentSessions: [AgentSessionInfo] = []
 
@@ -62,13 +81,15 @@ public final class AppCoordinator: ObservableObject {
         overlay: MenuBarOverlayController = MenuBarOverlayController(),
         engineManager: QuotaEngineManager = QuotaEngineManager(),
         cache: SnapshotCache = SnapshotCache(),
-        themes: ThemeStore? = nil
+        themes: ThemeStore? = nil,
+        downloadClient: DownloadMonitorClient? = nil
     ) {
         self.settings = settings
         self.overlay = overlay
         self.engineManager = engineManager
         self.cache = cache
         self.themes = themes ?? ThemeStore(activeId: settings.settings.activeThemeId)
+        self.injectedDownloadClient = downloadClient
         Self.shared = self
     }
 
@@ -103,6 +124,7 @@ public final class AppCoordinator: ObservableObject {
             .sink { [weak self] updated in
                 guard let self else { return }
                 self.syncProviderSelection()
+                self.syncDownloadMonitor()
                 if self.themes.selectedThemeId != updated.activeThemeId {
                     // setActive publishes `revision`, which renders for us.
                     self.themes.setActive(id: updated.activeThemeId)
@@ -118,9 +140,17 @@ public final class AppCoordinator: ObservableObject {
             .sink { [weak self] _ in self?.render() }
             .store(in: &cancellables)
 
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.render() }
+            }
+            .store(in: &cancellables)
+
         startEngine()
         startAgentReceiver()
         startSessionPolling()
+        startDownloads()
         render()
 
         // A second launch of the app asks us to open settings (see the
@@ -146,6 +176,9 @@ public final class AppCoordinator: ObservableObject {
         let receiver = AgentEventReceiver { [weak self] event in
             Task { @MainActor in
                 guard let self else { return }
+                // Codex now has a read-only runtime/log pipeline. A leftover
+                // legacy Hook must not revive old waits or duplicate activity.
+                guard event.providerId != "codex" else { return }
                 let session = self.reducer.reduce(event)
                 Log.write("agent event: provider=\(event.providerId) kind=\(event.kind.rawValue) "
                     + "session=\(event.sessionId) -> \(session.state.rawValue) (\(session.confidence.rawValue))"
@@ -186,6 +219,7 @@ public final class AppCoordinator: ObservableObject {
     /// sessions living in old date directories), everything else from
     /// `codexbar sessions`. Works without any hook installation.
     public func startSessionPolling() {
+        codexRuntimeMonitor.start()
         sessionTimer?.invalidate()
         Task { @MainActor in await self.pollSessions() }
         sessionTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -205,6 +239,7 @@ public final class AppCoordinator: ObservableObject {
             agentSessions = merged
             dataRevision += 1
         }
+        applyCodexRuntime(codexRuntimeMonitor.snapshot())
         // Log only the shape (ids and states), not the timestamps that move on
         // every write, so a busy session does not flood the log.
         let sessionSignature = merged
@@ -229,6 +264,7 @@ public final class AppCoordinator: ObservableObject {
     private func runningHookSessionIds() -> String {
         let now = Date()
         let ids = reducer.allSessions()
+            .filter { $0.providerId != "codex" }
             .filter { AgentActivityAggregator.effectiveState($0, now: now) == .running }
             .map { String($0.id.prefix(8)) }
         return ids.isEmpty ? "-" : ids.joined(separator: ",")
@@ -255,11 +291,15 @@ public final class AppCoordinator: ObservableObject {
     /// Live signals for a provider, or nil when nothing is known about it.
     ///
     /// The dimensions stay separate: a provider whose session A waits for you
-    /// while session B works must report both (§4.1). Prefers hook-derived
-    /// sessions (finer states); falls back to CodexBar's recency-based sessions
-    /// (coarse: running/idle).
+    /// while session B works must report both (§4.1). Codex uses Desktop streams
+    /// per thread with log fallback; Claude reconciles optional hooks and logs.
     public func agentSignals(for providerId: String) -> AgentSignals? {
         let now = Date()
+        if providerId == "codex" {
+            let sessions = CodexActivityResolver.sessions(runtime: codexRuntimeSessions, polled: agentSessions)
+            let signals = AgentSignals.counting(sessions, now: now)
+            return signals.isEmpty ? nil : signals
+        }
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
         let polled = agentSessions.filter { $0.provider == providerId }
         // The reconciliation rule lives in the domain so it is testable without
@@ -280,9 +320,15 @@ public final class AppCoordinator: ObservableObject {
     /// Session count summary for a provider, for the popup detail.
     ///
     /// The polled source is coarse — it only knows busy/idle — so a session
-    /// that is waiting on the user is reported as running there. The hook
-    /// evidence supplies that dimension; it is the only side that can see it.
+    /// that is waiting on the user may be reported as running there. Explicit
+    /// Desktop requests (Codex) or optional hooks (Claude) supply that dimension.
     public func agentSessionSummary(for providerId: String) -> (running: Int, idle: Int, waiting: Int)? {
+        if providerId == "codex" {
+            let sessions = CodexActivityResolver.sessions(runtime: codexRuntimeSessions, polled: agentSessions)
+            guard !sessions.isEmpty else { return nil }
+            let signals = AgentSignals.counting(sessions)
+            return (signals.activeCount, sessions.filter { $0.state == .idle }.count, signals.waitingCount)
+        }
         let polled = agentSessions.filter { $0.provider == providerId }
         let hookSessions = reducer.allSessions().filter { $0.providerId == providerId }
         let waiting = AgentSignals.counting(hookSessions).waitingCount
@@ -296,12 +342,28 @@ public final class AppCoordinator: ObservableObject {
     }
 
     public func stop() {
+        codexRuntimeMonitor.stop()
         scheduler?.stop()
+        downloadScheduler?.stop()
         sessionTimer?.invalidate()
         agentReceiver?.stop()
         overlay.stopLifecycle()
         overlay.hideAll()
         statusItem = nil
+    }
+
+    private func applyCodexRuntime(_ snapshot: CodexRuntimeSnapshot) {
+        func signature(_ sessions: [AgentSession]) -> [String] {
+            sessions.map { "\($0.id):\($0.state.rawValue):\($0.pendingQuestion)" }.sorted()
+        }
+        let changed = codexRuntimeStatus != snapshot.status
+            || signature(codexRuntimeSessions) != signature(snapshot.sessions)
+        codexRuntimeSessions = snapshot.sessions
+        if codexRuntimeStatus != snapshot.status { codexRuntimeStatus = snapshot.status }
+        guard changed else { return }
+        dataRevision += 1
+        let signature = agentSignature()
+        if signature != lastAgentSignature { render() }
     }
 
     /// Agent state shown for the agent fixtures, so the effect channel can be
@@ -351,11 +413,24 @@ public final class AppCoordinator: ObservableObject {
     /// Discovers the CLI and, if a compatible engine exists, begins periodic
     /// refreshes. Without an engine we simply keep rendering fixtures/cache.
     public func startEngine() {
+        scheduler?.stop()
+        scheduler = nil
+        engineRevision += 1
+        let revision = engineRevision
         let currentProviders = providers
         lastEnabledProviders = currentProviders
         let override = settings.settings.proxyOverride
         engineManager.setProxyOverride(override.isEmpty ? nil : override)
         guard let engine = engineManager.activeEngine else {
+            availableProviders = []
+            for provider in currentProviders {
+                if let id = liveSnapshots[provider]?.id,
+                   let cached = cache.cached(id: id, forceStale: true) {
+                    liveSnapshots[provider] = cached
+                }
+            }
+            dataRevision += 1
+            render()
             Log.write("engine: no compatible CodexBar CLI; quota lanes stay empty "
                 + "candidates=\(engineManager.candidates.map { "\($0.url.lastPathComponent):\($0.compatibility)" })")
             return
@@ -386,11 +461,15 @@ public final class AppCoordinator: ObservableObject {
                 self.lastErrors[provider] = message
                 // Fall back to the last valid cached snapshot, marked stale.
                 Log.write("quota: \(provider) fetch failed: \(message)")
-                if let cached = self.cache.cached(id: "\(provider):default") {
+                let cacheId = self.liveSnapshots[provider]?.id ?? "\(provider):default"
+                if let cached = self.cache.cached(id: cacheId, forceStale: true) {
                     self.liveSnapshots[provider] = cached
                 }
                 self.dataRevision += 1
                 self.render()
+            },
+            onRefreshing: { [weak self] refreshing in
+                self?.isRefreshingQuota = refreshing
             }
         )
         scheduler?.start(providers: currentProviders)
@@ -399,7 +478,9 @@ public final class AppCoordinator: ObservableObject {
             guard let self, let catalog = engine as? ProviderCatalogEngine else { return }
             if let list = try? await catalog.listProviders() {
                 await MainActor.run {
+                    guard self.engineRevision == revision else { return }
                     self.availableProviders = list
+                    self.dataRevision += 1
                     Log.write("catalog: \(list.count) providers; enabled upstream: \(list.filter(\.enabledInCodexBar).map(\.id)); displaying: \(self.providers)")
                 }
             }
@@ -426,7 +507,7 @@ public final class AppCoordinator: ObservableObject {
     /// Enables/disables a provider in CodexBar's own config. Modifies shared
     /// config — callers must confirm with the user first.
     public func setCodexBarProviderEnabled(_ provider: String, enabled: Bool) async throws {
-        guard let catalog = engineManager.activeEngine as? ProviderCatalogEngine else { return }
+        guard let catalog = engineManager.activeEngine as? ProviderCatalogEngine else { throw QuotaEngineError.unavailable }
         try await catalog.setProviderEnabled(provider, enabled: enabled)
         availableProviders = (try? await catalog.listProviders()) ?? availableProviders
     }
@@ -439,12 +520,110 @@ public final class AppCoordinator: ObservableObject {
 
     public func refreshNow() {
         scheduler?.refreshNow()
+        downloadScheduler?.refreshNow()
     }
 
     /// Removes only the app-managed CLI binary, if present.
-    public func uninstallManagedCLI() {
+    public func uninstallManagedCLI() throws {
         let managed = CLIInventory.managedCLIPath()
-        try? FileManager.default.removeItem(at: managed)
+        try FileManager.default.removeItem(at: managed)
+        startEngine()
+    }
+
+    // MARK: - Download monitor
+
+    /// Resolves the stats endpoint: the user's URL when set, otherwise the
+    /// built-in default. An unparsable or non-HTTP(S) URL disables the source
+    /// with a visible reason rather than silently polling nothing.
+    public var resolvedDownloadMonitorURL: URL? {
+        let raw = settings.settings.downloadMonitorURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidate = raw.isEmpty ? AIUnderlayKit.downloadMonitorDefaultURL : raw
+        guard let url = URL(string: candidate),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme)
+        else { return nil }
+        return url
+    }
+
+    /// (Re)starts the download monitor when the relevant settings changed.
+    /// Everything except the URL / switch / proxy is a no-op, so unrelated
+    /// settings edits never restart the scheduler.
+    private func syncDownloadMonitor() {
+        let s = settings.settings
+        let key = "\(s.downloadMonitorEnabled)|\(s.downloadMonitorURL)|\(s.proxyOverride)"
+        guard key != lastDownloadMonitorKey else { return }
+        lastDownloadMonitorKey = key
+        startDownloads()
+    }
+
+    /// Starts (or stops) the periodic download-count fetch. Disabled or
+    /// misconfigured means no scheduler and no stale snapshot on screen.
+    private func startDownloads() {
+        downloadScheduler?.stop()
+        downloadScheduler = nil
+
+        let s = settings.settings
+        guard s.downloadMonitorEnabled else {
+            downloadSnapshot = nil
+            downloadError = nil
+            return
+        }
+        guard let url = resolvedDownloadMonitorURL else {
+            downloadSnapshot = nil
+            downloadError = "下载监控地址无效，请在设置中检查。"
+            dataRevision += 1
+            return
+        }
+
+        let override = s.proxyOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        let client = injectedDownloadClient
+            ?? DownloadMonitorClient(proxyOverride: override.isEmpty ? nil : override)
+        let projectKey = url.lastPathComponent.isEmpty
+            ? AIUnderlayKit.downloadMonitorProject
+            : url.lastPathComponent
+
+        downloadScheduler = RefreshScheduler<DownloadMonitorSnapshot>(
+            interval: AIUnderlayKit.downloadMonitorInterval,
+            fetch: { _ in try await client.fetch(url: url) },
+            onUpdate: { [weak self] snapshot in
+                guard let self else { return }
+                self.downloadSnapshot = snapshot
+                self.downloadError = nil
+                let channels = snapshot.channels
+                    .map { "\($0.channel.rawValue)=\($0.total)" }
+                    .joined(separator: ",")
+                Log.write("downloads: project=\(snapshot.project) channels=[\(channels)]")
+                self.dataRevision += 1
+            },
+            onError: { [weak self] _, error in
+                guard let self else { return }
+                self.downloadError = Self.desensitizeDownloadError(error)
+                Log.write("downloads: fetch failed: \(self.downloadError ?? "-")")
+                self.dataRevision += 1
+            },
+            onRefreshing: { [weak self] refreshing in
+                self?.isRefreshingDownloads = refreshing
+            }
+        )
+        downloadScheduler?.start(providers: [projectKey])
+    }
+
+    /// A desensitized one-liner for a download-monitor failure. The error type
+    /// never carries a URL, so this only maps shapes to words.
+    private static func desensitizeDownloadError(_ error: Error) -> String {
+        switch error {
+        case let monitorError as DownloadMonitorError:
+            switch monitorError {
+            case .invalidURL: return "地址无效。"
+            case .transport: return "网络请求失败。"
+            case .httpStatus(let code): return "服务返回 HTTP \(code)。"
+            case .decodeFailed: return "响应格式无法解析。"
+            case .emptyChannels: return "服务未返回任何渠道数据。"
+            }
+        default:
+            return "未知错误。"
+        }
     }
 
     // MARK: - Rendering
@@ -504,7 +683,7 @@ public final class AppCoordinator: ObservableObject {
             baseline: s.showBaseline && glass.showsBaseline ? baselineSpec(for: windows) : nil,
             glass: glass,
             signal: s.showAgentEffects ? signal : nil,
-            reduceMotion: s.reduceMotion,
+            reduceMotion: s.reduceMotion || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
             spectrumFloorHz: SpectrumRhythm.clampedFloor(s.motionFloorFrequencyHz),
             waveIntensity: SpectrumRhythm.clampedIntensity(s.motionIntensity),
             showsTravelingLight: s.showTravelingLight,

@@ -54,6 +54,12 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// Deprecated: replaced by `enabledProviders`, which is the toggle the
     /// users control. Kept only so older settings files still decode.
     public var displayedProviders: [String]
+    /// Master switch for the landing-page download monitor. Off by default:
+    /// it adds a periodic network call the user has to opt into.
+    public var downloadMonitorEnabled: Bool
+    /// Stats endpoint for the download monitor. Empty means the built-in
+    /// default (`AIUnderlayKit.downloadMonitorDefaultURL`).
+    public var downloadMonitorURL: String
 
     public init(
         layout: LayoutMode = .dual,
@@ -75,7 +81,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         displays: [DisplayConfiguration] = [],
         enabledProviders: [String] = AIUnderlayKit.supportedProviders,
         dualWindowSplit: DualWindowSplit = .none,
-        displayedProviders: [String] = []
+        displayedProviders: [String] = [],
+        downloadMonitorEnabled: Bool = false,
+        downloadMonitorURL: String = ""
     ) {
         self.layout = layout
         self.anchor = anchor
@@ -97,6 +105,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.enabledProviders = enabledProviders
         self.dualWindowSplit = dualWindowSplit
         self.displayedProviders = displayedProviders
+        self.downloadMonitorEnabled = downloadMonitorEnabled
+        self.downloadMonitorURL = downloadMonitorURL
     }
 
     public static let `default` = AppSettings()
@@ -111,6 +121,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         case showTravelingLight, showAttentionSweep
         case appearance, activeThemeId, previewFixture, statusItemVisible
         case displays, enabledProviders, dualWindowSplit, displayedProviders
+        case downloadMonitorEnabled, downloadMonitorURL
         // Removed settings (read-only compatibility):
         case runningEffect
         case runningEffectColor
@@ -165,6 +176,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         enabledProviders = try c.decodeIfPresent([String].self, forKey: .enabledProviders) ?? d.enabledProviders
         dualWindowSplit = (try? c.decodeIfPresent(DualWindowSplit.self, forKey: .dualWindowSplit)) ?? d.dualWindowSplit
         displayedProviders = try c.decodeIfPresent([String].self, forKey: .displayedProviders) ?? d.displayedProviders
+        downloadMonitorEnabled = try c.decodeIfPresent(Bool.self, forKey: .downloadMonitorEnabled) ?? d.downloadMonitorEnabled
+        downloadMonitorURL = try c.decodeIfPresent(String.self, forKey: .downloadMonitorURL) ?? d.downloadMonitorURL
 
         migrateLegacyVisualChoices(from: c)
     }
@@ -213,6 +226,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         try c.encode(enabledProviders, forKey: .enabledProviders)
         try c.encode(dualWindowSplit, forKey: .dualWindowSplit)
         try c.encode(displayedProviders, forKey: .displayedProviders)
+        try c.encode(downloadMonitorEnabled, forKey: .downloadMonitorEnabled)
+        try c.encode(downloadMonitorURL, forKey: .downloadMonitorURL)
         // The removed keys are deliberately not re-written.
     }
 }

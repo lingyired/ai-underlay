@@ -3,6 +3,16 @@ AI Underlay — third-party notices
 This product uses the following third-party software.
 
 -------------------------------------------------------------------------------
+Codex Pacer
+https://github.com/RyanZhangNTU/codex-pacer
+Local fork: https://github.com/lingyired/codex-pacer
+Native Desktop IPC adapter adapted from the local source snapshot
+b0e763236a00fd725e9a32b002ee3a664c96e003. Used for metadata-only Codex activity
+subscriptions, bounded JSON projections and connection lifecycle handling.
+MIT License. Copyright (c) 2026 Codex Pacer contributors.
+Full license: AIUnderlay/Resources/CodexPacer-LICENSE.txt (also in the app bundle).
+
+-------------------------------------------------------------------------------
 CodexBar
 https://github.com/steipete/CodexBar
 Used as an external data source (invoked as a separate process; not linked).

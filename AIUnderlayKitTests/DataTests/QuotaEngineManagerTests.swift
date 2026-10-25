@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class QuotaEngineManagerTests: XCTestCase {
+    func test_failedRefreshMarksEvenRecentCacheAndWindowsStale() throws {
+        let cache = SnapshotCache()
+        let window = QuotaWindow(id: "weekly", label: "每周", kind: .weekly,
+                                 durationSeconds: 604800, remainingFraction: 0.6,
+                                 resetAt: nil, expectedRemainingFraction: nil,
+                                 updatedAt: nil, availability: .valid)
+        let snapshot = ProviderQuotaSnapshot(id: "codex:default", providerId: "codex",
+                                             accountKey: nil, sourceEngineId: "codexbar",
+                                             windows: [window], fetchedAt: Date(), availability: .valid)
+        cache.store(snapshot)
+        let stale = try XCTUnwrap(cache.cached(id: snapshot.id, forceStale: true))
+        XCTAssertEqual(stale.availability, .stale)
+        XCTAssertEqual(stale.windows.first?.availability, .stale)
+        XCTAssertEqual(stale.windows.first?.remainingFraction, 0.6)
+        XCTAssertEqual(cache.cached(id: snapshot.id)?.availability, .valid,
+                       "reading a fallback must not rewrite the cached original")
+    }
+
     private func makeBinary(script: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("codexbar-\(UUID().uuidString)")
         try script.write(to: url, atomically: true, encoding: .utf8)

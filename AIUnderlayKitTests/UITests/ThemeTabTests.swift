@@ -74,4 +74,128 @@ final class ThemeTabTests: XCTestCase {
         settings.update { $0.appearance.material = nil }
         XCTAssertNil(settings.settings.appearance.material, "reset falls back to the built-in 17")
     }
+
+    // MARK: - Effective values and scoped resets
+
+    func test_colorFallbackUsesEachRowsProviderThemeValue() {
+        let claudeTheme = ThemeDocument(
+            id: "per-provider",
+            name: "Per provider",
+            providers: [
+                "codex": .init(quotaBaseColor: "#445566", agentThemeColor: "#112233"),
+                "claude": .init(quotaBaseColor: "#DD7744", agentThemeColor: "#AA3355"),
+            ]
+        )
+
+        let claudeTint = ThemeTabPreviewState.fallbackColor(
+            for: .glassTint(providerId: "claude"),
+            theme: claudeTheme,
+            providerId: "codex",
+            appearance: .empty
+        )
+        let claudeQuota = ThemeTabPreviewState.fallbackColor(
+            for: .quotaBase(providerId: "claude"),
+            theme: claudeTheme,
+            providerId: "codex",
+            appearance: .empty
+        )
+
+        XCTAssertEqual(claudeTint.hexString, "#AA3355")
+        XCTAssertNotEqual(claudeTint.hexString, "#112233")
+        XCTAssertEqual(claudeQuota.hexString, "#DD7744")
+        XCTAssertNotEqual(claudeQuota.hexString, "#445566")
+    }
+
+    func test_themeSourceReflectsWhetherThemeProvidesTheField() {
+        let theme = ThemeDocument(
+            id: "partial",
+            name: "Partial",
+            providers: ["claude": .init(agentThemeColor: "#AA3355")]
+        )
+        XCTAssertEqual(
+            ThemeTabPreviewState.source(
+                for: .glassTint(providerId: "claude"),
+                appearance: .empty,
+                theme: theme
+            ),
+            .theme
+        )
+        XCTAssertEqual(
+            ThemeTabPreviewState.source(
+                for: .quotaBase(providerId: "claude"),
+                appearance: .empty,
+                theme: theme
+            ),
+            .builtIn
+        )
+    }
+
+    func test_quotaResetIncludesExhaustedTrackOnly() {
+        let appearance = GlassAppearance(
+            agentThemeColors: ["codex": "#112233"],
+            quotaBaseColors: ["claude": "#445566"],
+            splitQuotaBaseColors: ["session": "#778899"],
+            signalColors: ["error": "#AA3355"],
+            exhaustedTrackColor: "#010203",
+            material: GlassMaterialOverrides(blurRadiusTarget: 24)
+        )
+
+        let reset = ThemeTabPreviewState.ResetScope.quotaColors.apply(to: appearance)
+        XCTAssertTrue(reset.quotaBaseColors.isEmpty)
+        XCTAssertNil(reset.exhaustedTrackColor)
+        XCTAssertFalse(reset.agentThemeColors.isEmpty)
+        XCTAssertFalse(reset.splitQuotaBaseColors.isEmpty)
+        XCTAssertFalse(reset.signalColors.isEmpty)
+        XCTAssertEqual(reset.material?.blurRadiusTarget, 24)
+    }
+
+    func test_materialDisplayUsesResolvedClampedValues() {
+        let theme = ThemeDocument(
+            id: "material-theme",
+            name: "Material theme",
+            material: .init(
+                blurRadiusTarget: 27,
+                ambientGlow: 0.4,
+                grain: 0.2,
+                rayDensity: 0.6,
+                quotaOpacity: 0.8,
+                agentThemeStrength: 0.9
+            )
+        )
+        let material = ThemeTabPreviewState.material(
+            theme: theme,
+            appearance: .empty
+        )
+
+        XCTAssertEqual(material.blurRadiusTarget, 27)
+        XCTAssertEqual(material.ambientGlow, 0.4)
+        XCTAssertEqual(
+            ThemeTabPreviewState.MaterialField.softness.display(
+                material.blurRadiusTarget
+            ),
+            "27"
+        )
+        XCTAssertEqual(
+            ThemeTabPreviewState.MaterialField.ambientGlow.display(
+                material.ambientGlow
+            ),
+            "40%"
+        )
+    }
+
+    func test_materialWriteClampsAndRestoresOnlyThatField() {
+        var appearance = GlassAppearance(
+            material: GlassMaterialOverrides(ambientGlow: 0.6, grain: 0.3)
+        )
+
+        ThemeTabPreviewState.write(-5, for: .softness, to: &appearance)
+        XCTAssertEqual(appearance.material?.blurRadiusTarget, 0)
+        XCTAssertEqual(appearance.material?.ambientGlow, 0.6)
+        XCTAssertEqual(appearance.material?.grain, 0.3)
+
+        ThemeTabPreviewState.clear(.softness, from: &appearance)
+        XCTAssertNil(appearance.material?.blurRadiusTarget)
+        XCTAssertEqual(appearance.material?.ambientGlow, 0.6)
+        XCTAssertEqual(appearance.material?.grain, 0.3)
+    }
 }

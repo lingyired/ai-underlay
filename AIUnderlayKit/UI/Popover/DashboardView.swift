@@ -5,8 +5,6 @@ import SwiftUI
 public struct DashboardView: View {
     @ObservedObject private var store: SettingsStore
     @ObservedObject private var coordinator: AppCoordinator
-    @State private var sections: [DashboardSection] = []
-    @State private var lastUpdated: Date?
 
     private let onRefresh: () -> Void
     private let onOpenSettings: () -> Void
@@ -22,10 +20,47 @@ public struct DashboardView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            if store.settings.previewFixture != nil {
+                HStack(alignment: .top, spacing: 8) {
+                    Label("示例预览 · 非真实额度", systemImage: "eye")
+                        .font(.caption)
+                    Spacer(minLength: 0)
+                    Button("退出") { store.update { $0.previewFixture = nil } }
+                        .font(.caption)
+                }
+                .padding(12)
+                .background(Color.orange.opacity(0.1))
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if !store.settings.overlayEnabled {
+                        Label("菜单栏显示已暂停，额度仍会更新", systemImage: "pause.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if sections.isEmpty {
+                        ContentUnavailableView {
+                            Label("尚未启用服务商", systemImage: "square.stack.3d.up")
+                        } description: {
+                            Text("打开设置，在「服务商」中启用 Codex 或 Claude Code。")
+                        } actions: {
+                            Button("打开设置", action: onOpenSettings)
+                        }
+                    }
                     ForEach(sections) { section in
                         ProviderSectionView(section: section)
+                    }
+                    if store.settings.downloadMonitorEnabled {
+                        DownloadSectionView(
+                            snapshot: coordinator.downloadSnapshot,
+                            error: coordinator.downloadError,
+                            isRefreshing: coordinator.isRefreshingDownloads
+                        )
+                    }
+                    if !sections.isEmpty, sections.allSatisfy({ $0.rows.isEmpty }) {
+                        Text(coordinator.engineManager.activeEngine == nil
+                             ? "需要 CodexBar 提供额度数据。请打开设置，在「引擎」中检查连接。"
+                             : "请打开设置，在「服务商」中检查启用状态与登录信息。")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding(14)
@@ -36,9 +71,6 @@ public struct DashboardView: View {
         }
         .frame(width: 320)
         .background(.regularMaterial)
-        .onAppear(perform: reload)
-        .onReceive(store.changes) { _ in reload() }
-        .onReceive(coordinator.$dataRevision) { _ in reload() }
     }
 
     private var header: some View {
@@ -46,11 +78,12 @@ public struct DashboardView: View {
             Image(systemName: "gauge.with.dots.needle.bottom.50percent")
             Text("额度总览").font(.headline)
             Spacer()
-            Button(action: { onRefresh(); reload() }) {
-                Image(systemName: "arrow.clockwise")
-            }
+            Button("刷新额度", systemImage: "arrow.clockwise", action: onRefresh)
+            .labelStyle(.iconOnly)
             .buttonStyle(.plain)
-            .help("立即刷新")
+            .disabled(coordinator.isRefreshingQuota || store.settings.previewFixture != nil
+                      || coordinator.engineManager.activeEngine == nil || sections.isEmpty)
+            .help(store.settings.previewFixture == nil ? "立即刷新真实额度" : "退出示例预览后可刷新真实额度")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -58,11 +91,9 @@ public struct DashboardView: View {
 
     private var footer: some View {
         HStack {
-            if let lastUpdated {
-                Text("更新于 \(Self.relative(lastUpdated))")
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Text(updateLabel(now: context.date))
                     .font(.caption).foregroundStyle(.secondary)
-            } else {
-                Text("尚无数据").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             Button("设置…") { onOpenSettings() }
@@ -73,9 +104,9 @@ public struct DashboardView: View {
         .padding(.vertical, 8)
     }
 
-    private func reload() {
+    private var sections: [DashboardSection] {
         let snapshots = coordinator.dashboardSnapshots()
-        sections = DashboardModel.sections(
+        return DashboardModel.sections(
             providers: coordinator.providers,
             snapshots: snapshots
         ).map { section in
@@ -88,14 +119,19 @@ public struct DashboardView: View {
                 agentWaiting: summary?.waiting
             )
         }
-        lastUpdated = snapshots.values.map(\.fetchedAt).max()
     }
 
-    private static func relative(_ date: Date) -> String {
-        let seconds = Int(Date().timeIntervalSince(date))
-        if seconds < 60 { return "\(seconds) 秒前" }
-        if seconds < 3600 { return "\(seconds / 60) 分钟前" }
-        return "\(seconds / 3600) 小时前"
+    private func updateLabel(now: Date) -> String {
+        if store.settings.previewFixture != nil { return "正在显示示例数据" }
+        if coordinator.isRefreshingQuota { return "正在刷新…" }
+        let snapshots = coordinator.dashboardSnapshots()
+        guard let oldest = coordinator.providers.compactMap({ snapshots[$0]?.fetchedAt }).min() else {
+            return "尚无额度数据"
+        }
+        let seconds = max(0, Int(now.timeIntervalSince(oldest)))
+        if seconds < 60 { return "最近更新：\(seconds) 秒前" }
+        if seconds < 3600 { return "最近更新：\(seconds / 60) 分钟前" }
+        return "最近更新：\(seconds / 3600) 小时前"
     }
 }
 
@@ -137,6 +173,9 @@ struct ProviderSectionView: View {
                     if section.rows.isEmpty {
                         Text(DashboardModel.emptyStateText(for: section.availability))
                             .font(.caption).foregroundStyle(.secondary)
+                    } else if section.availability != .valid {
+                        Text(section.availability == .stale ? "缓存数据" : DashboardModel.emptyStateText(for: section.availability))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     if section.rows.count > 1 {
                         Image(systemName: expanded ? "chevron.down" : "chevron.right")
@@ -146,6 +185,7 @@ struct ProviderSectionView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityHint(section.rows.count > 1 ? "展开或折叠额度窗口" : "")
 
             if expanded {
                 ForEach(section.rows) { row in
@@ -216,6 +256,7 @@ struct MetricRowView: View {
                 }
             }
             .frame(height: 6)
+            .accessibilityHidden(true)
             if let reset = row.resetLabel() {
                 Text(reset).font(.caption2).foregroundStyle(.secondary)
             }
@@ -225,5 +266,61 @@ struct MetricRowView: View {
     private var percentText: String {
         guard let fraction = row.remainingFraction else { return "—" }
         return "\(Int((fraction * 100).rounded()))% 剩余"
+    }
+}
+
+/// The landing-page download monitor section: one row per channel with its
+/// cumulative count, plus rolling windows when the endpoint reports them.
+/// Renders nothing quota-like — these are counts, never percentages.
+struct DownloadSectionView: View {
+    let snapshot: DownloadMonitorSnapshot?
+    let error: String?
+    let isRefreshing: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "arrow.down.circle")
+                Text("下载监控").font(.subheadline).bold()
+                Spacer()
+                if isRefreshing {
+                    ProgressView().controlSize(.small)
+                        .accessibilityLabel("正在刷新下载监控")
+                }
+            }
+
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.orange)
+            } else if let snapshot, snapshot.availability == .valid {
+                ForEach(DownloadChannel.allCases, id: \.rawValue) { channel in
+                    if let stat = snapshot.stat(for: channel) {
+                        channelRow(stat)
+                    }
+                }
+                if snapshot.total == 0 {
+                    Text("尚无下载记录").font(.caption2).foregroundStyle(.secondary)
+                }
+                Text("更新于 \(snapshot.fetchedAt, format: .dateTime.month(.abbreviated).day().hour().minute())")
+                    .font(.caption2).foregroundStyle(.secondary)
+            } else {
+                Text("暂无数据").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func channelRow(_ stat: DownloadChannelStat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(stat.channel.displayName).font(.caption)
+                Spacer()
+                Text(DownloadCountFormat.text(stat.total))
+                    .font(.caption).bold()
+                    .monospacedDigit()
+            }
+            if let windows = DownloadCountFormat.windowText(stat) {
+                Text(windows).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
     }
 }

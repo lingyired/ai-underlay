@@ -1,7 +1,17 @@
 import XCTest
 @testable import AIUnderlayKit
 
+@MainActor
 final class PanelGeometryTests: XCTestCase {
+    func test_statusItem_usesCompactTargetLength() {
+        XCTAssertEqual(StatusItemController.preferredLength(forIconWidth: 15), 36)
+    }
+
+    func test_statusItem_expandsForWiderArtworkWithoutClipping() {
+        XCTAssertEqual(StatusItemController.preferredLength(forIconWidth: 40), 40)
+        XCTAssertEqual(StatusItemController.preferredLength(forIconWidth: -10), 36)
+    }
+
     func test_clampedTopLeft_alignsToButtonLeft() {
         let button = CGRect(x: 500, y: 1100, width: 24, height: 24)
         let visible = CGRect(x: 0, y: 0, width: 1440, height: 900)
